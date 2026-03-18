@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Metayage — Client Portal</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Menu">
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2">
+    <line x1="2" y1="5" x2="16" y2="5"/><line x1="2" y1="9" x2="16" y2="9"/><line x1="2" y1="13" x2="16" y2="13"/>
+  </svg>
+</button>
+
+<div class="app-shell">
+  <!-- ── Sidebar ────────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark" style="background:linear-gradient(135deg,#0ea5e9,#34d399)">M</div>
+      <div>
+        <div class="firm-name">Metayage</div>
+        <div class="firm-sub">Client Portal</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>
+        Overview
+      </button>
+      <button class="nav-item" data-page="cases" onclick="showPage('cases')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v11H2zM5 3V1h6v2"/><line x1="5" y1="7" x2="11" y2="7"/><line x1="5" y1="10" x2="9" y2="10"/></svg>
+        My Cases
+      </button>
+      <button class="nav-item" data-page="documents" onclick="showPage('documents')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 1H3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6L9 1z"/><polyline points="9 1 9 6 14 6"/></svg>
+        Documents
+      </button>
+      <button class="nav-item" data-page="finance" onclick="showPage('finance')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="10" rx="1.5"/><path d="M4 4V3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v1"/><line x1="8" y1="8" x2="8" y2="12"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
+        Invoices
+      </button>
+      <button class="nav-item" data-page="contact" onclick="showPage('contact')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h5l3 2-1-2h5a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z"/></svg>
+        Contact Firm
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-pill">
+        <div class="user-avatar" id="sidebar-avatar" style="background:linear-gradient(135deg,#0ea5e9,#34d399)">-</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-name">Loading…</div>
+          <div class="user-role">Client</div>
+        </div>
+        <button class="sign-out-btn" onclick="handleSignOut()" title="Sign out">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3H2v10h4"/><polyline points="10 5 14 8 10 11"/><line x1="14" y1="8" x2="5" y2="8"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ──────────────────────────────────────────────────────── -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="topbar-title">Overview</div>
+    </div>
+    <div class="content" id="page-content">
+      <div class="loading-wrap"><div class="spinner"></div><span>Loading…</span></div>
+    </div>
+  </main>
+</div>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script src="auth.js"></script>
+<script>
+let SESSION = null;
+let _charts = {};
+
+(async () => {
+  SESSION = await Auth.requireAuth(['Client']);
+  if (!SESSION) {
+    window.location.href = 'client-login.html';
+    return;
+  }
+  const initials = (SESSION.name || 'C').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('sidebar-avatar').textContent = initials;
+  document.getElementById('sidebar-name').textContent = SESSION.name || SESSION.email;
+  showPage('dashboard');
+})();
+
+const PAGE_TITLES = {
+  dashboard: 'Overview', cases: 'My Cases', documents: 'Documents',
+  finance: 'Invoices', contact: 'Contact Firm'
+};
+
+function showPage(page) {
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.page === page);
+  });
+  document.getElementById('topbar-title').textContent = PAGE_TITLES[page] || page;
+  document.querySelector('.sidebar').classList.remove('open');
+
+  const content = document.getElementById('page-content');
+  content.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><span>Loading…</span></div>';
+
+  destroyCharts();
+  const loaders = { dashboard: loadDashboard, cases: loadCases, documents: loadDocuments, finance: loadFinance, contact: loadContact };
+  if (loaders[page]) loaders[page]();
+}
+
+async function handleSignOut() {
+  await Auth.signOut();
+  window.location.href = 'client-login.html';
+}
+
+function destroyCharts() {
+  Object.values(_charts).forEach(c => { try { c.destroy(); } catch {} });
+  _charts = {};
+}
+
+function fmt(v) {
+  if (!v) return '—';
+  try { return new Date(v).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }); }
+  catch { return v; }
+}
+function money(v) {
+  const n = parseFloat(v) || 0;
+  return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+function statusBadge(s) {
+  const map = { 'Filed':'badge-filed','Granted':'badge-granted','Under Examination':'badge-exam','Published':'badge-exam','Drafted':'badge-drafted','Abandoned':'badge-abandoned','Lapsed':'badge-abandoned','Refused':'badge-abandoned','Paid':'badge-paid','Unpaid':'badge-unpaid' };
+  return `<span class="badge ${map[s]||'badge-drafted'}">${s}</span>`;
+}
+function err(msg) { return `<div class="alert alert-error">${msg}</div>`; }
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const d = await API.getDashboard();
+    const COUNTRY_COLORS = { India:'#818cf8', USA:'#38bdf8', EPO:'#fb7185', PCT:'#fbbf24', Japan:'#34d399', Other:'#6b7097' };
+
+    const deadlineRows = (d.upcomingDeadlines||[]).map(u => `
+      <div class="list-entry">
+        <div><div class="list-entry-label">Docket</div><div class="list-entry-val">${u.docket}</div></div>
+        <div style="text-align:right"><div class="list-entry-label">${u.country}</div><div class="list-entry-val" style="color:var(--amber)">${u.dateStr}</div></div>
+      </div>`).join('') || '<div class="text-muted" style="padding:12px;font-size:13px">No upcoming renewals</div>';
+
+    const invoiceRows = (d.pendingInvoicesList||[]).map(inv => `
+      <div class="list-entry">
+        <div><div class="list-entry-label">Invoice</div><div class="list-entry-val">${inv.docket}</div><div class="list-entry-label" style="margin-top:2px">${inv.dateStr}</div></div>
+        <div class="list-entry-amount">${money(inv.amount)}</div>
+      </div>`).join('') || '<div class="text-muted" style="padding:12px;font-size:13px">No pending payments</div>';
+
+    document.getElementById('page-content').innerHTML = `
+    <div class="page">
+      <div class="stats-grid">
+        <div class="stat-card accent-primary"><div class="stat-label">Granted</div><div class="stat-value">${d.totalGranted||0}</div><div class="stat-sub">patents</div></div>
+        <div class="stat-card accent-sky"><div class="stat-label">Pending</div><div class="stat-value">${d.totalPending||0}</div><div class="stat-sub">active</div></div>
+        <div class="stat-card accent-amber"><div class="stat-label">Renewals</div><div class="stat-value">${(d.upcomingDeadlines||[]).length}</div><div class="stat-sub">upcoming</div></div>
+      </div>
+
+      <div class="grid-7-5" style="margin-bottom:20px">
+        <div class="card">
+          <div style="display:flex;justify-content:space-around;margin-bottom:16px">
+            <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px">Granted</span>
+            <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px">Pending</span>
+          </div>
+          <div style="display:flex;justify-content:space-around;align-items:center">
+            <div class="donut-wrap"><canvas id="chart-granted"></canvas><div class="donut-center"><div class="donut-num">${d.totalGranted||0}</div></div></div>
+            <div class="donut-wrap"><canvas id="chart-pending"></canvas><div class="donut-center"><div class="donut-num">${d.totalPending||0}</div></div></div>
+          </div>
+          <div class="chart-legend">
+            ${Object.keys(Object.assign({},d.grantedByCountry,d.pendingByCountry)).filter((v,i,a)=>a.indexOf(v)===i).map(c=>`<div class="legend-item"><div class="legend-dot" style="background:${COUNTRY_COLORS[c]||'#6b7097'}"></div><span>${c}</span></div>`).join('')}
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="card"><div class="card-title">Upcoming Renewals</div>${deadlineRows}</div>
+          <div class="card">
+            <div class="card-title">Pending Payments</div>
+            ${invoiceRows}
+            ${(d.pendingInvoicesList||[]).length ? `<div style="text-align:right;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="showPage('finance')">View all →</button></div>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+    Chart.defaults.color = '#9191b4';
+    Chart.defaults.font.family = "'DM Sans', sans-serif";
+    const makeDonut = (id, obj) => {
+      const labels = Object.keys(obj); const data = labels.map(k=>obj[k]);
+      const bg = labels.map(k=>COUNTRY_COLORS[k]||'#6b7097');
+      if (!data.length||data.every(v=>!v)){labels.push('None');data.push(1);bg.push('#1e1e30');}
+      const ctx = document.getElementById(id);
+      if (!ctx) return;
+      _charts[id] = new Chart(ctx, { type:'doughnut', data:{ labels, datasets:[{data, backgroundColor:bg, borderWidth:0, cutout:'78%'}] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} } });
+    };
+    makeDonut('chart-granted', d.grantedByCountry||{});
+    makeDonut('chart-pending', d.pendingByCountry||{});
+  } catch(e) { document.getElementById('page-content').innerHTML = err(e.message); }
+}
+
+// ── Cases ──────────────────────────────────────────────────────────────────
+async function loadCases() {
+  try {
+    const cases = await API.getCases();
+    if (!cases.length) {
+      document.getElementById('page-content').innerHTML = '<div class="empty-state"><p>No cases found.</p></div>';
+      return;
+    }
+    const rows = cases.map(c => `<tr>
+      <td class="text-em" style="font-family:'Syne',sans-serif;font-size:12px">${c.CASE_ID}</td>
+      <td><div style="font-weight:500;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.PATENT_TITLE}</div>
+          <div style="font-size:11px;color:var(--text-3)">${c.APPLICATION_NUMBER||''}</div></td>
+      <td>${c.COUNTRY||'—'}</td>
+      <td>${fmt(c.FILING_DATE)}</td>
+      <td>${statusBadge(c.CURRENT_STATUS)}</td>
+      <td style="color:${c.NEXT_DEADLINE?'var(--amber)':'var(--text-3)'}">${fmt(c.NEXT_DEADLINE)}</td>
+    </tr>`).join('');
+    document.getElementById('page-content').innerHTML = `
+    <div class="page card">
+      <div class="table-wrap"><table>
+        <thead><tr><th>Case ID</th><th>Patent Title</th><th>Country</th><th>Filed</th><th>Status</th><th>Deadline</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </div>`;
+  } catch(e) { document.getElementById('page-content').innerHTML = err(e.message); }
+}
+
+// ── Documents ──────────────────────────────────────────────────────────────
+async function loadDocuments() {
+  try {
+    const docs = await API.getDocuments();
+    if (docs.error) { document.getElementById('page-content').innerHTML = err(docs.error); return; }
+    const ICONS = { APPLICATIONS:'📝', OFFICE_ACTIONS:'📨', RESPONSES:'📤', CERTIFICATES:'🏆', INVOICES:'🧾', COMMUNICATION:'💬' };
+    const sections = Object.keys(docs).map(cat => {
+      const files = docs[cat];
+      const items = files.length ? files.map(f => `
+        <div class="doc-item">
+          <div class="doc-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="var(--primary)" stroke-width="1.5"><path d="M8 1H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5L8 1z"/><polyline points="8 1 8 5 12 5"/></svg></div>
+          <div><a href="${f.url}" target="_blank" class="doc-name">${f.name}</a>
+          <div class="doc-meta">${f.date?fmt(f.date):''} ${f.size>1048576?(f.size/1048576).toFixed(1)+' MB':Math.round(f.size/1024)+' KB'}</div></div>
+        </div>`).join('') :
+        '<div class="text-muted" style="font-size:13px;padding:8px 0">No documents in this category.</div>';
+      return `<div class="doc-section card" style="margin-bottom:16px">
+        <div class="doc-section-title">${ICONS[cat]||'📁'} ${cat.replace(/_/g,' ')}</div>${items}
+      </div>`;
+    }).join('');
+    document.getElementById('page-content').innerHTML = `<div class="page">${sections}</div>`;
+  } catch(e) { document.getElementById('page-content').innerHTML = err(e.message); }
+}
+
+// ── Finance ──────────────────────────────────────────────────────────────
+async function loadFinance() {
+  try {
+    const invoices = await API.getInvoices();
+    let paid=0,unpaid=0,paidSum=0,unpaidSum=0;
+    invoices.forEach(inv => {
+      const a = parseFloat(inv.TOTAL)||0;
+      if (inv.PAYMENT_STATUS==='Paid'){paid++;paidSum+=a;}else{unpaid++;unpaidSum+=a;}
+    });
+    const rows = invoices.map(inv=>`<tr>
+      <td class="text-em" style="font-family:'Syne',sans-serif;font-size:12px">${inv.INVOICE_ID}</td>
+      <td>${fmt(inv.INVOICE_DATE)}</td>
+      <td>${inv.SERVICE_TYPE}</td>
+      <td>${money(inv.TOTAL)}</td>
+      <td>${statusBadge(inv.PAYMENT_STATUS)}</td>
+      <td>${inv.INVOICE_PDF_LINK?`<a href="${inv.INVOICE_PDF_LINK}" target="_blank" style="font-size:12px">View PDF</a>`:'—'}</td>
+    </tr>`).join('');
+
+    document.getElementById('page-content').innerHTML = `
+    <div class="page">
+      <div class="stats-grid">
+        <div class="stat-card accent-rose"><div class="stat-label">Pending</div><div class="stat-value">${unpaid}</div><div class="stat-sub">${money(unpaidSum)}</div></div>
+        <div class="stat-card accent-emerald"><div class="stat-label">Paid</div><div class="stat-value">${paid}</div><div class="stat-sub">${money(paidSum)}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Invoice History</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Invoice #</th><th>Date</th><th>Service</th><th>Total</th><th>Status</th><th>PDF</th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="6" class="text-muted" style="text-align:center;padding:20px">No invoices yet</td></tr>'}</tbody>
+        </table></div>
+      </div>
+    </div>`;
+  } catch(e) { document.getElementById('page-content').innerHTML = err(e.message); }
+}
+
+// ── Contact ──────────────────────────────────────────────────────────────
+function loadContact() {
+  document.getElementById('page-content').innerHTML = `
+  <div class="page">
+    <div class="card" style="max-width:540px">
+      <h3 style="margin-bottom:20px">Message Your Firm</h3>
+      <div class="form-group"><label class="form-label">Subject</label><input class="form-control" id="ct-subject" placeholder="What is this regarding?" /></div>
+      <div class="form-group"><label class="form-label">Related Case ID (optional)</label><input class="form-control" id="ct-case" placeholder="e.g. 157M001" /></div>
+      <div class="form-group"><label class="form-label">Message</label><textarea class="form-control" id="ct-message" rows="5" placeholder="Type your message…"></textarea></div>
+      <button class="btn btn-primary" onclick="submitContact()">Send Message</button>
+      <div id="ct-status" style="margin-top:12px"></div>
+    </div>
+  </div>`;
+}
+
+async function submitContact() {
+  const subject = document.getElementById('ct-subject').value.trim();
+  const caseId = document.getElementById('ct-case').value.trim();
+  const message = document.getElementById('ct-message').value.trim();
+  const status = document.getElementById('ct-status');
+  if (!subject || !message) { status.innerHTML = '<div class="alert alert-error">Please fill subject and message.</div>'; return; }
+  try {
+    const r = await API.submitContact(subject, caseId, message);
+    status.innerHTML = `<div class="alert alert-success">${r.message}</div>`;
+    document.getElementById('ct-subject').value='';document.getElementById('ct-case').value='';document.getElementById('ct-message').value='';
+  } catch(e) { status.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+}
+</script>
+</body>
+</html>

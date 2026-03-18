@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Metayage - Staff Login</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-bg"></div>
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="logo-mark">M</div>
+        <div>
+          <div class="firm-name">Metayage</div>
+          <div class="firm-sub">IP &amp; Patent Services</div>
+        </div>
+      </div>
+      <div class="login-heading">Staff Portal</div>
+      <div class="login-sub">Sign in with your firm credentials to continue.</div>
+
+      <div id="clerk-sign-in"></div>
+
+      <div id="login-status"></div>
+
+      <div class="login-footer">
+        Client? <a href="client-login.html">Sign in to client portal -&gt;</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="api.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    (async () => {
+      const status = document.getElementById('login-status');
+
+      try {
+        await Auth.initClerk();
+        const session = await Auth.requireAuth(['Admin', 'Attorney', 'Client']);
+
+        if (session) {
+          status.textContent = 'Verifying account...';
+          status.className = 'alert alert-info';
+
+          if (session.role === 'Client') {
+            await Auth.signOut();
+            window.location.href = 'client-login.html';
+          } else {
+            window.location.href = 'dashboard.html';
+          }
+          return;
+        }
+
+        await Auth.mountSignIn('clerk-sign-in');
+      } catch (e) {
+        API.reportError('index-init', e);
+        status.textContent = 'Connection error: ' + e.message;
+        status.className = 'alert alert-error';
+      }
+    })();
+  </script>
+</body>
+</html>
