@@ -10,6 +10,13 @@ const CLERK_PUBLISHABLE_KEY = (window.APP_CONFIG && window.APP_CONFIG.clerkPubli
 let _clerkInstance = null;
 let _gasSession = null;
 
+function getCurrentPageUrl() {
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
 async function loadClerk() {
   return new Promise((resolve, reject) => {
     if (window.Clerk) {
@@ -31,7 +38,11 @@ async function loadClerk() {
 
 async function initClerk() {
   const Clerk = await loadClerk();
-  await Clerk.load({ afterSignInUrl: window.location.href });
+  const currentUrl = getCurrentPageUrl();
+  await Clerk.load({
+    afterSignInUrl: currentUrl,
+    afterSignUpUrl: currentUrl,
+  });
   _clerkInstance = Clerk;
   return Clerk;
 }
@@ -105,8 +116,12 @@ async function requireAuth(allowedRoles) {
 async function mountSignIn(containerId, options = {}) {
   const Clerk = await initClerk();
   if (Clerk.user) return true;
+  const currentUrl = getCurrentPageUrl();
 
   Clerk.mountSignIn(document.getElementById(containerId), {
+    fallbackRedirectUrl: currentUrl,
+    signInFallbackRedirectUrl: currentUrl,
+    signUpFallbackRedirectUrl: currentUrl,
     appearance: {
       variables: {
         colorPrimary: '#6366f1',
