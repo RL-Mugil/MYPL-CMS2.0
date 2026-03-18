@@ -55,23 +55,31 @@
   <script src="api.js"></script>
   <script src="auth.js"></script>
   <script>
+    const INTERNAL_ROLES = ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'];
+    const CLIENT_SIDE_ROLES = ['Client', 'Client Admin', 'Client Employee', 'Individual Client'];
+
     (async () => {
       const status = document.getElementById('login-status');
 
       try {
         await Auth.initClerk();
-        const session = await Auth.requireAuth(['Client', 'Admin', 'Attorney']);
+        const session = await Auth.requireAuth([...CLIENT_SIDE_ROLES, ...INTERNAL_ROLES]);
 
         if (session) {
           status.textContent = 'Verifying account...';
           status.className = 'alert alert-info';
 
-          if (session.role === 'Client') {
+          if (CLIENT_SIDE_ROLES.includes(session.role)) {
             window.location.href = 'client-portal.html';
           } else {
             window.location.href = 'dashboard.html';
           }
           return;
+        }
+
+        if (Auth.getClerkEmail()) {
+          status.textContent = 'Your Clerk login succeeded, but this email is not mapped in USER_ROLES yet.';
+          status.className = 'alert alert-error';
         }
 
         await Auth.mountSignIn('clerk-sign-in');
