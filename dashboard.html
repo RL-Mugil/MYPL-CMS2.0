@@ -437,9 +437,15 @@ function renderDashboard(d) {
 
   document.getElementById('page-content').innerHTML = `
   <div class="page">
-    <div class="card" style="margin-bottom:20px">
-      <div class="card-title">Dashboard Filters</div>
-      <div class="form-row">
+    <div class="card filter-panel" style="margin-bottom:20px">
+      <div class="filter-head">
+        <div class="card-title">Dashboard Filters</div>
+        <div class="filter-actions">
+          <button class="btn btn-primary btn-sm" onclick="applyDashboardFilters()">Apply</button>
+          <button class="btn btn-ghost btn-sm" onclick="resetDashboardFilters()">Reset</button>
+        </div>
+      </div>
+      <div class="filter-grid compact-2">
         <div class="form-group">
           <label class="form-label">Client Code</label>
           <input class="form-control" id="dash-client-code" list="dash-client-options" value="${DASHBOARD_FILTERS.clientCode || ''}" placeholder="A61M or 870Y" />
@@ -449,10 +455,6 @@ function renderDashboard(d) {
           <label class="form-label">Case ID</label>
           <input class="form-control" id="dash-case-id" value="${DASHBOARD_FILTERS.caseId || ''}" placeholder="A61M002" />
         </div>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary btn-sm" onclick="applyDashboardFilters()">Apply</button>
-        <button class="btn btn-ghost btn-sm" onclick="resetDashboardFilters()">Reset</button>
       </div>
     </div>
     <!-- Stat strip -->
@@ -663,9 +665,15 @@ function renderCaseFilters() {
   const countries = ['','India','USA','EPO','PCT','China','Japan','Other'];
   const stages = ['','Drafting','Ready for Attorney','Under Attorney Review','Filed'];
   return `
-  <div class="card" style="margin-bottom:16px">
-    <div class="card-title">Case Filters</div>
-    <div class="form-row">
+  <div class="card filter-panel">
+    <div class="filter-head">
+      <div class="card-title">Case Filters</div>
+      <div class="filter-actions">
+        <button class="btn btn-primary btn-sm" onclick="applyCaseFilters()">Apply</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetCaseFilters()">Reset</button>
+      </div>
+    </div>
+    <div class="filter-grid">
       <div class="form-group">
         <label class="form-label">Client Code</label>
         <input class="form-control" id="case-filter-client" list="case-filter-clients" value="${CASE_FILTERS.clientCode || ''}" placeholder="A61M" />
@@ -673,15 +681,9 @@ function renderCaseFilters() {
       </div>
       <div class="form-group"><label class="form-label">Case ID</label><input class="form-control" id="case-filter-caseid" value="${CASE_FILTERS.caseId || ''}" placeholder="A61M002" /></div>
       <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="case-filter-query" value="${CASE_FILTERS.query || ''}" placeholder="Title, app no, attorney" /></div>
-    </div>
-    <div class="form-row">
       <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="case-filter-status">${statuses.map(v=>`<option value="${v}"${CASE_FILTERS.status===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
       <div class="form-group"><label class="form-label">Country</label><select class="form-control" id="case-filter-country">${countries.map(v=>`<option value="${v}"${CASE_FILTERS.country===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
       <div class="form-group"><label class="form-label">Workflow Stage</label><select class="form-control" id="case-filter-stage">${stages.map(v=>`<option value="${v}"${CASE_FILTERS.workflowStage===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
-    </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-primary btn-sm" onclick="applyCaseFilters()">Apply</button>
-      <button class="btn btn-ghost btn-sm" onclick="resetCaseFilters()">Reset</button>
     </div>
   </div>`;
 }
