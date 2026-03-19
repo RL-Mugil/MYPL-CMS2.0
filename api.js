@@ -312,6 +312,7 @@ async function submitExpenseClaim(claimData) {
   clearClientCache(['getExpenseClaims', 'getDailyOpsOverview', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getNotifications']);
   return result;
 }
+async function uploadExpenseBill(fileData) { return callGAS('uploadExpenseBill', { fileData }); }
 async function getExpenseClaims(filters = {}) { return callGASCached('getExpenseClaims', { filters }, 60000); }
 async function reviewExpenseClaim(claimId, reviewData) {
   const result = await callGAS('reviewExpenseClaim', { claimId, reviewData });
@@ -321,6 +322,16 @@ async function reviewExpenseClaim(claimId, reviewData) {
 async function getNotifications() { return callGASCached('getNotifications', {}, 30000); }
 async function markNotificationRead(notificationId) {
   const result = await callGAS('markNotificationRead', { notificationId });
+  clearClientCache(['getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  return result;
+}
+async function deleteNotification(notificationId) {
+  const result = await callGAS('deleteNotification', { notificationId });
+  clearClientCache(['getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  return result;
+}
+async function clearNotifications() {
+  const result = await callGAS('clearNotifications', {});
   clearClientCache(['getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
   return result;
 }
@@ -383,6 +394,11 @@ async function getDocumentRequests(filters = {}) { return callGASCached('getDocu
 async function saveDocumentRequest(requestData) {
   const result = await callGAS('saveDocumentRequest', { requestData });
   clearClientCache(['getDocumentRequests', 'getActivityTimeline', 'getNotifications']);
+  return result;
+}
+async function uploadPortalDocument(documentData) {
+  const result = await callGAS('uploadPortalDocument', { documentData });
+  clearClientCache(['getDocuments', 'getDocumentRequests', 'getActivityTimeline', 'getNotifications']);
   return result;
 }
 async function reviewDocumentRequest(requestId, reviewData) {
@@ -529,10 +545,13 @@ window.API = {
   getDailyOpsOverview,
   getDailyAudit,
   submitExpenseClaim,
+  uploadExpenseBill,
   getExpenseClaims,
   reviewExpenseClaim,
   getNotifications,
   markNotificationRead,
+  deleteNotification,
+  clearNotifications,
   getDirectInbox,
   getMessageThreads,
   getGalvanizerQueue,
@@ -554,6 +573,7 @@ window.API = {
   reviewApprovalRequest,
   getDocumentRequests,
   saveDocumentRequest,
+  uploadPortalDocument,
   reviewDocumentRequest,
   getGalvanizerCommandCenter,
   submitContact,

@@ -237,7 +237,7 @@
 // ── Globals ──────────────────────────────────────────────────────────────────
 let SESSION = null;
 let _charts = {};
-let DASHBOARD_FILTERS = { clientCode: '', caseId: '' };
+let DASHBOARD_FILTERS = { clientCode: '', caseId: '', fromDate: '', toDate: '' };
 let CASE_FILTERS = { clientCode: '', caseId: '', status: '', country: '', workflowStage: '', query: '' };
 let USER_FILTERS = { query: '', role: '' };
 let CASES_PAGE_LIMIT = 50;
@@ -595,6 +595,40 @@ function buildNameOptions(list) {
   return (list || []).map(user => `<option value="${user.FULL_NAME || ''}">${user.FULL_NAME || ''}</option>`).join('');
 }
 
+function filterClientsForOrgAttach(orgId) {
+  return (CLIENT_LOOKUP_CACHE || []).filter(client => String(client.STATUS || 'Active') !== 'Deleted' && String(client.ORG_ID || '') !== String(orgId || ''));
+}
+
+function renderSearchableClientAttachList(orgId, query = '') {
+  const normalized = String(query || '').trim().toLowerCase();
+  const list = filterClientsForOrgAttach(orgId).filter(client => {
+    if (!normalized) return true;
+    return [client.CLIENT_ID, client.CLIENT_CODE, client.CLIENT_NAME, client.EMAIL, client.CONTACT_PERSON]
+      .join(' ')
+      .toLowerCase()
+      .includes(normalized);
+  });
+  const target = document.getElementById('org-client-pick-results');
+  if (!target) return;
+  target.innerHTML = list.length ? list.map(client => `
+    <button class="chat-list-item" style="margin-bottom:8px" onclick="attachClientToOrganization('${orgId}','${client.CLIENT_ID}')">
+      <div class="chat-avatar">${String(client.CLIENT_NAME || client.CLIENT_CODE || 'C').slice(0,1).toUpperCase()}</div>
+      <div class="chat-meta">
+        <div class="chat-head"><div class="chat-name">${client.CLIENT_NAME || client.CLIENT_ID}</div><div class="chat-time">${client.CLIENT_TYPE || 'Client'}</div></div>
+        <div class="chat-preview">${[client.CLIENT_CODE || client.CLIENT_ID, client.EMAIL || '', client.CONTACT_PERSON || ''].filter(Boolean).join(' | ')}</div>
+      </div>
+    </button>`).join('') : '<div class="text-muted" style="padding:12px 0">No matching clients found.</div>';
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Failed to read file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 function buildCaseIdOptions(list) {
   return (list || []).map(c => `<option value="${c}">${c}</option>`).join('');
 }
@@ -720,6 +754,14 @@ function renderDashboardSummary(d) {
           <input class="form-control" id="dash-case-id" list="dash-case-options" value="${DASHBOARD_FILTERS.caseId || ''}" placeholder="A61M002" />
           <datalist id="dash-case-options">${buildCaseIdOptions(caseIds)}</datalist>
         </div>
+        <div class="form-group">
+          <label class="form-label">From Date</label>
+          <input type="date" class="form-control" id="dash-from-date" value="${DASHBOARD_FILTERS.fromDate || ''}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">To Date</label>
+          <input type="date" class="form-control" id="dash-to-date" value="${DASHBOARD_FILTERS.toDate || ''}" />
+        </div>
       </div>
     </div>
     <div class="stats-grid">
@@ -808,6 +850,14 @@ function renderDashboard(d) {
           <label class="form-label">Case ID</label>
           <input class="form-control" id="dash-case-id" list="dash-case-options" value="${DASHBOARD_FILTERS.caseId || ''}" placeholder="A61M002" />
           <datalist id="dash-case-options">${buildCaseIdOptions(caseIds)}</datalist>
+        </div>
+        <div class="form-group">
+          <label class="form-label">From Date</label>
+          <input type="date" class="form-control" id="dash-from-date" value="${DASHBOARD_FILTERS.fromDate || ''}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">To Date</label>
+          <input type="date" class="form-control" id="dash-to-date" value="${DASHBOARD_FILTERS.toDate || ''}" />
         </div>
       </div>
     </div>
@@ -949,13 +999,15 @@ function applyDashboardFilters() {
   DASHBOARD_FILTERS = {
     clientCode: document.getElementById('dash-client-code')?.value.trim().toUpperCase() || '',
     caseId: document.getElementById('dash-case-id')?.value.trim().toUpperCase() || '',
+    fromDate: document.getElementById('dash-from-date')?.value || '',
+    toDate: document.getElementById('dash-to-date')?.value || '',
   };
   DASHBOARD_FILTER_OPEN = false;
   loadDashboard();
 }
 
 function resetDashboardFilters() {
-  DASHBOARD_FILTERS = { clientCode: '', caseId: '' };
+  DASHBOARD_FILTERS = { clientCode: '', caseId: '', fromDate: '', toDate: '' };
   DASHBOARD_FILTER_OPEN = false;
   loadDashboard();
 }
@@ -1106,10 +1158,35 @@ function resetCaseFilters() {
 async function loadDocuments() {
   destroyCharts();
   try {
+    await ensureClientLookupLoaded();
     const docs = await API.getDocuments();
     renderDocuments(docs);
   } catch(e) {
     showPageError('loadDocuments', e);
+  }
+}
+
+async function submitDocumentUpload() {
+  const clientCode = document.getElementById('docs-upload-client')?.value.trim().toUpperCase() || '';
+  const category = document.getElementById('docs-upload-category')?.value || 'COMMUNICATION';
+  const file = document.getElementById('docs-upload-file')?.files?.[0];
+  if (!clientCode || !file) {
+    alert('Select client code and document file.');
+    return;
+  }
+  const dataUrl = await fileToDataUrl(file);
+  try {
+    await API.uploadPortalDocument({
+      clientCode,
+      subfolderName: category,
+      fileName: file.name,
+      mimeType: file.type,
+      dataUrl
+    });
+    document.getElementById('docs-upload-file').value = '';
+    loadDocuments();
+  } catch (e) {
+    alert('Document upload failed: ' + e.message);
   }
 }
 
@@ -1441,9 +1518,10 @@ async function submitDocumentRequestModal() {
 
 function renderDocuments(docs) {
   if (docs.error) { document.getElementById('page-content').innerHTML = err(docs.error); return; }
+  const selectedClient = (document.getElementById('docs-client-filter')?.value || '').trim().toUpperCase();
   const ICONS = { APPLICATIONS:'📝', OFFICE_ACTIONS:'📨', RESPONSES:'📤', CERTIFICATES:'🏆', INVOICES:'🧾', COMMUNICATION:'💬' };
   const sections = Object.keys(docs).map(cat => {
-    const files = docs[cat];
+    const files = (docs[cat] || []).filter(f => !selectedClient || String(f.clientId || '').toUpperCase() === selectedClient || String(f.name || '').toUpperCase().includes(selectedClient));
     const items = files.length ? files.map(f => `
       <div class="doc-item">
         <div class="doc-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="var(--primary)" stroke-width="1.5"><path d="M8 1H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5L8 1z"/><polyline points="8 1 8 5 12 5"/></svg></div>
@@ -1458,8 +1536,38 @@ function renderDocuments(docs) {
       ${items}
     </div>`;
   }).join('');
-
-  document.getElementById('page-content').innerHTML = `<div class="page">${sections}</div>`;
+  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="submitDocumentUpload()">Upload Document</button>`;
+  document.getElementById('page-content').innerHTML = `<div class="page">
+    <div class="card" style="margin-bottom:16px">
+      <div class="filter-grid compact-2">
+        <div class="form-group">
+          <label class="form-label">Client Code</label>
+          <input class="form-control" id="docs-client-filter" list="docs-client-options" value="${selectedClient}" placeholder="Search client code" onchange="loadDocuments()" />
+          <datalist id="docs-client-options">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select class="form-control" id="docs-upload-category">
+            <option>APPLICATIONS</option>
+            <option>OFFICE_ACTIONS</option>
+            <option>RESPONSES</option>
+            <option>CERTIFICATES</option>
+            <option>INVOICES</option>
+            <option>COMMUNICATION</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Upload For Client</label>
+          <input class="form-control" id="docs-upload-client" list="docs-upload-client-options" placeholder="Search client code" />
+          <datalist id="docs-upload-client-options">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Document File</label>
+          <input type="file" class="form-control" id="docs-upload-file" />
+        </div>
+      </div>
+    </div>
+    ${sections}</div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1746,11 +1854,11 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
   const mc = document.getElementById('mgmt-content');
   try {
     await ensureOrgLookupLoaded(true);
-    await ensureUserLookupLoaded();
+    await ensureClientLookupLoaded();
     const orgs = await API.getOrganizations();
     ACTIVE_ORG_VIEW_ID = selectedOrgId || ACTIVE_ORG_VIEW_ID || '';
     const activeOrg = (orgs || []).find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || null;
-    const orgUsers = activeOrg ? await API.getOrganizationUsers(activeOrg.ORG_ID) : [];
+    const orgClients = activeOrg ? (CLIENT_LOOKUP_CACHE || []).filter(client => String(client.ORG_ID || '') === String(activeOrg.ORG_ID)) : [];
     const rows = orgs.map(o => `<tr>
       <td class="font-mono">${o.ORG_ID}</td>
       <td>${o.ORG_NAME}</td>
@@ -1758,16 +1866,16 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
       <td>${statusBadge(o.STATUS || 'Active')}</td>
       <td><div class="action-row">
         <button class="btn btn-ghost btn-sm" onclick='openOrganizationModal(${JSON.stringify(JSON.stringify(o))})'>Edit</button>
-        <button class="btn btn-ghost btn-sm" onclick="loadMgmtOrganizationsV2('${o.ORG_ID}')">Users</button>
-        <button class="btn btn-primary btn-sm" onclick="openOrganizationUserModal('${o.ORG_ID}','${escapeAttr(o.ORG_NAME || '')}')">+ User</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadMgmtOrganizationsV2('${o.ORG_ID}')">Clients</button>
+        <button class="btn btn-primary btn-sm" onclick="openOrganizationClientModal('${o.ORG_ID}','${escapeAttr(o.ORG_NAME || '')}')">+ Add Client</button>
       </div></td>
     </tr>`).join('');
-    const userRows = (orgUsers || []).map(user => `<tr>
-      <td>${user.USER_ID}</td>
-      <td>${user.FULL_NAME}</td>
-      <td>${user.EMAIL}</td>
-      <td>${statusBadge(user.ROLE || 'Client Employee')}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick='openUserModal(${JSON.stringify(JSON.stringify(user))})'>Edit</button></td>
+    const userRows = (orgClients || []).map(client => `<tr>
+      <td>${client.CLIENT_ID}</td>
+      <td>${client.CLIENT_NAME}</td>
+      <td>${client.EMAIL || '—'}</td>
+      <td>${statusBadge(client.CLIENT_TYPE || 'Client')}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(client))})'>Open</button></td>
     </tr>`).join('');
     mc.innerHTML = `
       <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
@@ -1780,16 +1888,16 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
         </table></div></div>
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-            <div class="card-title" style="margin-bottom:0">${activeOrg ? `${activeOrg.ORG_NAME} Users` : 'Organization Users'}</div>
-            ${activeOrg ? `<button class="btn btn-primary btn-sm" onclick="openOrganizationUserModal('${activeOrg.ORG_ID}','${escapeAttr(activeOrg.ORG_NAME || '')}')">+ Add User</button>` : ''}
+            <div class="card-title" style="margin-bottom:0">${activeOrg ? `${activeOrg.ORG_NAME} Clients` : 'Organization Clients'}</div>
+            ${activeOrg ? `<button class="btn btn-primary btn-sm" onclick="openOrganizationClientModal('${activeOrg.ORG_ID}','${escapeAttr(activeOrg.ORG_NAME || '')}')">+ Add Client</button>` : ''}
           </div>
           ${activeOrg ? `
             <div class="text-muted" style="margin:10px 0 14px">${activeOrg.ORG_ID} | ${activeOrg.PRIMARY_EMAIL || 'No email'} | Staff: ${activeOrg.ASSIGNED_STAFF_EMAIL || 'Unassigned'}</div>
             <div class="table-wrap"><table>
-              <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
-              <tbody>${userRows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No organization users yet.</td></tr>'}</tbody>
+              <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Type</th><th></th></tr></thead>
+              <tbody>${userRows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No organization clients yet.</td></tr>'}</tbody>
             </table></div>
-          ` : '<div class="text-muted">Select an organization to view or add company users.</div>'}
+          ` : '<div class="text-muted">Select an organization to view or attach clients.</div>'}
         </div>
       </div>`;
   } catch (e) {
@@ -1843,9 +1951,42 @@ async function saveOrganizationModal(existingOrgId) {
   loadMgmtOrganizationsV2(existingOrgId || ACTIVE_ORG_VIEW_ID);
 }
 
-async function openOrganizationUserModal(orgId, orgName) {
-  await ensureOrgLookupLoaded();
-  openUserModal('', { prefilledOrgId: orgId, prefilledOrgName: orgName });
+async function openOrganizationClientModal(orgId, orgName) {
+  await ensureClientLookupLoaded();
+  openGenericModal(`Attach Client to ${orgName}`, `
+    <div class="form-group">
+      <label class="form-label">Search Existing Client</label>
+      <input class="form-control" id="org-client-search" placeholder="Type client code, name, email, contact" oninput="renderSearchableClientAttachList('${orgId}', this.value)" />
+    </div>
+    <div id="org-client-pick-results" style="max-height:360px;overflow:auto"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Close</button>
+    </div>`);
+  renderSearchableClientAttachList(orgId, '');
+}
+
+async function attachClientToOrganization(orgId, clientId) {
+  const client = (CLIENT_LOOKUP_CACHE || []).find(item => item.CLIENT_ID === clientId);
+  if (!client) return;
+  await API.saveClient({
+    CLIENT_ID: client.CLIENT_ID,
+    CLIENT_NAME: client.CLIENT_NAME,
+    CONTACT_PERSON: client.CONTACT_PERSON || '',
+    EMAIL: client.EMAIL || '',
+    PHONE: client.PHONE || '',
+    CLIENT_TYPE: 'Organization',
+    CLIENT_REGION: client.CLIENT_REGION || 'India',
+    CLIENT_CODE: client.CLIENT_CODE || '',
+    ORG_ID: orgId,
+    CLIENT_ADMIN_USER_ID: client.CLIENT_ADMIN_USER_ID || '',
+    ASSIGNED_STAFF_EMAIL: client.ASSIGNED_STAFF_EMAIL || '',
+    ADDRESS: client.ADDRESS || '',
+    NOTES: client.NOTES || ''
+  });
+  closeModal('modal-generic');
+  CLIENT_LOOKUP_CACHE = [];
+  await ensureClientLookupLoaded();
+  loadMgmtOrganizationsV2(orgId);
 }
 
 function truncateText(value, max = 64) {
@@ -2043,7 +2184,7 @@ async function loadCircles(circleJson) {
   if (circleJson) selectedCircle = JSON.parse(circleJson);
   try {
     await ensureUserLookupLoaded();
-    const circles = await API.getCircles();
+    const circles = (await API.getCircles() || []).filter(circle => String(circle.STATUS || 'Active') === 'Active');
     CIRCLE_LOOKUP_CACHE = circles || [];
     const activeCircle = selectedCircle || circles[0] || null;
     let members = [];
@@ -2247,6 +2388,7 @@ async function loadNotifications() {
   destroyCharts();
   try {
     const items = await API.getNotifications();
+    document.getElementById('topbar-right').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="clearAllNotifications()">Clear All</button>`;
     const rows = items.map(n => `
       <div class="card" style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;gap:12px">
@@ -2255,7 +2397,10 @@ async function loadNotifications() {
             <div class="text-muted" style="font-size:13px;margin-top:4px">${n.BODY}</div>
             <div class="text-muted" style="font-size:11px;margin-top:6px">${fmt(n.CREATED_AT)}</div>
           </div>
-          ${n.IS_READ === 'Yes' ? '' : `<button class="btn btn-ghost btn-sm" onclick="markNoticeRead('${n.NOTIFICATION_ID}')">Mark read</button>`}
+          <div class="action-row">
+            ${n.IS_READ === 'Yes' ? '' : `<button class="btn btn-ghost btn-sm" onclick="markNoticeRead('${n.NOTIFICATION_ID}')">Mark read</button>`}
+            <button class="btn btn-danger btn-sm" onclick="deleteNotice('${n.NOTIFICATION_ID}')">Clear</button>
+          </div>
         </div>
       </div>`).join('');
     document.getElementById('page-content').innerHTML = `<div class="page">${rows || '<div class="empty-state"><p>No notifications.</p></div>'}</div>`;
@@ -2266,6 +2411,17 @@ async function loadNotifications() {
 
 async function markNoticeRead(notificationId) {
   await API.markNotificationRead(notificationId);
+  loadNotifications();
+}
+
+async function deleteNotice(notificationId) {
+  await API.deleteNotification(notificationId);
+  loadNotifications();
+}
+
+async function clearAllNotifications() {
+  if (!confirm('Clear all notifications?')) return;
+  await API.clearNotifications();
   loadNotifications();
 }
 
@@ -2404,6 +2560,7 @@ async function loadExpenses() {
           <div class="form-group"><label class="form-label">Claim Date</label><input type="date" class="form-control" id="ex-date" /></div>
           <div class="form-group"><label class="form-label">Category</label><input class="form-control" id="ex-cat" placeholder="Travel, filing fee, courier, office expense" /></div>
           <div class="form-group"><label class="form-label">Amount</label><input type="number" class="form-control" id="ex-amt" /></div>
+          <div class="form-group"><label class="form-label">Bill Image (.jpg, .png)</label><input type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" class="form-control" id="ex-bill-file" /></div>
           <div class="form-group"><label class="form-label">Bill link</label><input class="form-control" id="ex-bill" placeholder="Drive link" /></div>
           <div class="form-group"><label class="form-label">Description</label><textarea class="form-control" id="ex-desc"></textarea></div>
           <button class="btn btn-primary" onclick="saveExpenseClaim()">Submit Claim</button>
@@ -2411,7 +2568,7 @@ async function loadExpenses() {
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px">
             <div class="card-title" style="margin-bottom:0">Claim History</div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;justify-content:flex-end;overflow:auto">
               <select class="form-control" id="expense-period" style="max-width:140px" onchange="loadExpenses()">
                 <option value="month" ${period === 'month' ? 'selected' : ''}>This Month</option>
                 <option value="all" ${period === 'all' ? 'selected' : ''}>All Time</option>
@@ -2483,11 +2640,22 @@ async function loadGalvanizerQueue() {
 }
 
 async function saveExpenseClaim() {
+  let billLink = document.getElementById('ex-bill').value.trim();
+  const file = document.getElementById('ex-bill-file')?.files?.[0];
+  if (file) {
+    const dataUrl = await fileToDataUrl(file);
+    const upload = await API.uploadExpenseBill({
+      fileName: file.name,
+      mimeType: file.type,
+      dataUrl
+    });
+    billLink = upload.fileUrl || billLink;
+  }
   await API.submitExpenseClaim({
     claimDate: document.getElementById('ex-date').value,
     category: document.getElementById('ex-cat').value.trim(),
     amount: document.getElementById('ex-amt').value,
-    billLink: document.getElementById('ex-bill').value.trim(),
+    billLink,
     description: document.getElementById('ex-desc').value.trim(),
   });
   loadExpenses();
