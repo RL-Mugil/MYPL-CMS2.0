@@ -8,6 +8,7 @@
 const API_BASE = (window.APP_CONFIG && window.APP_CONFIG.apiBase) || '';
 const API_CACHE_PREFIX = 'mg_api_cache_v1';
 const API_MEMORY_CACHE = new Map();
+const SAFE_LOOKUP_TTL_MS = 5 * 24 * 60 * 60 * 1000;
 
 function escapeHtml(value) {
   return String(value)
@@ -88,6 +89,31 @@ function writeClientCache(key, value, ttlMs) {
   return value;
 }
 
+function readPersistentLookupCache(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.expiresAt <= Date.now()) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return parsed.value;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistentLookupCache(key, value, ttlMs = SAFE_LOOKUP_TTL_MS) {
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      value,
+      expiresAt: Date.now() + ttlMs,
+    }));
+  } catch {}
+  return value;
+}
+
 function clearClientCache(matchers = []) {
   const shouldClear = (key) => !matchers.length || matchers.some((matcher) => key.includes(`:${matcher}:`));
 
@@ -101,6 +127,14 @@ function clearClientCache(matchers = []) {
     Object.keys(sessionStorage).forEach((key) => {
       if (key.startsWith(API_CACHE_PREFIX) && shouldClear(key)) {
         sessionStorage.removeItem(key);
+      }
+    });
+  } catch {}
+
+  try {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith(API_CACHE_PREFIX) && shouldClear(key)) {
+        localStorage.removeItem(key);
       }
     });
   } catch {}
@@ -179,6 +213,22 @@ async function callGASCached(action, params = {}, ttlMs = 60000) {
   return writeClientCache(key, fresh, ttlMs);
 }
 
+async function callGASLookupCached(action, params = {}, ttlMs = SAFE_LOOKUP_TTL_MS) {
+  const key = buildClientCacheKey(action, params);
+  const sessionCached = readClientCache(key);
+  if (sessionCached) return sessionCached;
+
+  const persistentCached = readPersistentLookupCache(key);
+  if (persistentCached) {
+    writeClientCache(key, persistentCached, Math.min(ttlMs, 60 * 60 * 1000));
+    return persistentCached;
+  }
+
+  const fresh = await callGAS(action, params);
+  writeClientCache(key, fresh, Math.min(ttlMs, 60 * 60 * 1000));
+  return writePersistentLookupCache(key, fresh, ttlMs);
+}
+
 async function clerkLogin(email) {
   return callGASPublic('clerklogin', { email });
 }
@@ -187,15 +237,15 @@ async function getDashboard(filters = {}) { return callGASCached('getDashboard',
 async function getCases(filters = {}) { return callGASCached('getCases', { filters }, 30000); }
 async function getInvoices() { return callGAS('getInvoices', {}); }
 async function getDocuments() { return callGAS('getDocuments', {}); }
-async function getOrganizations() { return callGASCached('getOrganizations', {}, 300000); }
+async function getOrganizations() { return callGASLookupCached('getOrganizations', {}, SAFE_LOOKUP_TTL_MS); }
 async function saveOrganization(orgData) {
   const result = await callGAS('saveOrganization', { orgData });
   clearClientCache(['getOrganizations', 'getClients', 'getUsers', 'getDashboard', 'getCases']);
   return result;
 }
-async function getOrganizationUsers(orgId) { return callGASCached('getOrganizationUsers', { orgId }, 300000); }
-async function getCircles() { return callGASCached('getCircles', {}, 300000); }
-async function getCircleMembers(circleId) { return callGASCached('getCircleMembers', { circleId }, 300000); }
+async function getOrganizationUsers(orgId) { return callGASLookupCached('getOrganizationUsers', { orgId }, SAFE_LOOKUP_TTL_MS); }
+async function getCircles() { return callGASLookupCached('getCircles', {}, SAFE_LOOKUP_TTL_MS); }
+async function getCircleMembers(circleId) { return callGASLookupCached('getCircleMembers', { circleId }, SAFE_LOOKUP_TTL_MS); }
 async function saveCircle(circleData) {
   const result = await callGAS('saveCircle', { circleData });
   clearClientCache(['getCircles', 'getCircleMembers', 'getUsers']);
@@ -272,7 +322,12 @@ async function markInvoicePaid(invoiceId) {
   return callGAS('markInvoicePaid', { invoiceId });
 }
 
-async function getUsers(filters = {}) { return callGASCached('getUsers', { filters }, 300000); }
+async function getUsers(filters = {}) {
+  const hasFilters = filters && Object.keys(filters).some((key) => String(filters[key] || '').trim() !== '');
+  return hasFilters
+    ? callGASCached('getUsers', { filters }, 300000)
+    : callGASLookupCached('getUsers', { filters }, SAFE_LOOKUP_TTL_MS);
+}
 async function saveUser(userData) {
   const result = await callGAS('saveUser', { userData });
   clearClientCache(['getUsers', 'getOrganizations', 'getCircles', 'getCircleMembers', 'getDashboard', 'getCases']);
@@ -284,7 +339,7 @@ async function deleteUser(userId) {
   return result;
 }
 
-async function getClients() { return callGASCached('getClients', {}, 300000); }
+async function getClients() { return callGASLookupCached('getClients', {}, SAFE_LOOKUP_TTL_MS); }
 async function saveClient(clientData) {
   const result = await callGAS('saveClient', { clientData });
   clearClientCache(['getClients', 'getDashboard', 'getCases', 'getOrganizations']);
