@@ -216,8 +216,16 @@ async function removeCircleMember(membershipId) {
   clearClientCache(['getCircles', 'getCircleMembers', 'getUsers']);
   return result;
 }
-async function saveDailyPriority(priorityData) { return callGAS('saveDailyPriority', { priorityData }); }
-async function saveDailyWrapup(wrapupData) { return callGAS('saveDailyWrapup', { wrapupData }); }
+async function saveDailyPriority(priorityData) {
+  const result = await callGAS('saveDailyPriority', { priorityData });
+  clearClientCache(['getDailyOpsOverview', 'getDailyAudit', 'getDashboard', 'getNotifications']);
+  return result;
+}
+async function saveDailyWrapup(wrapupData) {
+  const result = await callGAS('saveDailyWrapup', { wrapupData });
+  clearClientCache(['getDailyOpsOverview', 'getDailyAudit', 'getDashboard', 'getNotifications']);
+  return result;
+}
 async function getDailyOpsOverview() { return callGASCached('getDailyOpsOverview', {}, 60000); }
 async function getDailyAudit(filters = {}) { return callGASCached('getDailyAudit', { filters }, 60000); }
 async function submitExpenseClaim(claimData) {
