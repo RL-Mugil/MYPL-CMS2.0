@@ -434,14 +434,15 @@ async function deleteUser(userId) {
 }
 
 async function getClients() { return callGASLookupCached('getClients', {}, SAFE_LOOKUP_TTL_MS); }
+async function getAccessibleClients() { return callGASLookupCached('getAccessibleClients', {}, SAFE_LOOKUP_TTL_MS); }
 async function saveClient(clientData) {
   const result = await callGAS('saveClient', { clientData });
-  clearClientCache(['getClients', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage', 'getOrganizations']);
+  clearClientCache(['getClients', 'getAccessibleClients', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage', 'getOrganizations']);
   return result;
 }
 async function deleteClient(clientId) {
   const result = await callGAS('deleteClient', { clientId });
-  clearClientCache(['getClients', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage', 'getOrganizations']);
+  clearClientCache(['getClients', 'getAccessibleClients', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage', 'getOrganizations']);
   return result;
 }
 
@@ -584,7 +585,7 @@ window.API = {
   submitContact,
   markInvoicePaid,
   getUsers, saveUser, deleteUser,
-  getClients, saveClient, deleteClient,
+  getClients, getAccessibleClients, saveClient, deleteClient,
   saveCase, deleteCase,
   bulkUpdateCases,
   bulkImportDocketTrakRows,
