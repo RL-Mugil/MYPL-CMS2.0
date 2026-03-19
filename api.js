@@ -455,6 +455,11 @@ async function bulkUpdateCases(bulkData) {
   clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
   return result;
 }
+async function bulkImportDocketTrakRows(importData) {
+  const result = await callGAS('bulkImportDocketTrakRows', { importData });
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getSmartSearch']);
+  return result;
+}
 async function deleteCase(caseId) {
   const result = await callGAS('deleteCase', { caseId });
   clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
@@ -582,6 +587,7 @@ window.API = {
   getClients, saveClient, deleteClient,
   saveCase, deleteCase,
   bulkUpdateCases,
+  bulkImportDocketTrakRows,
   saveInvoice, deleteInvoice,
   showGlobalError,
   reportError,

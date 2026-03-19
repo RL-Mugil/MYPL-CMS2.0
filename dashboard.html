@@ -6,6 +6,7 @@
   <title>Metayage — Staff Dashboard</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -165,7 +166,10 @@
         </button>
         <div class="topbar-title" id="topbar-title">Dashboard</div>
       </div>
-      <div class="topbar-right" id="topbar-right"></div>
+    <div class="topbar-right" id="topbar-right">
+      <button class="btn btn-ghost btn-sm" id="theme-toggle-btn" onclick="toggleTheme()">Light Theme</button>
+      <span id="topbar-actions-extra"></span>
+    </div>
     </div>
 
     <div class="content" id="page-content">
@@ -256,6 +260,7 @@ let NOTICES_VISIBLE_COUNT = 25;
 let SAFE_PREFETCH_STARTED = false;
 let CURRENT_THEME = 'dark';
 let CURRENT_PAGE = 'dashboard';
+let CASE_IMPORT_STATE = { parsedRows: [], importableRows: [], skippedRows: [], fileName: '' };
 const NAV_SECTION_STORAGE_KEY = 'mg_sidebar_sections_v1';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'mg_sidebar_collapsed_v1';
 
@@ -630,6 +635,81 @@ function fileToDataUrl(file) {
     reader.onerror = () => reject(new Error('Failed to read file.'));
     reader.readAsDataURL(file);
   });
+}
+
+function normalizeExcelImportDate(value) {
+  if (!value) return '';
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().split('T')[0];
+  if (typeof value === 'number' && window.XLSX?.SSF?.parse_date_code) {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed && parsed.y && parsed.m && parsed.d) {
+      const date = new Date(parsed.y, parsed.m - 1, parsed.d);
+      if (!Number.isNaN(date.getTime())) return date.toISOString().split('T')[0];
+    }
+  }
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime()) ? '' : parsedDate.toISOString().split('T')[0];
+}
+
+function normalizeImportRecordType(recordType) {
+  const normalized = String(recordType || '').trim().toLowerCase();
+  if (normalized === 'patent') return 'Patent';
+  if (normalized === 'trademark') return 'Trademark';
+  return '';
+}
+
+function updateBulkImportProgress(percent, message, detailsHtml = '') {
+  const bar = document.getElementById('bulk-import-progress-bar');
+  const label = document.getElementById('bulk-import-progress-label');
+  const details = document.getElementById('bulk-import-progress-details');
+  if (bar) bar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+  if (label) label.textContent = message || '';
+  if (details) details.innerHTML = detailsHtml || '';
+}
+
+async function parseDocketTrakWorkbook(file) {
+  if (!window.XLSX) throw new Error('Excel import library is not available.');
+  const arrayBuffer = await file.arrayBuffer();
+  const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+  const sheet = workbook.Sheets['IP Records'] || workbook.Sheets[workbook.SheetNames[0]];
+  if (!sheet) throw new Error('No worksheet found in the uploaded file.');
+  const sourceRows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true });
+  if (!sourceRows.length) throw new Error('The uploaded sheet is empty.');
+
+  const parsedRows = sourceRows.map((row, index) => {
+    const recordType = normalizeImportRecordType(row['Record Type']);
+    const title = String(row['Description/Title'] || '').trim();
+    const issues = [];
+    if (!recordType) issues.push('Unsupported record type');
+    if (!title) issues.push('Missing title');
+    return {
+      sourceRowNumber: index + 2,
+      recordType,
+      title,
+      country: String(row['Country'] || '').trim() || 'India',
+      applicationNumber: String(row['Reference Number'] || '').trim(),
+      referenceNumber: String(row['Reference Number'] || '').trim(),
+      docketingEvent: String(row['Docketing Event'] || '').trim(),
+      sourceStatus: String(row['Status'] || '').trim(),
+      sourceClient: String(row['Client'] || '').trim(),
+      eventDate: normalizeExcelImportDate(row['Docketing Event Date']),
+      notes: '',
+      issues,
+      importable: issues.length === 0
+    };
+  });
+
+  const importableRows = parsedRows.filter(row => row.importable);
+  const skippedRows = parsedRows.filter(row => !row.importable);
+  return {
+    fileName: file.name,
+    parsedRows,
+    importableRows,
+    skippedRows,
+    headers: Object.keys(sourceRows[0] || {}),
+    patentCount: importableRows.filter(row => row.recordType === 'Patent').length,
+    trademarkCount: importableRows.filter(row => row.recordType === 'Trademark').length
+  };
 }
 
 function getStoredTheme() {
@@ -1067,7 +1147,7 @@ async function loadCases() {
   const canEdit = hasRoleAtLeast(SESSION.role, 'Staff');
   const canBulk = hasRoleAtLeast(SESSION.role, 'Admin');
   if (canEdit) {
-    setTopbarActions(`${canBulk ? `<button class="btn btn-ghost btn-sm" onclick="openBulkCaseUpdate()">Bulk Update</button>` : ''}<button class="btn btn-primary btn-sm" onclick="openCaseModal()">+ New Case</button>`);
+    setTopbarActions(`${canBulk ? `<button class="btn btn-ghost btn-sm" onclick="openBulkCaseUpdate()">Bulk Update</button>` : ''}<button class="btn btn-ghost btn-sm" onclick="openBulkDocketTrakImport()">Bulk Import</button><button class="btn btn-primary btn-sm" onclick="openCaseModal()">+ New Case</button>`);
   } else {
     setTopbarActions('');
   }
@@ -3298,6 +3378,123 @@ async function submitBulkCaseUpdate(caseIdsJson) {
     else loadCases();
   } catch (e) {
     alert('Error: ' + e.message);
+  }
+}
+
+async function openBulkDocketTrakImport() {
+  await ensureClientLookupLoaded();
+  CASE_IMPORT_STATE = { parsedRows: [], importableRows: [], skippedRows: [], fileName: '' };
+  openGenericModal('Bulk Import DocketTrak', `
+    <div class="alert alert-success">Select an existing client code first. Every imported row from the Excel file will be created under that selected client.</div>
+    <div class="form-group">
+      <label class="form-label">Client Code *</label>
+      <input class="form-control" id="bulk-import-client" list="bulk-import-client-list" placeholder="Search client code" />
+      <datalist id="bulk-import-client-list">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist>
+    </div>
+    <div class="form-group">
+      <label class="form-label">DocketTrak Excel File (.xlsx) *</label>
+      <input class="form-control" id="bulk-import-file" type="file" accept=".xlsx,.xls" onchange="previewBulkImportFile()" />
+    </div>
+    <div id="bulk-import-summary" class="text-muted" style="font-size:12px;margin-bottom:12px">Upload a file to preview how many Patent and Trademark rows can be imported.</div>
+    <div class="progress-track"><div class="progress-bar" id="bulk-import-progress-bar" style="width:0%"></div></div>
+    <div id="bulk-import-progress-label" class="text-muted" style="margin-top:8px;font-size:12px">Waiting to start import.</div>
+    <div id="bulk-import-progress-details" class="text-muted" style="margin-top:6px;font-size:12px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" id="bulk-import-submit" onclick="submitBulkDocketTrakImport()">Start Import</button>
+    </div>`);
+}
+
+async function previewBulkImportFile() {
+  const input = document.getElementById('bulk-import-file');
+  const file = input?.files?.[0];
+  if (!file) return;
+  try {
+    updateBulkImportProgress(10, 'Reading Excel file...');
+    const parsed = await parseDocketTrakWorkbook(file);
+    CASE_IMPORT_STATE = parsed;
+    const details = `
+      <div class="import-summary-grid">
+        <span><strong>File:</strong> ${parsed.fileName}</span>
+        <span><strong>Rows Found:</strong> ${parsed.parsedRows.length}</span>
+        <span><strong>Patent Rows:</strong> ${parsed.patentCount}</span>
+        <span><strong>Trademark Rows:</strong> ${parsed.trademarkCount}</span>
+        <span><strong>Skipped:</strong> ${parsed.skippedRows.length}</span>
+      </div>
+      ${parsed.skippedRows.length ? `<div style="margin-top:8px">Skipped rows are missing title or have unsupported record type.</div>` : ''}
+    `;
+    document.getElementById('bulk-import-summary').innerHTML = details;
+    updateBulkImportProgress(25, 'File parsed. Ready to import.', `Importable rows: ${parsed.importableRows.length}`);
+  } catch (e) {
+    CASE_IMPORT_STATE = { parsedRows: [], importableRows: [], skippedRows: [], fileName: '' };
+    document.getElementById('bulk-import-summary').innerHTML = `<span class="text-danger">${e.message}</span>`;
+    updateBulkImportProgress(0, 'Import preview failed.', '');
+  }
+}
+
+async function submitBulkDocketTrakImport() {
+  const clientCode = document.getElementById('bulk-import-client')?.value.trim().toUpperCase() || '';
+  const submitBtn = document.getElementById('bulk-import-submit');
+  const selectedClient = resolveClientByCode(clientCode);
+  if (!selectedClient) {
+    alert('Select a valid existing client code first.');
+    return;
+  }
+  if (!CASE_IMPORT_STATE.importableRows.length) {
+    alert('Upload a valid DocketTrak Excel file first.');
+    return;
+  }
+
+  const batchSize = 25;
+  let imported = 0;
+  let skipped = CASE_IMPORT_STATE.skippedRows.length;
+  let failed = 0;
+  let errorSamples = [];
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Importing...';
+
+  try {
+    const total = CASE_IMPORT_STATE.importableRows.length;
+    for (let offset = 0; offset < total; offset += batchSize) {
+      const batch = CASE_IMPORT_STATE.importableRows.slice(offset, offset + batchSize);
+      updateBulkImportProgress(
+        Math.round((offset / total) * 100),
+        `Importing rows ${offset + 1}-${Math.min(offset + batch.length, total)} of ${total}...`,
+        `Imported: ${imported} | Skipped: ${skipped} | Failed: ${failed}`
+      );
+      const result = await API.bulkImportDocketTrakRows({
+        clientCode: selectedClient.CLIENT_CODE || selectedClient.CLIENT_ID,
+        rows: batch
+      });
+      imported += Number(result.imported || 0);
+      skipped += Number(result.skipped || 0);
+      const batchErrors = Array.isArray(result.errors) ? result.errors : [];
+      failed += batchErrors.length;
+      errorSamples = errorSamples.concat(batchErrors).slice(0, 10);
+      updateBulkImportProgress(
+        Math.round((Math.min(offset + batch.length, total) / total) * 100),
+        `Imported ${Math.min(offset + batch.length, total)} of ${total} rows...`,
+        `Imported: ${imported} | Skipped: ${skipped} | Failed: ${failed}`
+      );
+    }
+    const errorHtml = errorSamples.length
+      ? `<div style="margin-top:8px"><strong>Sample issues:</strong><br>${errorSamples.map(item => `Row ${item.rowNumber}: ${item.reason}`).join('<br>')}</div>`
+      : '';
+    updateBulkImportProgress(100, 'Bulk import completed.', `Imported: ${imported} | Skipped: ${skipped} | Failed: ${failed}${errorHtml}`);
+    document.getElementById('bulk-import-summary').innerHTML = `
+      <div class="alert alert-success">
+        Import complete for client <strong>${selectedClient.CLIENT_CODE || selectedClient.CLIENT_ID}</strong>.
+        Imported ${imported} row(s), skipped ${skipped}, failed ${failed}.
+      </div>`;
+    await ensureClientLookupLoaded();
+    await loadCases();
+    await loadDashboard();
+  } catch (e) {
+    updateBulkImportProgress(0, 'Bulk import failed.', e.message);
+    alert('Bulk import failed: ' + e.message);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Start Import';
   }
 }
 
