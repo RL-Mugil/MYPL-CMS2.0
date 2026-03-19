@@ -6,6 +6,8 @@
  */
 
 const API_BASE = (window.APP_CONFIG && window.APP_CONFIG.apiBase) || '';
+const API_CACHE_PREFIX = 'mg_api_cache_v1';
+const API_MEMORY_CACHE = new Map();
 
 function escapeHtml(value) {
   return String(value)
@@ -33,6 +35,75 @@ function ensureApiBase() {
   if (!API_BASE) {
     throw new Error('API endpoint is not configured.');
   }
+}
+
+function stableStringify(value) {
+  if (value == null) return '';
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${key}:${stableStringify(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function getCacheScope() {
+  const session = window.Auth?.getGasSession?.();
+  return session?.email || session?.token || 'public';
+}
+
+function buildClientCacheKey(action, params = {}) {
+  return `${API_CACHE_PREFIX}:${getCacheScope()}:${action}:${stableStringify(params)}`;
+}
+
+function readClientCache(key) {
+  const memory = API_MEMORY_CACHE.get(key);
+  if (memory && memory.expiresAt > Date.now()) {
+    return memory.value;
+  }
+  if (memory) {
+    API_MEMORY_CACHE.delete(key);
+  }
+
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.expiresAt <= Date.now()) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+    API_MEMORY_CACHE.set(key, parsed);
+    return parsed.value;
+  } catch {
+    return null;
+  }
+}
+
+function writeClientCache(key, value, ttlMs) {
+  const record = { value, expiresAt: Date.now() + ttlMs };
+  API_MEMORY_CACHE.set(key, record);
+  try {
+    sessionStorage.setItem(key, JSON.stringify(record));
+  } catch {}
+  return value;
+}
+
+function clearClientCache(matchers = []) {
+  const shouldClear = (key) => !matchers.length || matchers.some((matcher) => key.includes(`:${matcher}:`));
+
+  Array.from(API_MEMORY_CACHE.keys()).forEach((key) => {
+    if (key.startsWith(API_CACHE_PREFIX) && shouldClear(key)) {
+      API_MEMORY_CACHE.delete(key);
+    }
+  });
+
+  try {
+    Object.keys(sessionStorage).forEach((key) => {
+      if (key.startsWith(API_CACHE_PREFIX) && shouldClear(key)) {
+        sessionStorage.removeItem(key);
+      }
+    });
+  } catch {}
 }
 
 function reportError(context, error, extra = {}) {
@@ -100,38 +171,90 @@ async function callGASPublic(action, params = {}) {
   return requestJson({ action, params }, `callGASPublic:${action}`);
 }
 
+async function callGASCached(action, params = {}, ttlMs = 60000) {
+  const key = buildClientCacheKey(action, params);
+  const cached = readClientCache(key);
+  if (cached) return cached;
+  const fresh = await callGAS(action, params);
+  return writeClientCache(key, fresh, ttlMs);
+}
+
 async function clerkLogin(email) {
   return callGASPublic('clerklogin', { email });
 }
 
-async function getDashboard(filters = {}) { return callGAS('getDashboard', { filters }); }
-async function getCases(filters = {}) { return callGAS('getCases', { filters }); }
+async function getDashboard(filters = {}) { return callGASCached('getDashboard', { filters }, 30000); }
+async function getCases(filters = {}) { return callGASCached('getCases', { filters }, 30000); }
 async function getInvoices() { return callGAS('getInvoices', {}); }
 async function getDocuments() { return callGAS('getDocuments', {}); }
-async function getOrganizations() { return callGAS('getOrganizations', {}); }
-async function saveOrganization(orgData) { return callGAS('saveOrganization', { orgData }); }
-async function getOrganizationUsers(orgId) { return callGAS('getOrganizationUsers', { orgId }); }
-async function getCircles() { return callGAS('getCircles', {}); }
-async function getCircleMembers(circleId) { return callGAS('getCircleMembers', { circleId }); }
-async function saveCircle(circleData) { return callGAS('saveCircle', { circleData }); }
-async function deleteCircle(circleId) { return callGAS('deleteCircle', { circleId }); }
-async function saveCircleMember(memberData) { return callGAS('saveCircleMember', { memberData }); }
-async function removeCircleMember(membershipId) { return callGAS('removeCircleMember', { membershipId }); }
+async function getOrganizations() { return callGASCached('getOrganizations', {}, 300000); }
+async function saveOrganization(orgData) {
+  const result = await callGAS('saveOrganization', { orgData });
+  clearClientCache(['getOrganizations', 'getClients', 'getUsers', 'getDashboard', 'getCases']);
+  return result;
+}
+async function getOrganizationUsers(orgId) { return callGASCached('getOrganizationUsers', { orgId }, 300000); }
+async function getCircles() { return callGASCached('getCircles', {}, 300000); }
+async function getCircleMembers(circleId) { return callGASCached('getCircleMembers', { circleId }, 300000); }
+async function saveCircle(circleData) {
+  const result = await callGAS('saveCircle', { circleData });
+  clearClientCache(['getCircles', 'getCircleMembers', 'getUsers']);
+  return result;
+}
+async function deleteCircle(circleId) {
+  const result = await callGAS('deleteCircle', { circleId });
+  clearClientCache(['getCircles', 'getCircleMembers', 'getUsers']);
+  return result;
+}
+async function saveCircleMember(memberData) {
+  const result = await callGAS('saveCircleMember', { memberData });
+  clearClientCache(['getCircles', 'getCircleMembers', 'getUsers']);
+  return result;
+}
+async function removeCircleMember(membershipId) {
+  const result = await callGAS('removeCircleMember', { membershipId });
+  clearClientCache(['getCircles', 'getCircleMembers', 'getUsers']);
+  return result;
+}
 async function saveDailyPriority(priorityData) { return callGAS('saveDailyPriority', { priorityData }); }
 async function saveDailyWrapup(wrapupData) { return callGAS('saveDailyWrapup', { wrapupData }); }
-async function getDailyOpsOverview() { return callGAS('getDailyOpsOverview', {}); }
-async function getDailyAudit(filters = {}) { return callGAS('getDailyAudit', { filters }); }
-async function submitExpenseClaim(claimData) { return callGAS('submitExpenseClaim', { claimData }); }
-async function getExpenseClaims(filters = {}) { return callGAS('getExpenseClaims', { filters }); }
-async function reviewExpenseClaim(claimId, reviewData) { return callGAS('reviewExpenseClaim', { claimId, reviewData }); }
-async function getNotifications() { return callGAS('getNotifications', {}); }
-async function markNotificationRead(notificationId) { return callGAS('markNotificationRead', { notificationId }); }
-async function getMessageThreads() { return callGAS('getMessageThreads', {}); }
-async function getGalvanizerQueue(filters = {}) { return callGAS('getGalvanizerQueue', { filters }); }
+async function getDailyOpsOverview() { return callGASCached('getDailyOpsOverview', {}, 60000); }
+async function getDailyAudit(filters = {}) { return callGASCached('getDailyAudit', { filters }, 60000); }
+async function submitExpenseClaim(claimData) {
+  const result = await callGAS('submitExpenseClaim', { claimData });
+  clearClientCache(['getExpenseClaims', 'getDailyOpsOverview', 'getDashboard', 'getNotifications']);
+  return result;
+}
+async function getExpenseClaims(filters = {}) { return callGASCached('getExpenseClaims', { filters }, 60000); }
+async function reviewExpenseClaim(claimId, reviewData) {
+  const result = await callGAS('reviewExpenseClaim', { claimId, reviewData });
+  clearClientCache(['getExpenseClaims', 'getDailyOpsOverview', 'getDashboard', 'getNotifications']);
+  return result;
+}
+async function getNotifications() { return callGASCached('getNotifications', {}, 30000); }
+async function markNotificationRead(notificationId) {
+  const result = await callGAS('markNotificationRead', { notificationId });
+  clearClientCache(['getNotifications', 'getDashboard']);
+  return result;
+}
+async function getMessageThreads() { return callGASCached('getMessageThreads', {}, 30000); }
+async function getGalvanizerQueue(filters = {}) { return callGASCached('getGalvanizerQueue', { filters }, 30000); }
 async function getThreadMessages(threadId) { return callGAS('getThreadMessages', { threadId }); }
-async function saveMessageThread(threadData) { return callGAS('saveMessageThread', { threadData }); }
-async function deleteMessageThread(threadId) { return callGAS('deleteMessageThread', { threadId }); }
-async function sendThreadMessage(messageData) { return callGAS('sendThreadMessage', { messageData }); }
+async function saveMessageThread(threadData) {
+  const result = await callGAS('saveMessageThread', { threadData });
+  clearClientCache(['getMessageThreads', 'getNotifications', 'getDashboard']);
+  return result;
+}
+async function deleteMessageThread(threadId) {
+  const result = await callGAS('deleteMessageThread', { threadId });
+  clearClientCache(['getMessageThreads', 'getNotifications', 'getDashboard']);
+  return result;
+}
+async function sendThreadMessage(messageData) {
+  const result = await callGAS('sendThreadMessage', { messageData });
+  clearClientCache(['getMessageThreads', 'getNotifications', 'getDashboard']);
+  return result;
+}
 
 async function submitContact(subject, caseId, message) {
   return callGAS('submitContact', { subject, caseId, message });
@@ -141,17 +264,45 @@ async function markInvoicePaid(invoiceId) {
   return callGAS('markInvoicePaid', { invoiceId });
 }
 
-async function getUsers(filters = {}) { return callGAS('getUsers', { filters }); }
-async function saveUser(userData) { return callGAS('saveUser', { userData }); }
-async function deleteUser(userId) { return callGAS('deleteUser', { userId }); }
+async function getUsers(filters = {}) { return callGASCached('getUsers', { filters }, 300000); }
+async function saveUser(userData) {
+  const result = await callGAS('saveUser', { userData });
+  clearClientCache(['getUsers', 'getOrganizations', 'getCircles', 'getCircleMembers', 'getDashboard', 'getCases']);
+  return result;
+}
+async function deleteUser(userId) {
+  const result = await callGAS('deleteUser', { userId });
+  clearClientCache(['getUsers', 'getOrganizations', 'getCircles', 'getCircleMembers', 'getDashboard', 'getCases']);
+  return result;
+}
 
-async function getClients() { return callGAS('getClients', {}); }
-async function saveClient(clientData) { return callGAS('saveClient', { clientData }); }
-async function deleteClient(clientId) { return callGAS('deleteClient', { clientId }); }
+async function getClients() { return callGASCached('getClients', {}, 300000); }
+async function saveClient(clientData) {
+  const result = await callGAS('saveClient', { clientData });
+  clearClientCache(['getClients', 'getDashboard', 'getCases', 'getOrganizations']);
+  return result;
+}
+async function deleteClient(clientId) {
+  const result = await callGAS('deleteClient', { clientId });
+  clearClientCache(['getClients', 'getDashboard', 'getCases', 'getOrganizations']);
+  return result;
+}
 
-async function saveCase(caseData) { return callGAS('saveCase', { caseData }); }
-async function bulkUpdateCases(bulkData) { return callGAS('bulkUpdateCases', { bulkData }); }
-async function deleteCase(caseId) { return callGAS('deleteCase', { caseId }); }
+async function saveCase(caseData) {
+  const result = await callGAS('saveCase', { caseData });
+  clearClientCache(['getCases', 'getDashboard', 'getGalvanizerQueue', 'getDocuments']);
+  return result;
+}
+async function bulkUpdateCases(bulkData) {
+  const result = await callGAS('bulkUpdateCases', { bulkData });
+  clearClientCache(['getCases', 'getDashboard', 'getGalvanizerQueue', 'getDocuments']);
+  return result;
+}
+async function deleteCase(caseId) {
+  const result = await callGAS('deleteCase', { caseId });
+  clearClientCache(['getCases', 'getDashboard', 'getGalvanizerQueue', 'getDocuments']);
+  return result;
+}
 
 async function saveInvoice(invoiceData) { return callGAS('saveInvoice', { invoiceData }); }
 async function deleteInvoice(invoiceId) { return callGAS('deleteInvoice', { invoiceId }); }
