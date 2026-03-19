@@ -80,9 +80,10 @@
 <script>
 let SESSION = null;
 let _charts = {};
+const CLIENT_ROLES = ['Client', 'Client Admin', 'Client Employee', 'Individual Client'];
 
 (async () => {
-  SESSION = await Auth.requireAuth(['Client']);
+  SESSION = await Auth.requireAuth(CLIENT_ROLES);
   if (!SESSION) {
     window.location.href = 'client-login.html';
     return;
@@ -90,6 +91,8 @@ let _charts = {};
   const initials = (SESSION.name || 'C').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('sidebar-avatar').textContent = initials;
   document.getElementById('sidebar-name').textContent = SESSION.name || SESSION.email;
+  const roleEl = document.querySelector('.user-role');
+  if (roleEl) roleEl.textContent = SESSION.role || 'Client';
   showPage('dashboard');
 })();
 
