@@ -342,6 +342,49 @@ async function sendThreadMessage(messageData) {
   clearClientCache(['getMessageThreads', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
   return result;
 }
+async function createDirectThread(threadData) {
+  const result = await callGAS('createDirectThread', { threadData });
+  clearClientCache(['getMessageThreads', 'getNotifications']);
+  return result;
+}
+async function getTasks(filters = {}) { return callGASCached('getTasks', { filters }, 60000); }
+async function saveTask(taskData) {
+  const result = await callGAS('saveTask', { taskData });
+  clearClientCache(['getTasks', 'getActivityTimeline', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getNotifications']);
+  return result;
+}
+async function updateTaskStatus(taskId, status, notes = '') {
+  const result = await callGAS('updateTaskStatus', { taskId, status, notes });
+  clearClientCache(['getTasks', 'getActivityTimeline', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getNotifications']);
+  return result;
+}
+async function getActivityTimeline(filters = {}) { return callGASCached('getActivityTimeline', { filters }, 60000); }
+async function getWorkflowBoard(filters = {}) { return callGASCached('getWorkflowBoard', { filters }, 60000); }
+async function getAttorneyWorkspace(filters = {}) { return callGASCached('getAttorneyWorkspace', { filters }, 60000); }
+async function getSmartSearch(query, scope = 'all') { return callGASCached('getSmartSearch', { query, scope }, 60000); }
+async function getApprovalRequests(filters = {}) { return callGASCached('getApprovalRequests', { filters }, 60000); }
+async function saveApprovalRequest(approvalData) {
+  const result = await callGAS('saveApprovalRequest', { approvalData });
+  clearClientCache(['getApprovalRequests', 'getActivityTimeline', 'getNotifications']);
+  return result;
+}
+async function reviewApprovalRequest(approvalId, reviewData) {
+  const result = await callGAS('reviewApprovalRequest', { approvalId, reviewData });
+  clearClientCache(['getApprovalRequests', 'getActivityTimeline', 'getNotifications']);
+  return result;
+}
+async function getDocumentRequests(filters = {}) { return callGASCached('getDocumentRequests', { filters }, 60000); }
+async function saveDocumentRequest(requestData) {
+  const result = await callGAS('saveDocumentRequest', { requestData });
+  clearClientCache(['getDocumentRequests', 'getActivityTimeline', 'getNotifications']);
+  return result;
+}
+async function reviewDocumentRequest(requestId, reviewData) {
+  const result = await callGAS('reviewDocumentRequest', { requestId, reviewData });
+  clearClientCache(['getDocumentRequests', 'getActivityTimeline', 'getNotifications']);
+  return result;
+}
+async function getGalvanizerCommandCenter(filters = {}) { return callGASCached('getGalvanizerCommandCenter', { filters }, 60000); }
 
 async function submitContact(subject, caseId, message) {
   return callGAS('submitContact', { subject, caseId, message });
@@ -483,8 +526,23 @@ window.API = {
   getGalvanizerQueue,
   getThreadMessages,
   saveMessageThread,
+  createDirectThread,
   deleteMessageThread,
   sendThreadMessage,
+  getTasks,
+  saveTask,
+  updateTaskStatus,
+  getActivityTimeline,
+  getWorkflowBoard,
+  getAttorneyWorkspace,
+  getSmartSearch,
+  getApprovalRequests,
+  saveApprovalRequest,
+  reviewApprovalRequest,
+  getDocumentRequests,
+  saveDocumentRequest,
+  reviewDocumentRequest,
+  getGalvanizerCommandCenter,
   submitContact,
   markInvoicePaid,
   getUsers, saveUser, deleteUser,

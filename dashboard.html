@@ -54,6 +54,18 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 1H3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6L9 1z"/><polyline points="9 1 9 6 14 6"/></svg>
           Documents
         </button>
+        <button class="nav-item" data-page="workflow" onclick="showPage('workflow')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h4v3H2zM10 4h4v3h-4zM6 9h4v3H6z"/><path d="M6 5.5h4M8 7v2"/></svg>
+          Workflow Board
+        </button>
+        <button class="nav-item" data-page="attorney" onclick="showPage('attorney')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 13h10M5 13V6l3-3 3 3v7"/><path d="M8 3v10"/></svg>
+          Attorney Workspace
+        </button>
+        <button class="nav-item" data-page="docworkflow" onclick="showPage('docworkflow')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h6l2 2v10H4z"/><path d="M10 2v3h3"/><path d="M6 8h4M6 11h4"/></svg>
+          Document Workflow
+        </button>
         <button class="nav-item" id="nav-finance" data-page="finance" onclick="showPage('finance')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="10" rx="1.5"/><path d="M4 4V3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v1"/><line x1="8" y1="8" x2="8" y2="12"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
           Finance
@@ -73,6 +85,22 @@
         <button class="nav-item" data-page="notifications" onclick="showPage('notifications')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 14a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2z"/><path d="M4 11V7a4 4 0 1 1 8 0v4l1 1H3l1-1z"/></svg>
           Notifications
+        </button>
+        <button class="nav-item" data-page="tasks" onclick="showPage('tasks')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>
+          Tasks
+        </button>
+        <button class="nav-item" data-page="timeline" onclick="showPage('timeline')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v10M8 5v8M13 2v11"/><circle cx="3" cy="8" r="1"/><circle cx="8" cy="9" r="1"/><circle cx="13" cy="6" r="1"/></svg>
+          Activity Timeline
+        </button>
+        <button class="nav-item" data-page="search" onclick="showPage('search')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+          Smart Search
+        </button>
+        <button class="nav-item" data-page="approvals" onclick="showPage('approvals')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8l3 3 7-7"/><path d="M2 2h12v12H2z"/></svg>
+          Approvals
         </button>
         <button class="nav-item" data-page="dailyaudit" onclick="showPage('dailyaudit')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>
@@ -340,9 +368,16 @@ const PAGE_TITLES = {
   dashboard: 'Dashboard',
   cases: 'Cases',
   documents: 'Documents',
+  workflow: 'Workflow Board',
+  attorney: 'Attorney Workspace',
+  docworkflow: 'Document Workflow',
   finance: 'Finance',
   messages: 'Message Center',
   notifications: 'Notification Center',
+  tasks: 'Task System',
+  timeline: 'Activity Timeline',
+  search: 'Smart Search',
+  approvals: 'Approval Workflow',
   dailyaudit: 'Daily Audit',
   expenses: 'Expense Claims',
   galvanizer: 'Galvanizer Queue',
@@ -368,9 +403,16 @@ function showPage(page) {
     dashboard: loadDashboard,
     cases: loadCases,
     documents: loadDocuments,
+    workflow: loadWorkflowBoard,
+    attorney: loadAttorneyWorkspace,
+    docworkflow: loadDocumentWorkflow,
     finance: loadFinance,
     messages: loadMessages,
     notifications: loadNotifications,
+    tasks: loadTasks,
+    timeline: loadTimeline,
+    search: loadSmartSearch,
+    approvals: loadApprovals,
     dailyaudit: loadDailyAudit,
     expenses: loadExpenses,
     galvanizer: loadGalvanizerQueue,
@@ -999,6 +1041,253 @@ async function loadDocuments() {
   }
 }
 
+async function loadWorkflowBoard() {
+  destroyCharts();
+  try {
+    const board = await API.getWorkflowBoard({});
+    const stages = Object.keys(board || {});
+    document.getElementById('page-content').innerHTML = `
+      <div class="page">
+        <div class="grid-3">
+          ${stages.map(stage => `
+            <div class="card">
+              <div class="card-title">${stage}</div>
+              ${(board[stage] || []).slice(0, 12).map(item => `
+                <div class="card" style="padding:12px;margin-bottom:10px">
+                  <div class="text-em">${item.CASE_ID}</div>
+                  <div style="font-weight:600">${item.PATENT_TITLE || 'Untitled case'}</div>
+                  <div class="text-muted" style="font-size:12px">${item.CLIENT_NAME || item.CLIENT_ID || ''}</div>
+                  <div class="text-muted" style="font-size:12px">${item.ASSIGNED_STAFF_EMAIL || 'Unassigned'} | ${item.ATTORNEY || 'No attorney'}</div>
+                </div>
+              `).join('') || '<div class="text-muted">No cases in this stage.</div>'}
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+  } catch (e) {
+    showPageError('loadWorkflowBoard', e);
+  }
+}
+
+async function loadAttorneyWorkspace() {
+  destroyCharts();
+  try {
+    const data = await API.getAttorneyWorkspace({});
+    const cases = data.cases || [];
+    const tasks = data.tasks || [];
+    document.getElementById('page-content').innerHTML = `
+      <div class="page">
+        <div class="stats-grid">
+          <div class="stat-card accent-primary"><div class="stat-label">Pending Review</div><div class="stat-value">${(data.pendingReview || []).length}</div></div>
+          <div class="stat-card accent-sky"><div class="stat-label">Active Review</div><div class="stat-value">${(data.activeReview || []).length}</div></div>
+          <div class="stat-card accent-amber"><div class="stat-label">My Tasks</div><div class="stat-value">${tasks.length}</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Cases</div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Case</th><th>Title</th><th>Stage</th><th>Status</th></tr></thead>
+              <tbody>${cases.map(item => `<tr><td class="text-em">${item.CASE_ID}</td><td>${item.PATENT_TITLE || ''}</td><td>${item.WORKFLOW_STAGE || ''}</td><td>${statusBadge(item.CURRENT_STATUS || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="text-muted" style="padding:20px;text-align:center">No attorney cases.</td></tr>'}</tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Assigned Tasks</div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Task</th><th>Priority</th><th>Due</th><th>Status</th></tr></thead>
+              <tbody>${tasks.map(item => `<tr><td>${item.TITLE || item.TASK_ID}</td><td>${item.PRIORITY || ''}</td><td>${fmt(item.DUE_DATE)}</td><td>${statusBadge(item.STATUS || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="text-muted" style="padding:20px;text-align:center">No tasks.</td></tr>'}</tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>`;
+  } catch (e) {
+    showPageError('loadAttorneyWorkspace', e);
+  }
+}
+
+async function loadTasks() {
+  destroyCharts();
+  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="quickCreateTask()">+ New Task</button>`;
+  try {
+    const tasks = await API.getTasks({});
+    document.getElementById('page-content').innerHTML = `
+      <div class="page">
+        <div class="card">
+          <div class="table-wrap"><table>
+            <thead><tr><th>ID</th><th>Title</th><th>Assignee</th><th>Priority</th><th>Due</th><th>Status</th><th></th></tr></thead>
+            <tbody>${(tasks || []).map(item => `
+              <tr>
+                <td class="text-em">${item.TASK_ID}</td>
+                <td>${item.TITLE || ''}</td>
+                <td>${item.ASSIGNED_TO_NAME || item.ASSIGNED_TO_EMAIL || ''}</td>
+                <td>${item.PRIORITY || ''}</td>
+                <td>${fmt(item.DUE_DATE)}</td>
+                <td>${statusBadge(item.STATUS || 'Open')}</td>
+                <td><button class="btn btn-ghost btn-sm" onclick="advanceTaskStatus('${item.TASK_ID}','${item.STATUS || 'Open'}')">Next</button></td>
+              </tr>`).join('') || '<tr><td colspan="7" class="text-muted" style="padding:20px;text-align:center">No tasks found.</td></tr>'}
+            </tbody>
+          </table></div>
+        </div>
+      </div>`;
+  } catch (e) {
+    showPageError('loadTasks', e);
+  }
+}
+
+async function quickCreateTask() {
+  await ensureUserLookupLoaded();
+  const title = prompt('Task title');
+  if (!title) return;
+  const assigned = prompt('Assign to email');
+  const dueDate = prompt('Due date (YYYY-MM-DD)', '');
+  const assignee = (USER_LOOKUP_CACHE || []).find(u => String(u.EMAIL || '').toLowerCase() === String(assigned || '').toLowerCase());
+  try {
+    await API.saveTask({
+      title,
+      assignedToEmail: assigned || '',
+      assignedToName: assignee?.FULL_NAME || '',
+      dueDate: dueDate || '',
+      priority: 'Normal',
+      status: 'Open'
+    });
+    loadTasks();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function advanceTaskStatus(taskId, currentStatus) {
+  const flow = { 'Open': 'In Progress', 'In Progress': 'Completed', 'Completed': 'Completed' };
+  const next = flow[currentStatus] || 'In Progress';
+  await API.updateTaskStatus(taskId, next, '');
+  loadTasks();
+}
+
+async function loadTimeline() {
+  destroyCharts();
+  try {
+    const items = await API.getActivityTimeline({});
+    document.getElementById('page-content').innerHTML = `
+      <div class="page">
+        <div class="card">
+          ${(items || []).map(item => `
+            <div style="padding:14px 0;border-bottom:1px solid var(--border)">
+              <div style="display:flex;justify-content:space-between;gap:12px">
+                <div>
+                  <div style="font-weight:600">${item.TITLE || item.EVENT_TYPE}</div>
+                  <div class="text-muted" style="font-size:13px">${item.DESCRIPTION || ''}</div>
+                  <div class="text-muted" style="font-size:11px">${item.ENTITY_TYPE || ''} ${item.ENTITY_ID || ''}</div>
+                </div>
+                <div class="text-muted" style="font-size:11px;white-space:nowrap">${fmt(item.CREATED_AT)}</div>
+              </div>
+            </div>`).join('') || '<div class="text-muted">No activity yet.</div>'}
+        </div>
+      </div>`;
+  } catch (e) {
+    showPageError('loadTimeline', e);
+  }
+}
+
+async function loadSmartSearch() {
+  destroyCharts();
+  document.getElementById('page-content').innerHTML = `
+    <div class="page">
+      <div class="card">
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="smart-search-query" placeholder="Case ID, client code, name, thread, task" /></div>
+          <div class="form-group"><label class="form-label">Scope</label><select class="form-control" id="smart-search-scope"><option value="all">All</option><option value="cases">Cases</option><option value="clients">Clients</option><option value="users">Users</option><option value="tasks">Tasks</option><option value="messages">Messages</option></select></div>
+        </div>
+        <div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm" onclick="runSmartSearch()">Search</button></div>
+      </div>
+      <div id="smart-search-results" style="margin-top:16px"></div>
+    </div>`;
+}
+
+async function runSmartSearch() {
+  const query = document.getElementById('smart-search-query').value.trim();
+  const scope = document.getElementById('smart-search-scope').value;
+  const target = document.getElementById('smart-search-results');
+  if (!query) {
+    target.innerHTML = '<div class="alert alert-error">Enter a search term.</div>';
+    return;
+  }
+  const data = await API.getSmartSearch(query, scope);
+  target.innerHTML = `
+    <div class="grid-2">
+      <div class="card"><div class="card-title">Cases</div>${(data.cases||[]).map(item => `<div style="margin-bottom:10px"><div class="text-em">${item.CASE_ID}</div><div>${item.PATENT_TITLE || ''}</div></div>`).join('') || '<div class="text-muted">No case results.</div>'}</div>
+      <div class="card"><div class="card-title">Clients</div>${(data.clients||[]).map(item => `<div style="margin-bottom:10px"><div class="text-em">${item.CLIENT_CODE || item.CLIENT_ID}</div><div>${item.CLIENT_NAME || ''}</div></div>`).join('') || '<div class="text-muted">No client results.</div>'}</div>
+      <div class="card"><div class="card-title">Tasks</div>${(data.tasks||[]).map(item => `<div style="margin-bottom:10px"><div>${item.TITLE || item.TASK_ID}</div><div class="text-muted">${item.STATUS || ''}</div></div>`).join('') || '<div class="text-muted">No task results.</div>'}</div>
+      <div class="card"><div class="card-title">Messages</div>${(data.threads||[]).map(item => `<div style="margin-bottom:10px"><div>${item.TITLE || item.THREAD_ID}</div><div class="text-muted">${item.THREAD_TYPE || ''}</div></div>`).join('') || '<div class="text-muted">No message results.</div>'}</div>
+    </div>`;
+}
+
+async function loadApprovals() {
+  destroyCharts();
+  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="quickCreateApproval()">+ New Approval</button>`;
+  try {
+    const items = await API.getApprovalRequests({});
+    document.getElementById('page-content').innerHTML = `
+      <div class="page">
+        <div class="card">
+          <div class="table-wrap"><table>
+            <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Approver</th><th>Status</th><th></th></tr></thead>
+            <tbody>${(items || []).map(item => `<tr><td class="text-em">${item.APPROVAL_ID}</td><td>${item.TITLE || ''}</td><td>${item.APPROVAL_TYPE || ''}</td><td>${item.APPROVER_EMAIL || ''}</td><td>${statusBadge(item.STATUS || 'Pending')}</td><td>${item.STATUS === 'Pending' ? `<button class="btn btn-ghost btn-sm" onclick="reviewApproval('${item.APPROVAL_ID}','Approved')">Approve</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No approvals.</td></tr>'}</tbody>
+          </table></div>
+        </div>
+      </div>`;
+  } catch (e) {
+    showPageError('loadApprovals', e);
+  }
+}
+
+async function quickCreateApproval() {
+  const title = prompt('Approval title');
+  if (!title) return;
+  const approverEmail = prompt('Approver email');
+  try {
+    await API.saveApprovalRequest({ title, approverEmail, approvalType: 'General' });
+    loadApprovals();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function reviewApproval(approvalId, status) {
+  await API.reviewApprovalRequest(approvalId, { status, notes: '' });
+  loadApprovals();
+}
+
+async function loadDocumentWorkflow() {
+  destroyCharts();
+  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="quickCreateDocumentRequest()">+ New Request</button>`;
+  try {
+    const items = await API.getDocumentRequests({});
+    document.getElementById('page-content').innerHTML = `
+      <div class="page">
+        <div class="card">
+          <div class="table-wrap"><table>
+            <thead><tr><th>ID</th><th>Title</th><th>Case</th><th>Due</th><th>Status</th><th>Drive</th></tr></thead>
+            <tbody>${(items || []).map(item => `<tr><td class="text-em">${item.REQUEST_ID}</td><td>${item.TITLE || ''}</td><td>${item.CASE_ID || ''}</td><td>${fmt(item.DUE_DATE)}</td><td>${statusBadge(item.STATUS || 'Open')}</td><td>${item.DRIVE_LINK ? `<a href="${item.DRIVE_LINK}" target="_blank">Open</a>` : '—'}</td></tr>`).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No document requests.</td></tr>'}</tbody>
+          </table></div>
+        </div>
+      </div>`;
+  } catch (e) {
+    showPageError('loadDocumentWorkflow', e);
+  }
+}
+
+async function quickCreateDocumentRequest() {
+  const title = prompt('Document request title');
+  if (!title) return;
+  const caseId = prompt('Case ID (optional)', '');
+  const dueDate = prompt('Due date (YYYY-MM-DD)', '');
+  try {
+    await API.saveDocumentRequest({ title, caseId, dueDate, requestType: 'Document', status: 'Open', clientVisible: 'Yes' });
+    loadDocumentWorkflow();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
 function renderDocuments(docs) {
   if (docs.error) { document.getElementById('page-content').innerHTML = err(docs.error); return; }
   const ICONS = { APPLICATIONS:'📝', OFFICE_ACTIONS:'📨', RESPONSES:'📤', CERTIFICATES:'🏆', INVOICES:'🧾', COMMUNICATION:'💬' };
@@ -1299,6 +1588,9 @@ async function loadMessages() {
   destroyCharts();
   try {
     const threads = await API.getMessageThreads();
+    document.getElementById('topbar-right').innerHTML = `
+      <button class="btn btn-ghost btn-sm" onclick="createDirectMessage()">+ Direct Message</button>
+      <button class="btn btn-primary btn-sm" onclick="createThread()">+ New Thread</button>`;
     const rows = threads.map(t => `<tr>
       <td class="text-em">${t.THREAD_ID}</td>
       <td>${t.TITLE || 'Untitled'}</td>
@@ -1454,6 +1746,18 @@ async function createThread() {
   if (!title) return;
   try {
     await API.saveMessageThread({ TITLE: title, THREAD_TYPE: 'General', STATUS: 'Open' });
+    loadMessages();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function createDirectMessage() {
+  const recipientEmail = prompt('Recipient email');
+  if (!recipientEmail) return;
+  const title = prompt('Conversation title', 'Direct conversation');
+  try {
+    await API.createDirectThread({ recipientEmail, title: title || 'Direct conversation' });
     loadMessages();
   } catch (e) {
     alert('Error: ' + e.message);
@@ -1688,7 +1992,10 @@ async function loadGalvanizerQueue() {
       workflowStage: CASE_FILTERS.workflowStage || '',
       query: CASE_FILTERS.query || '',
     };
-    const cases = await API.getGalvanizerQueue(filters);
+    const [cases, commandCenter] = await Promise.all([
+      API.getGalvanizerQueue(filters),
+      API.getGalvanizerCommandCenter(filters)
+    ]);
     const rows = cases.map(c => `
       <tr>
         <td>${c.CASE_ID}</td>
@@ -1702,6 +2009,12 @@ async function loadGalvanizerQueue() {
       </tr>`).join('');
     document.getElementById('page-content').innerHTML = `
     <div class="page">
+      <div class="stats-grid">
+        <div class="stat-card accent-primary"><div class="stat-label">Incoming</div><div class="stat-value">${(commandCenter.incoming || []).length}</div></div>
+        <div class="stat-card accent-sky"><div class="stat-label">Ready For Attorney</div><div class="stat-value">${(commandCenter.readyForAttorney || []).length}</div></div>
+        <div class="stat-card accent-amber"><div class="stat-label">Under Review</div><div class="stat-value">${(commandCenter.underReview || []).length}</div></div>
+        <div class="stat-card accent-rose"><div class="stat-label">Pending Approvals</div><div class="stat-value">${(commandCenter.pendingApprovals || []).length}</div></div>
+      </div>
       ${renderCaseFilters()}
       <div class="card">
         <div class="card-title">Galvanizer Work Queue</div>
