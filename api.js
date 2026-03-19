@@ -122,7 +122,7 @@ async function saveDailyWrapup(wrapupData) { return callGAS('saveDailyWrapup', {
 async function getDailyOpsOverview() { return callGAS('getDailyOpsOverview', {}); }
 async function getDailyAudit(filters = {}) { return callGAS('getDailyAudit', { filters }); }
 async function submitExpenseClaim(claimData) { return callGAS('submitExpenseClaim', { claimData }); }
-async function getExpenseClaims() { return callGAS('getExpenseClaims', {}); }
+async function getExpenseClaims(filters = {}) { return callGAS('getExpenseClaims', { filters }); }
 async function reviewExpenseClaim(claimId, reviewData) { return callGAS('reviewExpenseClaim', { claimId, reviewData }); }
 async function getNotifications() { return callGAS('getNotifications', {}); }
 async function markNotificationRead(notificationId) { return callGAS('markNotificationRead', { notificationId }); }
@@ -130,6 +130,7 @@ async function getMessageThreads() { return callGAS('getMessageThreads', {}); }
 async function getGalvanizerQueue(filters = {}) { return callGAS('getGalvanizerQueue', { filters }); }
 async function getThreadMessages(threadId) { return callGAS('getThreadMessages', { threadId }); }
 async function saveMessageThread(threadData) { return callGAS('saveMessageThread', { threadData }); }
+async function deleteMessageThread(threadId) { return callGAS('deleteMessageThread', { threadId }); }
 async function sendThreadMessage(messageData) { return callGAS('sendThreadMessage', { messageData }); }
 
 async function submitContact(subject, caseId, message) {
@@ -205,6 +206,7 @@ window.API = {
   getGalvanizerQueue,
   getThreadMessages,
   saveMessageThread,
+  deleteMessageThread,
   sendThreadMessage,
   submitContact,
   markInvoicePaid,
