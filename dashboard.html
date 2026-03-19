@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
 
@@ -668,12 +669,7 @@ function updateBulkImportProgress(percent, message, detailsHtml = '') {
 }
 
 async function parseDocketTrakWorkbook(file) {
-  if (!window.XLSX) throw new Error('Excel import library is not available.');
-  const arrayBuffer = await file.arrayBuffer();
-  const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
-  const sheet = workbook.Sheets['IP Records'] || workbook.Sheets[workbook.SheetNames[0]];
-  if (!sheet) throw new Error('No worksheet found in the uploaded file.');
-  const sourceRows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true });
+  const sourceRows = await readDocketTrakRows_(file);
   if (!sourceRows.length) throw new Error('The uploaded sheet is empty.');
 
   const parsedRows = sourceRows.map((row, index) => {
@@ -710,6 +706,131 @@ async function parseDocketTrakWorkbook(file) {
     patentCount: importableRows.filter(row => row.recordType === 'Patent').length,
     trademarkCount: importableRows.filter(row => row.recordType === 'Trademark').length
   };
+}
+
+async function readDocketTrakRows_(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const primaryError = [];
+  if (window.XLSX) {
+    try {
+      const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true, WTF: false });
+      const sheet = workbook.Sheets['IP Records'] || workbook.Sheets[workbook.SheetNames[0]];
+      if (sheet) {
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true });
+        if (rows.length) return rows;
+      }
+    } catch (e) {
+      primaryError.push(e?.message || String(e));
+    }
+  }
+  if (window.JSZip) {
+    try {
+      return await readDocketTrakRowsFromZip_(arrayBuffer);
+    } catch (e) {
+      primaryError.push(e?.message || String(e));
+    }
+  }
+  throw new Error(primaryError[0] || 'Could not read the uploaded Excel file.');
+}
+
+function columnLettersToIndex_(letters) {
+  let index = 0;
+  const text = String(letters || '').toUpperCase();
+  for (let i = 0; i < text.length; i += 1) {
+    index = (index * 26) + (text.charCodeAt(i) - 64);
+  }
+  return Math.max(0, index - 1);
+}
+
+function excelSerialToIsoDate_(serial) {
+  const numeric = Number(serial);
+  if (!Number.isFinite(numeric)) return String(serial || '');
+  const utcDays = Math.floor(numeric - 25569);
+  const utcValue = utcDays * 86400;
+  const dateInfo = new Date(utcValue * 1000);
+  return Number.isNaN(dateInfo.getTime()) ? String(serial || '') : dateInfo.toISOString().split('T')[0];
+}
+
+function getXmlTextContent_(node) {
+  if (!node) return '';
+  return Array.from(node.getElementsByTagName('*'))
+    .filter(child => child.tagName && child.tagName.split(':').pop() === 't')
+    .map(child => child.textContent || '')
+    .join('');
+}
+
+async function readDocketTrakRowsFromZip_(arrayBuffer) {
+  const zip = await JSZip.loadAsync(arrayBuffer);
+  const parser = new DOMParser();
+
+  async function readXml(path) {
+    const file = zip.file(path);
+    if (!file) return null;
+    const xml = await file.async('string');
+    return parser.parseFromString(xml, 'application/xml');
+  }
+
+  const workbookXml = await readXml('xl/workbook.xml');
+  if (!workbookXml) throw new Error('Missing workbook.xml');
+  const relsXml = await readXml('xl/_rels/workbook.xml.rels');
+  if (!relsXml) throw new Error('Missing workbook relationships');
+
+  const workbookSheets = Array.from(workbookXml.getElementsByTagName('*')).filter(node => node.tagName && node.tagName.split(':').pop() === 'sheet');
+  const targetSheet = workbookSheets.find(node => String(node.getAttribute('name') || '').trim() === 'IP Records') || workbookSheets[0];
+  if (!targetSheet) throw new Error('No worksheet definition found');
+
+  const relId = targetSheet.getAttribute('r:id') || targetSheet.getAttribute('id');
+  const relNodes = Array.from(relsXml.getElementsByTagName('*')).filter(node => node.tagName && node.tagName.split(':').pop() === 'Relationship');
+  const relationship = relNodes.find(node => String(node.getAttribute('Id') || '') === String(relId || ''));
+  if (!relationship) throw new Error('Worksheet relationship not found');
+
+  let targetPath = relationship.getAttribute('Target') || '';
+  if (!targetPath) throw new Error('Worksheet target not found');
+  if (!/^xl\//i.test(targetPath)) targetPath = `xl/${targetPath.replace(/^\//, '')}`;
+  const sheetXml = await readXml(targetPath);
+  if (!sheetXml) throw new Error('Worksheet XML could not be read');
+
+  const sharedStringsXml = await readXml('xl/sharedStrings.xml');
+  const sharedStrings = sharedStringsXml
+    ? Array.from(sharedStringsXml.getElementsByTagName('*'))
+        .filter(node => node.tagName && node.tagName.split(':').pop() === 'si')
+        .map(getXmlTextContent_)
+    : [];
+
+  const rows = Array.from(sheetXml.getElementsByTagName('*')).filter(node => node.tagName && node.tagName.split(':').pop() === 'row');
+  if (!rows.length) return [];
+
+  const matrix = rows.map(rowNode => {
+    const cells = [];
+    Array.from(rowNode.getElementsByTagName('*'))
+      .filter(node => node.tagName && node.tagName.split(':').pop() === 'c')
+      .forEach(cellNode => {
+        const ref = cellNode.getAttribute('r') || '';
+        const colLetters = (ref.match(/[A-Z]+/i) || [''])[0];
+        const colIndex = columnLettersToIndex_(colLetters);
+        const type = cellNode.getAttribute('t') || '';
+        const valueNode = Array.from(cellNode.childNodes).find(node => node.nodeType === 1 && node.tagName && node.tagName.split(':').pop() === 'v');
+        const inlineNode = Array.from(cellNode.childNodes).find(node => node.nodeType === 1 && node.tagName && node.tagName.split(':').pop() === 'is');
+        let value = '';
+        if (type === 's' && valueNode) value = sharedStrings[Number(valueNode.textContent || 0)] || '';
+        else if (type === 'inlineStr' && inlineNode) value = getXmlTextContent_(inlineNode);
+        else if (valueNode) value = valueNode.textContent || '';
+        cells[colIndex] = value;
+      });
+    return cells;
+  });
+
+  const headers = (matrix[0] || []).map(value => String(value || '').trim());
+  return matrix.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((header, index) => {
+      if (!header) return;
+      let value = row[index] != null ? row[index] : '';
+      if (/Date/i.test(header)) value = excelSerialToIsoDate_(value);
+      obj[header] = value;
+    });
+    return obj;
+  }).filter(row => Object.keys(row).length > 0);
 }
 
 function getStoredTheme() {
