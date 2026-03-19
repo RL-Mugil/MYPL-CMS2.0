@@ -427,6 +427,23 @@ function getCachedDashboardDetails(filters = {}) {
   return peekCachedValue('getDashboardDetails', { filters }, true);
 }
 
+function getCachedUsers(filters = {}) {
+  const hasFilters = filters && Object.keys(filters).some((key) => String(filters[key] || '').trim() !== '');
+  return peekCachedValue('getUsers', { filters }, !hasFilters);
+}
+
+function getCachedClients() {
+  return peekCachedValue('getClients', {}, true);
+}
+
+function getCachedNotifications() {
+  return peekCachedValue('getNotifications', {}, false);
+}
+
+function getCachedMessageThreads() {
+  return peekCachedValue('getMessageThreads', {}, false);
+}
+
 window.API = {
   callGAS,
   callGASPublic,
@@ -436,6 +453,10 @@ window.API = {
   getDashboardDetails,
   getCachedDashboardSummary,
   getCachedDashboardDetails,
+  getCachedUsers,
+  getCachedClients,
+  getCachedNotifications,
+  getCachedMessageThreads,
   getCases,
   getCasesPage,
   getInvoices,
