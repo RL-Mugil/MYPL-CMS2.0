@@ -215,6 +215,17 @@
   </div>
 </div>
 
+<!-- Generic Modal -->
+<div class="modal-overlay" id="modal-generic">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-generic-title">Dialog</h3>
+      <button class="modal-close" onclick="closeModal('modal-generic')">✕</button>
+    </div>
+    <div id="modal-generic-body"></div>
+  </div>
+</div>
+
 <script src="config.js"></script>
 <script src="api.js"></script>
 <script src="auth.js"></script>
@@ -432,6 +443,11 @@ async function handleSignOut() {
 // ── Modal helpers ─────────────────────────────────────────────────────────────
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openGenericModal(title, bodyHtml) {
+  document.getElementById('modal-generic-title').textContent = title || 'Dialog';
+  document.getElementById('modal-generic-body').innerHTML = bodyHtml || '';
+  openModal('modal-generic');
+}
 document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
 });
@@ -1106,7 +1122,7 @@ async function loadAttorneyWorkspace() {
 
 async function loadTasks() {
   destroyCharts();
-  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="quickCreateTask()">+ New Task</button>`;
+  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="openTaskModal()">+ New Task</button>`;
   try {
     const tasks = await API.getTasks({});
     document.getElementById('page-content').innerHTML = `
@@ -1134,25 +1150,45 @@ async function loadTasks() {
 }
 
 async function quickCreateTask() {
+  return openTaskModal();
+}
+
+async function openTaskModal() {
   await ensureUserLookupLoaded();
-  const title = prompt('Task title');
-  if (!title) return;
-  const assigned = prompt('Assign to email');
-  const dueDate = prompt('Due date (YYYY-MM-DD)', '');
-  const assignee = (USER_LOOKUP_CACHE || []).find(u => String(u.EMAIL || '').toLowerCase() === String(assigned || '').toLowerCase());
-  try {
-    await API.saveTask({
-      title,
-      assignedToEmail: assigned || '',
-      assignedToName: assignee?.FULL_NAME || '',
-      dueDate: dueDate || '',
-      priority: 'Normal',
-      status: 'Open'
-    });
-    loadTasks();
-  } catch (e) {
-    alert('Error: ' + e.message);
-  }
+  await ensureClientLookupLoaded();
+  openGenericModal('New Task', `
+    <div class="form-group"><label class="form-label">Title *</label><input class="form-control" id="task-title" /></div>
+    <div class="form-group"><label class="form-label">Description</label><textarea class="form-control" id="task-description" rows="4"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Assign To</label><input class="form-control" id="task-assigned" list="task-user-list" placeholder="Search user" /><datalist id="task-user-list">${buildUserOptions(USER_LOOKUP_CACHE, '')}</datalist></div>
+      <div class="form-group"><label class="form-label">Priority</label><select class="form-control" id="task-priority"><option>Normal</option><option>High</option><option>Urgent</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Due Date</label><input type="date" class="form-control" id="task-due" /></div>
+      <div class="form-group"><label class="form-label">Client Code</label><input class="form-control" id="task-client" list="task-client-list" placeholder="Search client code" /><datalist id="task-client-list">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitTaskModal()">Save Task</button>
+    </div>`);
+}
+
+async function submitTaskModal() {
+  const assignedToEmail = document.getElementById('task-assigned').value.trim();
+  const assignee = (USER_LOOKUP_CACHE || []).find(u => String(u.EMAIL || '').toLowerCase() === assignedToEmail.toLowerCase());
+  const client = resolveClientByCode(document.getElementById('task-client').value.trim());
+  await API.saveTask({
+    title: document.getElementById('task-title').value.trim(),
+    description: document.getElementById('task-description').value.trim(),
+    assignedToEmail,
+    assignedToName: assignee?.FULL_NAME || '',
+    dueDate: document.getElementById('task-due').value,
+    priority: document.getElementById('task-priority').value,
+    status: 'Open',
+    clientId: client?.CLIENT_ID || client?.CLIENT_CODE || ''
+  });
+  closeModal('modal-generic');
+  loadTasks();
 }
 
 async function advanceTaskStatus(taskId, currentStatus) {
@@ -1222,7 +1258,7 @@ async function runSmartSearch() {
 
 async function loadApprovals() {
   destroyCharts();
-  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="quickCreateApproval()">+ New Approval</button>`;
+  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="openApprovalModal()">+ New Approval</button>`;
   try {
     const items = await API.getApprovalRequests({});
     document.getElementById('page-content').innerHTML = `
@@ -1240,15 +1276,40 @@ async function loadApprovals() {
 }
 
 async function quickCreateApproval() {
-  const title = prompt('Approval title');
-  if (!title) return;
-  const approverEmail = prompt('Approver email');
-  try {
-    await API.saveApprovalRequest({ title, approverEmail, approvalType: 'General' });
-    loadApprovals();
-  } catch (e) {
-    alert('Error: ' + e.message);
-  }
+  return openApprovalModal();
+}
+
+async function openApprovalModal() {
+  await ensureUserLookupLoaded();
+  await ensureClientLookupLoaded();
+  openGenericModal('New Approval Request', `
+    <div class="form-group"><label class="form-label">Title *</label><input class="form-control" id="approval-title" /></div>
+    <div class="form-group"><label class="form-label">Description</label><textarea class="form-control" id="approval-description" rows="4"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Approver</label><input class="form-control" id="approval-approver" list="approval-user-list" placeholder="Search user" /><datalist id="approval-user-list">${buildUserOptions(USER_LOOKUP_CACHE, '')}</datalist></div>
+      <div class="form-group"><label class="form-label">Type</label><select class="form-control" id="approval-type"><option>General</option><option>Case</option><option>Finance</option><option>Document</option></select></div>
+    </div>
+    <div class="form-group"><label class="form-label">Client Code</label><input class="form-control" id="approval-client" list="approval-client-list" placeholder="Search client code" /><datalist id="approval-client-list">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitApprovalModal()">Create Approval</button>
+    </div>`);
+}
+
+async function submitApprovalModal() {
+  const approverEmail = document.getElementById('approval-approver').value.trim();
+  const approver = (USER_LOOKUP_CACHE || []).find(u => String(u.EMAIL || '').toLowerCase() === approverEmail.toLowerCase());
+  const client = resolveClientByCode(document.getElementById('approval-client').value.trim());
+  await API.saveApprovalRequest({
+    title: document.getElementById('approval-title').value.trim(),
+    description: document.getElementById('approval-description').value.trim(),
+    approverEmail,
+    approverRole: approver?.ROLE || '',
+    approvalType: document.getElementById('approval-type').value,
+    clientId: client?.CLIENT_ID || client?.CLIENT_CODE || ''
+  });
+  closeModal('modal-generic');
+  loadApprovals();
 }
 
 async function reviewApproval(approvalId, status) {
@@ -1258,7 +1319,7 @@ async function reviewApproval(approvalId, status) {
 
 async function loadDocumentWorkflow() {
   destroyCharts();
-  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="quickCreateDocumentRequest()">+ New Request</button>`;
+  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="openDocumentRequestModal()">+ New Request</button>`;
   try {
     const items = await API.getDocumentRequests({});
     document.getElementById('page-content').innerHTML = `
@@ -1276,16 +1337,42 @@ async function loadDocumentWorkflow() {
 }
 
 async function quickCreateDocumentRequest() {
-  const title = prompt('Document request title');
-  if (!title) return;
-  const caseId = prompt('Case ID (optional)', '');
-  const dueDate = prompt('Due date (YYYY-MM-DD)', '');
-  try {
-    await API.saveDocumentRequest({ title, caseId, dueDate, requestType: 'Document', status: 'Open', clientVisible: 'Yes' });
-    loadDocumentWorkflow();
-  } catch (e) {
-    alert('Error: ' + e.message);
-  }
+  return openDocumentRequestModal();
+}
+
+async function openDocumentRequestModal() {
+  await ensureClientLookupLoaded();
+  openGenericModal('New Document Request', `
+    <div class="form-group"><label class="form-label">Title *</label><input class="form-control" id="docreq-title" /></div>
+    <div class="form-group"><label class="form-label">Description</label><textarea class="form-control" id="docreq-description" rows="4"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Case ID</label><input class="form-control" id="docreq-case" placeholder="A61M001" /></div>
+      <div class="form-group"><label class="form-label">Due Date</label><input type="date" class="form-control" id="docreq-due" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Client Code</label><input class="form-control" id="docreq-client" list="docreq-client-list" placeholder="Search client code" /><datalist id="docreq-client-list">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist></div>
+      <div class="form-group"><label class="form-label">Visibility</label><select class="form-control" id="docreq-visible"><option value="Yes">Client Visible</option><option value="No">Internal</option></select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitDocumentRequestModal()">Save Request</button>
+    </div>`);
+}
+
+async function submitDocumentRequestModal() {
+  const client = resolveClientByCode(document.getElementById('docreq-client').value.trim());
+  await API.saveDocumentRequest({
+    title: document.getElementById('docreq-title').value.trim(),
+    description: document.getElementById('docreq-description').value.trim(),
+    caseId: document.getElementById('docreq-case').value.trim(),
+    dueDate: document.getElementById('docreq-due').value,
+    requestType: 'Document',
+    status: 'Open',
+    clientVisible: document.getElementById('docreq-visible').value,
+    clientId: client?.CLIENT_ID || client?.CLIENT_CODE || ''
+  });
+  closeModal('modal-generic');
+  loadDocumentWorkflow();
 }
 
 function renderDocuments(docs) {
@@ -1753,15 +1840,22 @@ async function createThread() {
 }
 
 async function createDirectMessage() {
-  const recipientEmail = prompt('Recipient email');
-  if (!recipientEmail) return;
-  const title = prompt('Conversation title', 'Direct conversation');
-  try {
-    await API.createDirectThread({ recipientEmail, title: title || 'Direct conversation' });
-    loadMessages();
-  } catch (e) {
-    alert('Error: ' + e.message);
-  }
+  await ensureUserLookupLoaded();
+  openGenericModal('Direct Message', `
+    <div class="form-group"><label class="form-label">Recipient *</label><input class="form-control" id="direct-recipient" list="direct-user-list" placeholder="Search user email" /><datalist id="direct-user-list">${buildUserOptions(USER_LOOKUP_CACHE.filter(u => String(u.EMAIL || '').toLowerCase() !== String(SESSION.email || '').toLowerCase()), '')}</datalist></div>
+    <div class="form-group"><label class="form-label">Conversation Title</label><input class="form-control" id="direct-title" value="Direct conversation" /></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitDirectMessageModal()">Start Conversation</button>
+    </div>`);
+}
+
+async function submitDirectMessageModal() {
+  const recipientEmail = document.getElementById('direct-recipient').value.trim();
+  const title = document.getElementById('direct-title').value.trim() || 'Direct conversation';
+  await API.createDirectThread({ recipientEmail, title });
+  closeModal('modal-generic');
+  loadMessages();
 }
 
 async function openThread(threadId) {
