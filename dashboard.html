@@ -468,8 +468,22 @@ async function loadDashboard() {
   destroyCharts();
   try {
     await ensureClientLookupLoaded();
+    const cachedSummary = API.getCachedDashboardSummary(DASHBOARD_FILTERS);
+    const cachedDetails = API.getCachedDashboardDetails(DASHBOARD_FILTERS);
+    if (cachedSummary) {
+      renderDashboardSummary(cachedSummary);
+      if (cachedDetails) {
+        hydrateDashboardDetails(cachedSummary, cachedDetails);
+      }
+    }
     const summary = await API.getDashboardSummary(DASHBOARD_FILTERS);
     renderDashboardSummary(summary);
+    if (!cachedDetails) {
+      const loadingBlock = document.getElementById('dashboard-detail-loading');
+      if (loadingBlock) {
+        loadingBlock.style.display = '';
+      }
+    }
     const details = await API.getDashboardDetails(DASHBOARD_FILTERS);
     hydrateDashboardDetails(summary, details);
   } catch(e) {
