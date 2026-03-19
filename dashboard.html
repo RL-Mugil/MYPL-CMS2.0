@@ -175,6 +175,11 @@ let _charts = {};
 let DASHBOARD_FILTERS = { clientCode: '', caseId: '' };
 let CASE_FILTERS = { clientCode: '', caseId: '', status: '', country: '', workflowStage: '', query: '' };
 let USER_FILTERS = { query: '', role: '' };
+let CASES_PAGE_LIMIT = 50;
+let CASES_PAGE_OFFSET = 0;
+let CASES_HAS_MORE = false;
+let CASES_TOTAL = 0;
+let CASES_ITEMS = [];
 
 function hasRoleAtLeast(role, minimumRole) {
   const order = {
@@ -463,10 +468,66 @@ async function loadDashboard() {
   destroyCharts();
   try {
     await ensureClientLookupLoaded();
-    const d = await API.getDashboard(DASHBOARD_FILTERS);
-    renderDashboard(d);
+    const summary = await API.getDashboardSummary(DASHBOARD_FILTERS);
+    renderDashboardSummary(summary);
+    const details = await API.getDashboardDetails(DASHBOARD_FILTERS);
+    hydrateDashboardDetails(summary, details);
   } catch(e) {
     showPageError('loadDashboard', e);
+  }
+}
+
+function renderDashboardSummary(d) {
+  const caseIds = [];
+  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="toggleDashboardFilters()">${DASHBOARD_FILTER_OPEN ? 'Close Filter' : 'Filter'}</button>`;
+  document.getElementById('page-content').innerHTML = `
+  <div class="page">
+    <div class="filter-toggle-row"></div>
+    <div class="card filter-panel filter-drawer ${DASHBOARD_FILTER_OPEN ? 'open' : ''}" style="margin-bottom:20px">
+      <div class="filter-head">
+        <div class="card-title">Dashboard Filters</div>
+        <div class="filter-actions">
+          <button class="btn btn-primary btn-sm" onclick="applyDashboardFilters()">Apply</button>
+          <button class="btn btn-ghost btn-sm" onclick="resetDashboardFilters()">Reset</button>
+        </div>
+      </div>
+      <div class="filter-grid compact-2">
+        <div class="form-group">
+          <label class="form-label">Client Code</label>
+          <input class="form-control" id="dash-client-code" list="dash-client-options" value="${DASHBOARD_FILTERS.clientCode || ''}" placeholder="A61M or 870Y" />
+          <datalist id="dash-client-options">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Case ID</label>
+          <input class="form-control" id="dash-case-id" list="dash-case-options" value="${DASHBOARD_FILTERS.caseId || ''}" placeholder="A61M002" />
+          <datalist id="dash-case-options">${buildCaseIdOptions(caseIds)}</datalist>
+        </div>
+      </div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card accent-primary"><div class="stat-label">Granted</div><div class="stat-value">${d.totalGranted || 0}</div><div class="stat-sub">patents</div></div>
+      <div class="stat-card accent-sky"><div class="stat-label">Pending</div><div class="stat-value">${d.totalPending || 0}</div><div class="stat-sub">active cases</div></div>
+      <div class="stat-card accent-amber"><div class="stat-label">Deadlines</div><div class="stat-value">${d.upcomingDeadlineCount || 0}</div><div class="stat-sub">upcoming 30d</div></div>
+      <div class="stat-card accent-rose"><div class="stat-label">Unpaid</div><div class="stat-value">${d.pendingInvoicesCount || 0}</div><div class="stat-sub">invoices</div></div>
+      <div class="stat-card accent-sky"><div class="stat-label">Unread Alerts</div><div class="stat-value">${d.unreadNotifications || 0}</div><div class="stat-sub">notifications</div></div>
+      <div class="stat-card accent-primary"><div class="stat-label">Open Threads</div><div class="stat-value">${d.openThreads || 0}</div><div class="stat-sub">messages</div></div>
+      <div class="stat-card accent-emerald"><div class="stat-label">My Clients</div><div class="stat-value">${d.myClientCount || 0}</div><div class="stat-sub">in scope</div></div>
+    </div>
+    <div id="dashboard-detail-loading" class="card" style="margin-top:20px">
+      <div class="card-title">Loading details</div>
+      <div class="loading-wrap" style="min-height:220px"><div class="spinner"></div><span>Loading charts and activity…</span></div>
+    </div>
+    <div id="dashboard-detail-block"></div>
+  </div>`;
+}
+
+function hydrateDashboardDetails(summary, details) {
+  const d = Object.assign({}, summary || {}, details || {});
+  renderDashboard(d);
+  const caseIds = getCaseIdLookupFromCases((details && details.recentActiveCases) || []);
+  const caseList = document.getElementById('dash-case-options');
+  if (caseList) {
+    caseList.innerHTML = buildCaseIdOptions(caseIds);
   }
 }
 
@@ -700,8 +761,14 @@ async function loadCases() {
   try {
     await ensureClientLookupLoaded();
     await ensureUserLookupLoaded();
-    const cases = await API.getCases(CASE_FILTERS);
-    renderCases(cases, canEdit, canBulk);
+    CASES_PAGE_OFFSET = 0;
+    CASES_ITEMS = [];
+    const page = await API.getCasesPage(CASE_FILTERS, CASES_PAGE_LIMIT, CASES_PAGE_OFFSET);
+    CASES_ITEMS = Array.isArray(page.items) ? page.items : [];
+    CASES_TOTAL = page.total || CASES_ITEMS.length;
+    CASES_HAS_MORE = !!page.hasMore;
+    CASES_PAGE_OFFSET = page.nextOffset || CASES_ITEMS.length;
+    renderCases(CASES_ITEMS, canEdit, canBulk);
   } catch(e) {
     showPageError('loadCases', e);
   }
@@ -740,7 +807,34 @@ function renderCases(cases, canEdit, canBulk) {
       <thead><tr>${canBulk?'<th></th>':''}<th>Case ID</th><th>Patent Title</th><th>Country</th><th>Filed</th><th>Status</th><th>Deadline</th><th>Attorney</th>${canEdit?'<th>Actions</th>':''}</tr></thead>
       <tbody>${rows}</tbody>
     </table></div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+      <div class="text-muted" style="font-size:12px">${cases.length} of ${CASES_TOTAL} cases loaded</div>
+      ${CASES_HAS_MORE ? `<button class="btn btn-ghost btn-sm" id="cases-load-more" onclick="loadMoreCases()">Load More</button>` : ''}
+    </div>
   </div>`;
+}
+
+async function loadMoreCases() {
+  const btn = document.getElementById('cases-load-more');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+  }
+  try {
+    const page = await API.getCasesPage(CASE_FILTERS, CASES_PAGE_LIMIT, CASES_PAGE_OFFSET);
+    const nextItems = Array.isArray(page.items) ? page.items : [];
+    CASES_ITEMS = CASES_ITEMS.concat(nextItems);
+    CASES_TOTAL = page.total || CASES_ITEMS.length;
+    CASES_HAS_MORE = !!page.hasMore;
+    CASES_PAGE_OFFSET = page.nextOffset || CASES_ITEMS.length;
+    renderCases(CASES_ITEMS, hasRoleAtLeast(SESSION.role, 'Staff'), hasRoleAtLeast(SESSION.role, 'Admin'));
+  } catch (e) {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Load More';
+    }
+    alert('Error loading more cases: ' + e.message);
+  }
 }
 
 function renderCaseFilters() {
