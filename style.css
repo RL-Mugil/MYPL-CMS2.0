@@ -350,6 +350,42 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
+.filter-panel {
+  margin-bottom: 16px;
+  padding: 18px 20px;
+}
+.filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.filter-head .card-title {
+  margin-bottom: 0;
+}
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.filter-grid.compact-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.filter-panel .form-label {
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.filter-panel .form-control {
+  height: 42px;
+}
+
 /* ── Modal ───────────────────────────────────────────────────────────────── */
 .modal-overlay {
   display: none;
@@ -571,6 +607,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .menu-toggle { display: flex; }
   .grid-7-5, .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
+  .filter-grid, .filter-grid.compact-2 { grid-template-columns: 1fr; }
   .content { padding: 16px; }
   .topbar { padding: 0 16px; }
 }
