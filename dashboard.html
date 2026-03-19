@@ -180,6 +180,15 @@ let CASES_PAGE_OFFSET = 0;
 let CASES_HAS_MORE = false;
 let CASES_TOTAL = 0;
 let CASES_ITEMS = [];
+let USERS_PAGE_LIMIT = 50;
+let USERS_VISIBLE_COUNT = 50;
+let CLIENTS_PAGE_LIMIT = 50;
+let CLIENTS_VISIBLE_COUNT = 50;
+let MESSAGES_PAGE_LIMIT = 25;
+let MESSAGES_VISIBLE_COUNT = 25;
+let NOTICES_PAGE_LIMIT = 25;
+let NOTICES_VISIBLE_COUNT = 25;
+let SAFE_PREFETCH_STARTED = false;
 
 function hasRoleAtLeast(role, minimumRole) {
   const order = {
@@ -235,6 +244,7 @@ function isInternalUser() {
   document.getElementById('sidebar-name').textContent = SESSION.name || SESSION.email;
   document.getElementById('sidebar-role').textContent = SESSION.role;
   await populateCircleNav();
+  startSafePrefetch();
 
   showPage('dashboard');
 })();
@@ -453,6 +463,18 @@ function renderRoleCheckboxes(selectedCsv) {
 
 function getSelectedAdditionalRoles() {
   return Array.from(document.querySelectorAll('.mu-extra-role:checked')).map(el => el.value).join(', ');
+}
+
+function startSafePrefetch() {
+  if (SAFE_PREFETCH_STARTED) return;
+  SAFE_PREFETCH_STARTED = true;
+  Promise.allSettled([
+    ensureClientLookupLoaded(),
+    ensureUserLookupLoaded(),
+    ensureCircleLookupLoaded(),
+    API.getOrganizations(),
+    API.getCasesPage({}, CASES_PAGE_LIMIT, 0)
+  ]).catch(() => {});
 }
 
 // ── Destroy charts helper ─────────────────────────────────────────────────────
@@ -2208,6 +2230,209 @@ async function saveCase(existingId) {
     alert('Error: ' + e.message);
     btn.disabled = false; btn.textContent = 'Save Case';
   }
+}
+
+let _usersDataset = [];
+let _clientsDataset = [];
+let _threadsDataset = [];
+let _notificationsDataset = [];
+
+function renderMgmtUsersTable(users) {
+  const mc = document.getElementById('mgmt-content');
+  if (!mc) return;
+  const visible = (users || []).slice(0, USERS_VISIBLE_COUNT);
+  const rows = visible.map(u => `<tr>
+      <td class="font-mono">${u.USER_ID}</td>
+      <td>${u.FULL_NAME}</td>
+      <td>${u.EMAIL}</td>
+      <td>${statusBadge(u.ROLE)}</td>
+      <td>${statusBadge(u.STATUS)}</td>
+      <td><div class="action-row">
+        <button class="btn btn-ghost btn-sm" onclick='openUserModal(${JSON.stringify(JSON.stringify(u))})'>Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteItem('User','${u.USER_ID}')">Del</button>
+      </div></td>
+    </tr>`).join('');
+  mc.innerHTML = `
+    <div class="card" style="margin-bottom:12px">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="user-search" value="${USER_FILTERS.query || ''}" placeholder="Name, email, ID" /></div>
+        <div class="form-group"><label class="form-label">Role</label><select class="form-control" id="user-role-filter">${['','Super Admin','Admin','Galvanizer','Staff','Attorney','Client Admin','Client Employee','Individual Client'].map(v=>`<option value="${v}"${USER_FILTERS.role===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="applyUserFilters()">Apply</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetUserFilters()">Reset</button>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button class="btn btn-primary btn-sm" onclick="openUserModal()">+ New User</button>
+    </div>
+    <div class="card"><div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No users found.</td></tr>'}</tbody>
+    </table></div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+      <div class="text-muted" style="font-size:12px">${visible.length} of ${users.length} users loaded</div>
+      ${visible.length < users.length ? `<button class="btn btn-ghost btn-sm" onclick="loadMoreMgmtUsers()">Load More</button>` : ''}
+    </div>`;
+}
+
+function renderMgmtClientsTable(clients) {
+  const mc = document.getElementById('mgmt-content');
+  if (!mc) return;
+  const visible = (clients || []).slice(0, CLIENTS_VISIBLE_COUNT);
+  const rows = visible.map(c => `<tr>
+      <td class="font-mono">${c.CLIENT_ID}</td>
+      <td>${c.CLIENT_NAME}</td>
+      <td style="font-size:12px">${c.EMAIL||'—'}</td>
+      <td>${statusBadge(c.STATUS)}</td>
+      <td><div class="action-row">
+        <button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(c))})'>Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteItem('Client','${c.CLIENT_ID}')">Del</button>
+      </div></td>
+    </tr>`).join('');
+  mc.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button class="btn btn-primary btn-sm" onclick="openClientModal()">+ New Client</button>
+    </div>
+    <div class="card"><div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No clients found.</td></tr>'}</tbody>
+    </table></div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+      <div class="text-muted" style="font-size:12px">${visible.length} of ${clients.length} clients loaded</div>
+      ${visible.length < clients.length ? `<button class="btn btn-ghost btn-sm" onclick="loadMoreMgmtClients()">Load More</button>` : ''}
+    </div>`;
+}
+
+function renderMessagesList(threads) {
+  const visible = (threads || []).slice(0, MESSAGES_VISIBLE_COUNT);
+  const rows = visible.map(t => `<tr>
+      <td class="text-em">${t.THREAD_ID}</td>
+      <td>${t.TITLE || 'Untitled'}</td>
+      <td>${t.THREAD_TYPE || 'General'}</td>
+      <td>${statusBadge(t.STATUS || 'Open')}</td>
+      <td>${fmt(t.LAST_MESSAGE_AT || t.CREATED_AT)}</td>
+      <td><div class="action-row"><button class="btn btn-ghost btn-sm" onclick="openThread('${t.THREAD_ID}')">Open</button><button class="btn btn-danger btn-sm" onclick="deleteThread('${t.THREAD_ID}')">Delete</button></div></td>
+    </tr>`).join('');
+  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="createThread()">+ New Thread</button>`;
+  document.getElementById('page-content').innerHTML = `
+    <div class="page">
+      <div class="grid-2">
+        <div>
+          <div class="card"><div class="table-wrap"><table>
+            <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Status</th><th>Updated</th><th></th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No threads found.</td></tr>'}</tbody>
+          </table></div></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+            <div class="text-muted" style="font-size:12px">${visible.length} of ${threads.length} threads loaded</div>
+            ${visible.length < threads.length ? `<button class="btn btn-ghost btn-sm" onclick="loadMoreMessages()">Load More</button>` : ''}
+          </div>
+        </div>
+        <div class="card" id="thread-panel"><div class="card-title">Conversation</div><div class="text-muted">Select a thread to read or reply.</div></div>
+      </div>
+    </div>`;
+}
+
+function renderNotificationsList(items) {
+  const visible = (items || []).slice(0, NOTICES_PAGE_LIMIT);
+  const rows = visible.map(n => `
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;gap:12px">
+          <div>
+            <div style="font-weight:600">${n.TITLE}</div>
+            <div class="text-muted" style="font-size:13px;margin-top:4px">${n.BODY}</div>
+            <div class="text-muted" style="font-size:11px;margin-top:6px">${fmt(n.CREATED_AT)}</div>
+          </div>
+          ${n.IS_READ === 'Yes' ? '' : `<button class="btn btn-ghost btn-sm" onclick="markNoticeRead('${n.NOTIFICATION_ID}')">Mark read</button>`}
+        </div>
+      </div>`).join('');
+  document.getElementById('page-content').innerHTML = `<div class="page">${rows || '<div class="empty-state"><p>No notifications.</p></div>'}<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><div class="text-muted" style="font-size:12px">${visible.length} of ${items.length} notifications loaded</div>${visible.length < items.length ? `<button class="btn btn-ghost btn-sm" onclick="loadMoreNotifications()">Load More</button>` : ''}</div></div>`;
+}
+
+const _loadMgmtUsersOriginal = loadMgmtUsers;
+loadMgmtUsers = async function() {
+  USERS_VISIBLE_COUNT = USERS_PAGE_LIMIT;
+  const cached = API.getCachedUsers(USER_FILTERS);
+  if (Array.isArray(cached) && cached.length) {
+    _usersDataset = cached;
+    renderMgmtUsersTable(_usersDataset);
+  }
+  const mc = document.getElementById('mgmt-content');
+  try {
+    await ensureClientLookupLoaded();
+    await ensureCircleLookupLoaded();
+    _usersDataset = await API.getUsers(USER_FILTERS);
+    renderMgmtUsersTable(_usersDataset);
+  } catch(e) { if (mc) mc.innerHTML = err(e.message); }
+};
+
+function loadMoreMgmtUsers() {
+  USERS_VISIBLE_COUNT += USERS_PAGE_LIMIT;
+  renderMgmtUsersTable(_usersDataset);
+}
+
+const _loadMgmtClientsOriginal = loadMgmtClients;
+loadMgmtClients = async function() {
+  CLIENTS_VISIBLE_COUNT = CLIENTS_PAGE_LIMIT;
+  const cached = API.getCachedClients();
+  if (Array.isArray(cached) && cached.length) {
+    _clientsDataset = cached;
+    renderMgmtClientsTable(_clientsDataset);
+  }
+  const mc = document.getElementById('mgmt-content');
+  try {
+    _clientsDataset = await API.getClients();
+    renderMgmtClientsTable(_clientsDataset);
+  } catch(e) { if (mc) mc.innerHTML = err(e.message); }
+};
+
+function loadMoreMgmtClients() {
+  CLIENTS_VISIBLE_COUNT += CLIENTS_PAGE_LIMIT;
+  renderMgmtClientsTable(_clientsDataset);
+}
+
+const _loadMessagesOriginal = loadMessages;
+loadMessages = async function() {
+  destroyCharts();
+  MESSAGES_VISIBLE_COUNT = MESSAGES_PAGE_LIMIT;
+  const cached = API.getCachedMessageThreads();
+  if (Array.isArray(cached) && cached.length) {
+    _threadsDataset = cached;
+    renderMessagesList(_threadsDataset);
+  }
+  try {
+    _threadsDataset = await API.getMessageThreads();
+    renderMessagesList(_threadsDataset);
+  } catch (e) {
+    document.getElementById('page-content').innerHTML = err(e.message);
+  }
+};
+
+function loadMoreMessages() {
+  MESSAGES_VISIBLE_COUNT += MESSAGES_PAGE_LIMIT;
+  renderMessagesList(_threadsDataset);
+}
+
+const _loadNotificationsOriginal = loadNotifications;
+loadNotifications = async function() {
+  destroyCharts();
+  NOTICES_PAGE_LIMIT = 25;
+  const cached = API.getCachedNotifications();
+  if (Array.isArray(cached) && cached.length) {
+    _notificationsDataset = cached;
+    renderNotificationsList(_notificationsDataset);
+  }
+  try {
+    _notificationsDataset = await API.getNotifications();
+    renderNotificationsList(_notificationsDataset);
+  } catch (e) {
+    document.getElementById('page-content').innerHTML = err(e.message);
+  }
+};
+
+function loadMoreNotifications() {
+  NOTICES_PAGE_LIMIT += 25;
+  renderNotificationsList(_notificationsDataset);
 }
 
 </script>
