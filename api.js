@@ -234,7 +234,12 @@ async function clerkLogin(email) {
 }
 
 async function getDashboard(filters = {}) { return callGASCached('getDashboard', { filters }, 30000); }
+async function getDashboardSummary(filters = {}) { return callGASCached('getDashboardSummary', { filters }, 30000); }
+async function getDashboardDetails(filters = {}) { return callGASCached('getDashboardDetails', { filters }, 30000); }
 async function getCases(filters = {}) { return callGASCached('getCases', { filters }, 30000); }
+async function getCasesPage(filters = {}, limit = 50, offset = 0) {
+  return callGASCached('getCasesPage', { filters, limit, offset }, 30000);
+}
 async function getInvoices() { return callGAS('getInvoices', {}); }
 async function getDocuments() { return callGAS('getDocuments', {}); }
 async function getOrganizations() { return callGASLookupCached('getOrganizations', {}, SAFE_LOOKUP_TTL_MS); }
@@ -280,19 +285,19 @@ async function getDailyOpsOverview() { return callGASCached('getDailyOpsOverview
 async function getDailyAudit(filters = {}) { return callGASCached('getDailyAudit', { filters }, 60000); }
 async function submitExpenseClaim(claimData) {
   const result = await callGAS('submitExpenseClaim', { claimData });
-  clearClientCache(['getExpenseClaims', 'getDailyOpsOverview', 'getDashboard', 'getNotifications']);
+  clearClientCache(['getExpenseClaims', 'getDailyOpsOverview', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getNotifications']);
   return result;
 }
 async function getExpenseClaims(filters = {}) { return callGASCached('getExpenseClaims', { filters }, 60000); }
 async function reviewExpenseClaim(claimId, reviewData) {
   const result = await callGAS('reviewExpenseClaim', { claimId, reviewData });
-  clearClientCache(['getExpenseClaims', 'getDailyOpsOverview', 'getDashboard', 'getNotifications']);
+  clearClientCache(['getExpenseClaims', 'getDailyOpsOverview', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getNotifications']);
   return result;
 }
 async function getNotifications() { return callGASCached('getNotifications', {}, 30000); }
 async function markNotificationRead(notificationId) {
   const result = await callGAS('markNotificationRead', { notificationId });
-  clearClientCache(['getNotifications', 'getDashboard']);
+  clearClientCache(['getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
   return result;
 }
 async function getMessageThreads() { return callGASCached('getMessageThreads', {}, 30000); }
@@ -300,17 +305,17 @@ async function getGalvanizerQueue(filters = {}) { return callGASCached('getGalva
 async function getThreadMessages(threadId) { return callGAS('getThreadMessages', { threadId }); }
 async function saveMessageThread(threadData) {
   const result = await callGAS('saveMessageThread', { threadData });
-  clearClientCache(['getMessageThreads', 'getNotifications', 'getDashboard']);
+  clearClientCache(['getMessageThreads', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
   return result;
 }
 async function deleteMessageThread(threadId) {
   const result = await callGAS('deleteMessageThread', { threadId });
-  clearClientCache(['getMessageThreads', 'getNotifications', 'getDashboard']);
+  clearClientCache(['getMessageThreads', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
   return result;
 }
 async function sendThreadMessage(messageData) {
   const result = await callGAS('sendThreadMessage', { messageData });
-  clearClientCache(['getMessageThreads', 'getNotifications', 'getDashboard']);
+  clearClientCache(['getMessageThreads', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
   return result;
 }
 
@@ -330,40 +335,40 @@ async function getUsers(filters = {}) {
 }
 async function saveUser(userData) {
   const result = await callGAS('saveUser', { userData });
-  clearClientCache(['getUsers', 'getOrganizations', 'getCircles', 'getCircleMembers', 'getDashboard', 'getCases']);
+  clearClientCache(['getUsers', 'getOrganizations', 'getCircles', 'getCircleMembers', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage']);
   return result;
 }
 async function deleteUser(userId) {
   const result = await callGAS('deleteUser', { userId });
-  clearClientCache(['getUsers', 'getOrganizations', 'getCircles', 'getCircleMembers', 'getDashboard', 'getCases']);
+  clearClientCache(['getUsers', 'getOrganizations', 'getCircles', 'getCircleMembers', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage']);
   return result;
 }
 
 async function getClients() { return callGASLookupCached('getClients', {}, SAFE_LOOKUP_TTL_MS); }
 async function saveClient(clientData) {
   const result = await callGAS('saveClient', { clientData });
-  clearClientCache(['getClients', 'getDashboard', 'getCases', 'getOrganizations']);
+  clearClientCache(['getClients', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage', 'getOrganizations']);
   return result;
 }
 async function deleteClient(clientId) {
   const result = await callGAS('deleteClient', { clientId });
-  clearClientCache(['getClients', 'getDashboard', 'getCases', 'getOrganizations']);
+  clearClientCache(['getClients', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage', 'getOrganizations']);
   return result;
 }
 
 async function saveCase(caseData) {
   const result = await callGAS('saveCase', { caseData });
-  clearClientCache(['getCases', 'getDashboard', 'getGalvanizerQueue', 'getDocuments']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
   return result;
 }
 async function bulkUpdateCases(bulkData) {
   const result = await callGAS('bulkUpdateCases', { bulkData });
-  clearClientCache(['getCases', 'getDashboard', 'getGalvanizerQueue', 'getDocuments']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
   return result;
 }
 async function deleteCase(caseId) {
   const result = await callGAS('deleteCase', { caseId });
-  clearClientCache(['getCases', 'getDashboard', 'getGalvanizerQueue', 'getDocuments']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
   return result;
 }
 
@@ -395,7 +400,10 @@ window.API = {
   callGASPublic,
   clerkLogin,
   getDashboard,
+  getDashboardSummary,
+  getDashboardDetails,
   getCases,
+  getCasesPage,
   getInvoices,
   getDocuments,
   getOrganizations,
