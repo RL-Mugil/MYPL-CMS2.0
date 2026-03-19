@@ -114,6 +114,14 @@ function writePersistentLookupCache(key, value, ttlMs = SAFE_LOOKUP_TTL_MS) {
   return value;
 }
 
+function peekCachedValue(action, params = {}, allowPersistent = false) {
+  const key = buildClientCacheKey(action, params);
+  const sessionCached = readClientCache(key);
+  if (sessionCached) return sessionCached;
+  if (allowPersistent) return readPersistentLookupCache(key);
+  return null;
+}
+
 function clearClientCache(matchers = []) {
   const shouldClear = (key) => !matchers.length || matchers.some((matcher) => key.includes(`:${matcher}:`));
 
@@ -229,13 +237,29 @@ async function callGASLookupCached(action, params = {}, ttlMs = SAFE_LOOKUP_TTL_
   return writePersistentLookupCache(key, fresh, ttlMs);
 }
 
+async function callGASPersistentCached(action, params = {}, ttlMs = 15 * 60 * 1000) {
+  const key = buildClientCacheKey(action, params);
+  const sessionCached = readClientCache(key);
+  if (sessionCached) return sessionCached;
+
+  const persistentCached = readPersistentLookupCache(key);
+  if (persistentCached) {
+    writeClientCache(key, persistentCached, Math.min(ttlMs, 60 * 1000));
+    return persistentCached;
+  }
+
+  const fresh = await callGAS(action, params);
+  writeClientCache(key, fresh, Math.min(ttlMs, 60 * 1000));
+  return writePersistentLookupCache(key, fresh, ttlMs);
+}
+
 async function clerkLogin(email) {
   return callGASPublic('clerklogin', { email });
 }
 
 async function getDashboard(filters = {}) { return callGASCached('getDashboard', { filters }, 30000); }
-async function getDashboardSummary(filters = {}) { return callGASCached('getDashboardSummary', { filters }, 30000); }
-async function getDashboardDetails(filters = {}) { return callGASCached('getDashboardDetails', { filters }, 30000); }
+async function getDashboardSummary(filters = {}) { return callGASPersistentCached('getDashboardSummary', { filters }, 15 * 60 * 1000); }
+async function getDashboardDetails(filters = {}) { return callGASPersistentCached('getDashboardDetails', { filters }, 15 * 60 * 1000); }
 async function getCases(filters = {}) { return callGASCached('getCases', { filters }, 30000); }
 async function getCasesPage(filters = {}, limit = 50, offset = 0) {
   return callGASCached('getCasesPage', { filters, limit, offset }, 30000);
@@ -395,6 +419,14 @@ function showGlobalError(msg) {
   }, 5000);
 }
 
+function getCachedDashboardSummary(filters = {}) {
+  return peekCachedValue('getDashboardSummary', { filters }, true);
+}
+
+function getCachedDashboardDetails(filters = {}) {
+  return peekCachedValue('getDashboardDetails', { filters }, true);
+}
+
 window.API = {
   callGAS,
   callGASPublic,
@@ -402,6 +434,8 @@ window.API = {
   getDashboard,
   getDashboardSummary,
   getDashboardDetails,
+  getCachedDashboardSummary,
+  getCachedDashboardDetails,
   getCases,
   getCasesPage,
   getInvoices,
