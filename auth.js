@@ -78,6 +78,13 @@ function setGasSession(session) {
 function clearGasSession() {
   _gasSession = null;
   sessionStorage.removeItem('mg_session');
+  try {
+    Object.keys(sessionStorage).forEach((key) => {
+      if (key.startsWith('mg_api_cache_v1:')) {
+        sessionStorage.removeItem(key);
+      }
+    });
+  } catch {}
 }
 
 async function requireAuth(allowedRoles) {
