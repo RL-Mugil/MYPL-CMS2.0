@@ -9,6 +9,8 @@
   --surface:    #0f0f1b;
   --card:       #13131e;
   --card-hover: #17172a;
+  --card-soft:  rgba(255,255,255,0.02);
+  --row-hover:  rgba(255,255,255,0.02);
   --border:     rgba(255,255,255,0.07);
   --border-hi:  rgba(255,255,255,0.14);
 
@@ -23,6 +25,10 @@
   --text:       #e2e2ef;
   --text-2:     #9191b4;
   --text-3:     #52526a;
+  --muted:      #9191b4;
+  --chart-text: #9191b4;
+  --chart-grid: rgba(255,255,255,0.08);
+  --chart-empty:#1e1e30;
 
   --radius:     10px;
   --radius-lg:  16px;
@@ -31,6 +37,36 @@
 
   --sidebar-w:  256px;
   --topbar-h:   60px;
+}
+
+body.theme-light {
+  --bg:         #f4f6fb;
+  --surface:    #ffffff;
+  --card:       #ffffff;
+  --card-hover: #eef2ff;
+  --card-soft:  #f8faff;
+  --row-hover:  #f6f8fc;
+  --border:     rgba(15,23,42,0.10);
+  --border-hi:  rgba(15,23,42,0.18);
+
+  --primary:    #5b5bd6;
+  --primary-d:  #4f46e5;
+  --primary-bg: rgba(79,70,229,0.10);
+  --sky:        #0284c7;
+  --emerald:    #059669;
+  --amber:      #d97706;
+  --rose:       #e11d48;
+
+  --text:       #111827;
+  --text-2:     #4b5563;
+  --text-3:     #6b7280;
+  --muted:      #4b5563;
+  --chart-text: #4b5563;
+  --chart-grid: rgba(15,23,42,0.10);
+  --chart-empty:#dbe3f5;
+
+  --shadow:     0 10px 30px rgba(15,23,42,0.08);
+  --shadow-lg:  0 14px 40px rgba(15,23,42,0.14);
 }
 
 html, body {
@@ -314,7 +350,7 @@ a:hover { color: #a5b4fc; }
 .inbox-panel { flex: 1 1 auto; min-width: 0; min-height: 70vh; display: flex; flex-direction: column; }
 .inbox-sidebar-head, .inbox-chat-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .chat-list { display: flex; flex-direction: column; gap: 10px; }
-.chat-list-item { display: flex; gap: 12px; width: 100%; text-align: left; padding: 14px; border-radius: 16px; border: 1px solid var(--border); background: rgba(255,255,255,0.02); color: var(--text); cursor: pointer; transition: .16s ease; }
+.chat-list-item { display: flex; gap: 12px; width: 100%; text-align: left; padding: 14px; border-radius: 16px; border: 1px solid var(--border); background: var(--card-soft); color: var(--text); cursor: pointer; transition: .16s ease; }
 .chat-list-item:hover, .chat-list-item.active { border-color: var(--primary); background: rgba(108,99,255,0.10); }
 .chat-list-item.has-unread .chat-name { color: var(--text); }
 .chat-avatar { width: 42px; height: 42px; border-radius: 999px; display: grid; place-items: center; background: linear-gradient(135deg, var(--primary), #35d0f3); color: #fff; font-weight: 700; flex: 0 0 auto; }
@@ -363,7 +399,7 @@ tbody td {
 }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr { transition: background 0.12s; }
-tbody tr:hover { background: rgba(255,255,255,0.02); }
+tbody tr:hover { background: var(--row-hover); }
 
 /* ── Badges ──────────────────────────────────────────────────────────────── */
 .badge {
@@ -380,11 +416,11 @@ tbody tr:hover { background: rgba(255,255,255,0.02); }
 .badge-granted   { background: rgba(52,211,153,0.12); color: var(--emerald); }
 .badge-exam      { background: rgba(251,191,36,0.12); color: var(--amber); }
 .badge-drafted   { background: rgba(129,140,248,0.12); color: var(--primary); }
-.badge-abandoned { background: rgba(255,255,255,0.06); color: var(--text-3); }
+.badge-abandoned { background: var(--card-soft); color: var(--text-3); }
 .badge-paid      { background: rgba(52,211,153,0.12); color: var(--emerald); }
 .badge-unpaid    { background: rgba(251,113,133,0.12); color: var(--rose); }
 .badge-active    { background: rgba(52,211,153,0.12); color: var(--emerald); }
-.badge-inactive  { background: rgba(255,255,255,0.06); color: var(--text-3); }
+.badge-inactive  { background: var(--card-soft); color: var(--text-3); }
 .badge-admin     { background: rgba(129,140,248,0.15); color: var(--primary); }
 .badge-attorney  { background: rgba(56,189,248,0.12); color: var(--sky); }
 .badge-client    { background: rgba(251,191,36,0.1); color: var(--amber); }

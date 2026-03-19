@@ -254,6 +254,8 @@ let MESSAGES_VISIBLE_COUNT = 25;
 let NOTICES_PAGE_LIMIT = 25;
 let NOTICES_VISIBLE_COUNT = 25;
 let SAFE_PREFETCH_STARTED = false;
+let CURRENT_THEME = 'dark';
+let CURRENT_PAGE = 'dashboard';
 const NAV_SECTION_STORAGE_KEY = 'mg_sidebar_sections_v1';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'mg_sidebar_collapsed_v1';
 
@@ -286,6 +288,7 @@ function isInternalUser() {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
+  applyTheme(getStoredTheme());
   SESSION = await Auth.requireAuth();
   if (!SESSION) {
     window.location.href = 'index.html';
@@ -403,6 +406,7 @@ const PAGE_TITLES = {
 };
 
 function showPage(page) {
+  CURRENT_PAGE = page;
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
   });
@@ -412,8 +416,7 @@ function showPage(page) {
   const content = document.getElementById('page-content');
   content.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><span>Loading…</span></div>';
 
-  const right = document.getElementById('topbar-right');
-  right.innerHTML = '';
+  setTopbarActions('');
 
   const loaders = {
     dashboard: loadDashboard,
@@ -629,6 +632,39 @@ function fileToDataUrl(file) {
   });
 }
 
+function getStoredTheme() {
+  try {
+    return localStorage.getItem('portalTheme') || 'dark';
+  } catch (e) {
+    return 'dark';
+  }
+}
+
+function applyTheme(theme) {
+  CURRENT_THEME = theme === 'light' ? 'light' : 'dark';
+  document.body.classList.toggle('theme-light', CURRENT_THEME === 'light');
+  try { localStorage.setItem('portalTheme', CURRENT_THEME); } catch (e) {}
+}
+
+function getThemeToggleHtml() {
+  return `<button class="btn btn-ghost btn-sm" onclick="toggleTheme()">${CURRENT_THEME === 'light' ? 'Dark' : 'Light'} Theme</button>`;
+}
+
+function setTopbarActions(extraHtml = '') {
+  window.__lastTopbarExtra = extraHtml || '';
+  const right = document.getElementById('topbar-right');
+  if (!right) return;
+  right.innerHTML = `${getThemeToggleHtml()}${extraHtml ? `<span class="topbar-actions-extra">${extraHtml}</span>` : ''}`;
+}
+
+function toggleTheme() {
+  applyTheme(CURRENT_THEME === 'light' ? 'dark' : 'light');
+  setTopbarActions(window.__lastTopbarExtra || '');
+  if (typeof CURRENT_PAGE === 'string' && CURRENT_PAGE) {
+    showPage(CURRENT_PAGE);
+  }
+}
+
 function buildCaseIdOptions(list) {
   return (list || []).map(c => `<option value="${c}">${c}</option>`).join('');
 }
@@ -731,7 +767,7 @@ async function loadDashboard() {
 
 function renderDashboardSummary(d) {
   const caseIds = [];
-  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="toggleDashboardFilters()">${DASHBOARD_FILTER_OPEN ? 'Close Filter' : 'Filter'}</button>`;
+  setTopbarActions(`<button class="btn btn-ghost btn-sm" onclick="toggleDashboardFilters()">${DASHBOARD_FILTER_OPEN ? 'Close Filter' : 'Filter'}</button>`);
   document.getElementById('page-content').innerHTML = `
   <div class="page">
     <div class="filter-toggle-row"></div>
@@ -828,7 +864,7 @@ function renderDashboard(d) {
     </tr>`).join('') || '<tr><td colspan="4" class="text-muted" style="text-align:center;padding:20px">No active cases pending action</td></tr>';
 
   const caseIds = getCaseIdLookupFromCases(d.recentActiveCases || []);
-  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="toggleDashboardFilters()">${DASHBOARD_FILTER_OPEN ? 'Close Filter' : 'Filter'}</button>`;
+  setTopbarActions(`<button class="btn btn-ghost btn-sm" onclick="toggleDashboardFilters()">${DASHBOARD_FILTER_OPEN ? 'Close Filter' : 'Filter'}</button>`);
   document.getElementById('page-content').innerHTML = `
   <div class="page">
     <div class="filter-toggle-row"></div>
@@ -947,7 +983,13 @@ function renderDashboard(d) {
   </div>`;
 
   // Draw charts
-  Chart.defaults.color = '#9191b4';
+  const styles = getComputedStyle(document.body);
+  const chartText = styles.getPropertyValue('--chart-text').trim() || styles.getPropertyValue('--text-2').trim() || '#9191b4';
+  const chartGrid = styles.getPropertyValue('--chart-grid').trim() || 'rgba(255,255,255,0.08)';
+  const chartEmpty = styles.getPropertyValue('--chart-empty').trim() || '#1e1e30';
+  const primaryDark = styles.getPropertyValue('--primary-d').trim() || '#6366f1';
+  const primary = styles.getPropertyValue('--primary').trim() || '#818cf8';
+  Chart.defaults.color = chartText;
   Chart.defaults.font.family = "'DM Sans', sans-serif";
 
   const makeDonut = (canvasId, dataObj) => {
@@ -955,7 +997,7 @@ function renderDashboard(d) {
     const data = labels.map(k => dataObj[k]);
     const bgColors = labels.map(k => COUNTRY_COLORS[k] || '#6b7097');
     if (data.length === 0 || data.every(v => v === 0)) {
-      labels.push('None'); data.push(1); bgColors.push('#1e1e30');
+      labels.push('None'); data.push(1); bgColors.push(chartEmpty);
     }
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
@@ -981,14 +1023,14 @@ function renderDashboard(d) {
       type: 'bar',
       data: {
         labels: sLabels,
-        datasets: [{ data: sData, backgroundColor: '#6366f1', hoverBackgroundColor: '#818cf8', borderRadius: 4, barThickness: 14 }]
+        datasets: [{ data: sData, backgroundColor: primaryDark, hoverBackgroundColor: primary, borderRadius: 4, barThickness: 14 }]
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { display: false, grid: { display: false }, border: { display: false } },
-          y: { grid: { display: false }, border: { display: false }, ticks: { padding: 8, font: { size: 11 } } }
+          x: { display: false, grid: { display: false, color: chartGrid }, border: { display: false } },
+          y: { grid: { display: false, color: chartGrid }, border: { display: false }, ticks: { padding: 8, font: { size: 11 }, color: chartText } }
         }
       }
     });
@@ -1025,8 +1067,9 @@ async function loadCases() {
   const canEdit = hasRoleAtLeast(SESSION.role, 'Staff');
   const canBulk = hasRoleAtLeast(SESSION.role, 'Admin');
   if (canEdit) {
-    document.getElementById('topbar-right').innerHTML =
-      `${canBulk ? `<button class="btn btn-ghost btn-sm" onclick="openBulkCaseUpdate()">Bulk Update</button>` : ''}<button class="btn btn-primary btn-sm" onclick="openCaseModal()">+ New Case</button>`;
+    setTopbarActions(`${canBulk ? `<button class="btn btn-ghost btn-sm" onclick="openBulkCaseUpdate()">Bulk Update</button>` : ''}<button class="btn btn-primary btn-sm" onclick="openCaseModal()">+ New Case</button>`);
+  } else {
+    setTopbarActions('');
   }
   try {
     await ensureClientLookupLoaded();
@@ -1255,7 +1298,7 @@ async function loadAttorneyWorkspace() {
 
 async function loadTasks() {
   destroyCharts();
-  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="openTaskModal()">+ New Task</button>`;
+  setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openTaskModal()">+ New Task</button>`);
   try {
     const tasks = await API.getTasks({});
     document.getElementById('page-content').innerHTML = `
@@ -1391,7 +1434,7 @@ async function runSmartSearch() {
 
 async function loadApprovals() {
   destroyCharts();
-  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="openApprovalModal()">+ New Approval</button>`;
+  setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openApprovalModal()">+ New Approval</button>`);
   try {
     const items = await API.getApprovalRequests({});
     const canManageAll = hasRoleAtLeast(SESSION.role, 'Admin');
@@ -1460,7 +1503,7 @@ async function reviewApproval(approvalId, status) {
 
 async function loadDocumentWorkflow() {
   destroyCharts();
-  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="openDocumentRequestModal()">+ New Request</button>`;
+  setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openDocumentRequestModal()">+ New Request</button>`);
   try {
     const items = await API.getDocumentRequests({});
     document.getElementById('page-content').innerHTML = `
@@ -1536,7 +1579,7 @@ function renderDocuments(docs) {
       ${items}
     </div>`;
   }).join('');
-  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="submitDocumentUpload()">Upload Document</button>`;
+  setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="submitDocumentUpload()">Upload Document</button>`);
   document.getElementById('page-content').innerHTML = `<div class="page">
     <div class="card" style="margin-bottom:16px">
       <div class="filter-grid compact-2">
@@ -1581,8 +1624,9 @@ async function loadFinance() {
   }
   const canEdit = hasRoleAtLeast(SESSION.role, 'Admin');
   if (canEdit) {
-    document.getElementById('topbar-right').innerHTML =
-      `<button class="btn btn-primary btn-sm" onclick="openInvoiceModal()">+ New Invoice</button>`;
+    setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openInvoiceModal()">+ New Invoice</button>`);
+  } else {
+    setTopbarActions('');
   }
   try {
     const invoices = await API.getInvoices();
@@ -2019,7 +2063,7 @@ async function loadInbox() {
       .filter(user => String(user.EMAIL || '').toLowerCase() !== String(SESSION.email || '').toLowerCase())
       .filter(user => isInternalUserRole(user.ROLE || '') || getEffectiveRoleList(user).some(role => ['Super Admin','Admin','Galvanizer','Staff','Attorney'].includes(role)))
       .map(user => ({ user, chat: chatMap.get(String(user.EMAIL || '').toLowerCase()) || null }));
-    document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="createDirectMessage()">+ New Chat</button>`;
+    setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="createDirectMessage()">+ New Chat</button>`);
     const list = availableUsers.map(({ user, chat }) => `
       <button class="chat-list-item ${chat?.unreadCount ? 'has-unread' : ''}" data-user-email="${user.EMAIL}" data-thread-id="${chat?.THREAD_ID || ''}" onclick="openInboxChatByUser('${user.EMAIL}')">
         <div class="chat-avatar">${(user.FULL_NAME || user.EMAIL || 'U').slice(0, 1).toUpperCase()}</div>
@@ -2148,7 +2192,7 @@ async function loadMessages() {
   destroyCharts();
   try {
     const threads = (await API.getMessageThreads()).filter(t => String(t.THREAD_TYPE || '') !== 'Direct');
-    document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="createThread()">+ New Thread</button>`;
+  setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="createThread()">+ New Thread</button>`);
     const rows = threads.map(t => `<tr>
       <td class="text-em">${t.THREAD_ID}</td>
       <td>${t.TITLE || 'Untitled'}</td>
@@ -2388,7 +2432,7 @@ async function loadNotifications() {
   destroyCharts();
   try {
     const items = await API.getNotifications();
-    document.getElementById('topbar-right').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="clearAllNotifications()">Clear All</button>`;
+    setTopbarActions(`<button class="btn btn-ghost btn-sm" onclick="clearAllNotifications()">Clear All</button>`);
     const rows = items.map(n => `
       <div class="card" style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;gap:12px">
@@ -2452,7 +2496,7 @@ async function loadDailyAudit() {
     const wrapups = (audit.wrapups || []).map(item => `
       <tr><td>${item.ENTRY_DATE}</td><td>${item.USER_NAME || item.USER_EMAIL}</td><td>${item.HIGH_POINTS || '—'}</td><td>${item.LOW_POINTS || '—'}</td><td>${item.HELP_NEEDED || '—'}</td></tr>
     `).join('');
-    document.getElementById('topbar-right').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="toggleDailyAuditFilters()">${DAILY_AUDIT_FILTER_OPEN ? 'Close Filter' : 'Filter'}</button>`;
+    setTopbarActions(`<button class="btn btn-ghost btn-sm" onclick="toggleDailyAuditFilters()">${DAILY_AUDIT_FILTER_OPEN ? 'Close Filter' : 'Filter'}</button>`);
     document.getElementById('page-content').innerHTML = `
     <div class="page">
       <div class="card filter-panel filter-drawer ${DAILY_AUDIT_FILTER_OPEN ? 'open' : ''}" style="margin-bottom:16px">
