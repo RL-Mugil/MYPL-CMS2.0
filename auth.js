@@ -85,6 +85,13 @@ function clearGasSession() {
       }
     });
   } catch {}
+  try {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('mg_api_cache_v1:')) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch {}
 }
 
 async function requireAuth(allowedRoles) {
