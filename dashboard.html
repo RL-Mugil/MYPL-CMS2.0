@@ -508,6 +508,7 @@ function showPageError(context, error) {
 let CLIENT_LOOKUP_CACHE = [];
 let USER_LOOKUP_CACHE = [];
 let CIRCLE_LOOKUP_CACHE = [];
+let ORG_LOOKUP_CACHE = [];
 let DASHBOARD_FILTER_OPEN = false;
 let DAILY_AUDIT_FILTER_OPEN = false;
 
@@ -547,6 +548,15 @@ async function ensureCircleLookupLoaded(force = false) {
   return CIRCLE_LOOKUP_CACHE;
 }
 
+async function ensureOrgLookupLoaded(force = false) {
+  if (!force && ORG_LOOKUP_CACHE.length) return ORG_LOOKUP_CACHE;
+  const orgs = await API.getOrganizations();
+  ORG_LOOKUP_CACHE = (Array.isArray(orgs) ? orgs : []).sort((a, b) =>
+    String(a.ORG_ID || '').localeCompare(String(b.ORG_ID || ''))
+  );
+  return ORG_LOOKUP_CACHE;
+}
+
 function buildClientOptions(list) {
   return (list || []).map(c => {
     const code = c.CLIENT_CODE || c.CLIENT_ID || '';
@@ -561,6 +571,26 @@ function buildUserOptions(list, role) {
     .join('');
 }
 
+function buildUserIdentityOptions(list, filterFn) {
+  return (list || [])
+    .filter(user => !filterFn || filterFn(user))
+    .map(user => {
+      const org = user.ORG_ID ? resolveOrganization(user.ORG_ID) : null;
+      const summary = [user.USER_ID, user.FULL_NAME || user.EMAIL, org?.ORG_NAME || user.ORG_ID || ''].filter(Boolean).join(' | ');
+      return `<option value="${user.USER_ID}">${summary}</option>`;
+    }).join('');
+}
+
+function buildUserNameEmailOptions(list, filterFn) {
+  return (list || [])
+    .filter(user => !filterFn || filterFn(user))
+    .map(user => {
+      const org = user.ORG_ID ? resolveOrganization(user.ORG_ID) : null;
+      const summary = [user.FULL_NAME || user.EMAIL, user.EMAIL, org?.ORG_NAME || user.ORG_ID || ''].filter(Boolean).join(' | ');
+      return `<option value="${user.EMAIL}">${summary}</option>`;
+    }).join('');
+}
+
 function buildNameOptions(list) {
   return (list || []).map(user => `<option value="${user.FULL_NAME || ''}">${user.FULL_NAME || ''}</option>`).join('');
 }
@@ -573,10 +603,30 @@ function buildCircleOptions(list) {
   return (list || []).map(circle => `<option value="${circle.CIRCLE_ID}">${circle.CIRCLE_NAME}</option>`).join('');
 }
 
+function buildOrgOptions(list) {
+  return (list || []).map(org => `<option value="${org.ORG_ID}">${org.ORG_ID} | ${org.ORG_NAME || ''}</option>`).join('');
+}
+
 function resolveClientByCode(code) {
   const lookup = CLIENT_LOOKUP_CACHE || [];
   const normalized = String(code || '').trim().toUpperCase();
   return lookup.find(c => String(c.CLIENT_CODE || c.CLIENT_ID || '').toUpperCase() === normalized) || null;
+}
+
+function resolveOrganization(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (!normalized) return null;
+  return (ORG_LOOKUP_CACHE || []).find(org => {
+    const id = String(org.ORG_ID || '').toUpperCase();
+    const name = String(org.ORG_NAME || '').toUpperCase();
+    return id === normalized || `${id} | ${name}` === normalized || name === normalized;
+  }) || null;
+}
+
+function resolveUserById(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (!normalized) return null;
+  return (USER_LOOKUP_CACHE || []).find(user => String(user.USER_ID || '').toUpperCase() === normalized) || null;
 }
 
 function getCaseIdLookupFromCases(cases) {
@@ -1267,12 +1317,16 @@ async function loadApprovals() {
   document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="openApprovalModal()">+ New Approval</button>`;
   try {
     const items = await API.getApprovalRequests({});
+    const canManageAll = hasRoleAtLeast(SESSION.role, 'Admin');
     document.getElementById('page-content').innerHTML = `
       <div class="page">
         <div class="card">
           <div class="table-wrap"><table>
             <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Approver</th><th>Status</th><th></th></tr></thead>
-            <tbody>${(items || []).map(item => `<tr><td class="text-em">${item.APPROVAL_ID}</td><td>${item.TITLE || ''}</td><td>${item.APPROVAL_TYPE || ''}</td><td>${item.APPROVER_EMAIL || ''}</td><td>${statusBadge(item.STATUS || 'Pending')}</td><td>${item.STATUS === 'Pending' ? `<button class="btn btn-ghost btn-sm" onclick="reviewApproval('${item.APPROVAL_ID}','Approved')">Approve</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No approvals.</td></tr>'}</tbody>
+            <tbody>${(items || []).map(item => {
+              const canReview = item.STATUS === 'Pending' && (canManageAll || String(item.APPROVER_EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase());
+              return `<tr><td class="text-em">${item.APPROVAL_ID}</td><td>${item.TITLE || ''}</td><td>${item.APPROVAL_TYPE || ''}</td><td>${item.APPROVER_EMAIL || ''}</td><td>${statusBadge(item.STATUS || 'Pending')}</td><td>${canReview ? `<div class="action-row"><button class="btn btn-success btn-sm" onclick="reviewApproval('${item.APPROVAL_ID}','Approved')">Approve</button><button class="btn btn-danger btn-sm" onclick="reviewApproval('${item.APPROVAL_ID}','Rejected')">Reject</button></div>` : ''}</td></tr>`;
+            }).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No approvals.</td></tr>'}</tbody>
           </table></div>
         </div>
       </div>`;
@@ -1319,8 +1373,12 @@ async function submitApprovalModal() {
 }
 
 async function reviewApproval(approvalId, status) {
-  await API.reviewApprovalRequest(approvalId, { status, notes: '' });
-  loadApprovals();
+  try {
+    await API.reviewApprovalRequest(approvalId, { status, notes: '' });
+    loadApprovals();
+  } catch (e) {
+    alert(`Approval update failed: ${e.message}`);
+  }
 }
 
 async function loadDocumentWorkflow() {
@@ -1488,6 +1546,7 @@ async function markPaid(invoiceId, btn) {
 //  MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════════════════
 let _mgmtTab = 'users';
+let ACTIVE_ORG_VIEW_ID = '';
 
 function loadManagement() {
   destroyCharts();
@@ -1518,7 +1577,7 @@ function switchMgmtTab(tab) {
   mc.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
   if (tab === 'users') loadMgmtUsers();
   if (tab === 'clients') loadMgmtClients();
-  if (tab === 'organizations') loadMgmtOrganizations();
+  if (tab === 'organizations') loadMgmtOrganizationsV2();
   if (tab === 'circles') loadCircles();
 }
 
@@ -1642,10 +1701,15 @@ async function deleteItem(type, id) {
   } catch(e) { alert('Error: ' + e.message); }
 }
 
-async function loadMgmtOrganizations() {
+async function loadMgmtOrganizations(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
   const mc = document.getElementById('mgmt-content');
   try {
+    await ensureOrgLookupLoaded(true);
+    await ensureUserLookupLoaded();
     const orgs = await API.getOrganizations();
+    ACTIVE_ORG_VIEW_ID = selectedOrgId || ACTIVE_ORG_VIEW_ID || '';
+    const activeOrg = (orgs || []).find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || null;
+    const orgUsers = activeOrg ? await API.getOrganizationUsers(activeOrg.ORG_ID) : [];
     const rows = orgs.map(o => `<tr>
       <td class="font-mono">${o.ORG_ID}</td>
       <td>${o.ORG_NAME}</td>
@@ -1678,6 +1742,112 @@ async function openOrganizationPrompt() {
   }
 }
 
+async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
+  const mc = document.getElementById('mgmt-content');
+  try {
+    await ensureOrgLookupLoaded(true);
+    await ensureUserLookupLoaded();
+    const orgs = await API.getOrganizations();
+    ACTIVE_ORG_VIEW_ID = selectedOrgId || ACTIVE_ORG_VIEW_ID || '';
+    const activeOrg = (orgs || []).find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || null;
+    const orgUsers = activeOrg ? await API.getOrganizationUsers(activeOrg.ORG_ID) : [];
+    const rows = orgs.map(o => `<tr>
+      <td class="font-mono">${o.ORG_ID}</td>
+      <td>${o.ORG_NAME}</td>
+      <td>${o.ASSIGNED_STAFF_EMAIL || '—'}</td>
+      <td>${statusBadge(o.STATUS || 'Active')}</td>
+      <td><div class="action-row">
+        <button class="btn btn-ghost btn-sm" onclick='openOrganizationModal(${JSON.stringify(JSON.stringify(o))})'>Edit</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadMgmtOrganizationsV2('${o.ORG_ID}')">Users</button>
+        <button class="btn btn-primary btn-sm" onclick="openOrganizationUserModal('${o.ORG_ID}','${escapeAttr(o.ORG_NAME || '')}')">+ User</button>
+      </div></td>
+    </tr>`).join('');
+    const userRows = (orgUsers || []).map(user => `<tr>
+      <td>${user.USER_ID}</td>
+      <td>${user.FULL_NAME}</td>
+      <td>${user.EMAIL}</td>
+      <td>${statusBadge(user.ROLE || 'Client Employee')}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick='openUserModal(${JSON.stringify(JSON.stringify(user))})'>Edit</button></td>
+    </tr>`).join('');
+    mc.innerHTML = `
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+        <button class="btn btn-primary btn-sm" onclick="openOrganizationModal()">+ New Organization</button>
+      </div>
+      <div class="grid-2">
+        <div class="card"><div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>Organization</th><th>Assigned Staff</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No organizations found.</td></tr>'}</tbody>
+        </table></div></div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+            <div class="card-title" style="margin-bottom:0">${activeOrg ? `${activeOrg.ORG_NAME} Users` : 'Organization Users'}</div>
+            ${activeOrg ? `<button class="btn btn-primary btn-sm" onclick="openOrganizationUserModal('${activeOrg.ORG_ID}','${escapeAttr(activeOrg.ORG_NAME || '')}')">+ Add User</button>` : ''}
+          </div>
+          ${activeOrg ? `
+            <div class="text-muted" style="margin:10px 0 14px">${activeOrg.ORG_ID} | ${activeOrg.PRIMARY_EMAIL || 'No email'} | Staff: ${activeOrg.ASSIGNED_STAFF_EMAIL || 'Unassigned'}</div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
+              <tbody>${userRows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No organization users yet.</td></tr>'}</tbody>
+            </table></div>
+          ` : '<div class="text-muted">Select an organization to view or add company users.</div>'}
+        </div>
+      </div>`;
+  } catch (e) {
+    mc.innerHTML = err(e.message);
+  }
+}
+
+async function openOrganizationModal(jsonStr) {
+  await ensureUserLookupLoaded();
+  const org = jsonStr ? JSON.parse(jsonStr) : null;
+  const clientAdminOptions = buildUserIdentityOptions(USER_LOOKUP_CACHE, user => ['Client Admin','Client Employee'].includes(user.ROLE || ''));
+  const assignedStaffOptions = buildUserNameEmailOptions(USER_LOOKUP_CACHE, user => getEffectiveRoleList(user).some(role => ['Super Admin','Admin','Galvanizer','Staff'].includes(role)));
+  openGenericModal(org ? 'Edit Organization' : 'New Organization', `
+    <div class="form-group"><label class="form-label">Organization Name *</label><input class="form-control" id="org-name" value="${org?.ORG_NAME || ''}" /></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Primary Email</label><input type="email" class="form-control" id="org-email" value="${org?.PRIMARY_EMAIL || ''}" /></div>
+      <div class="form-group"><label class="form-label">Primary Phone</label><input class="form-control" id="org-phone" value="${org?.PRIMARY_PHONE || ''}" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Organization Code</label><input class="form-control" id="org-code" value="${org?.ORG_CODE || ''}" /></div>
+      <div class="form-group"><label class="form-label">Assigned Staff</label><input class="form-control" id="org-staff" list="org-staff-list" value="${org?.ASSIGNED_STAFF_EMAIL || ''}" placeholder="Search staff email" /><datalist id="org-staff-list">${assignedStaffOptions}</datalist></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Client Admin User</label><input class="form-control" id="org-admin-user" list="org-admin-list" value="${org?.CLIENT_ADMIN_USER_ID || ''}" placeholder="Search user id" /><datalist id="org-admin-list">${clientAdminOptions}</datalist></div>
+      <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="org-status"><option value="Active"${(org?.STATUS || 'Active') === 'Active' ? ' selected' : ''}>Active</option><option value="Inactive"${org?.STATUS === 'Inactive' ? ' selected' : ''}>Inactive</option></select></div>
+    </div>
+    <div class="form-group"><label class="form-label">Address</label><textarea class="form-control" id="org-address" rows="3">${org?.ADDRESS || ''}</textarea></div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="org-notes" rows="3">${org?.NOTES || ''}</textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveOrganizationModal('${org?.ORG_ID || ''}')">Save Organization</button>
+    </div>`);
+}
+
+async function saveOrganizationModal(existingOrgId) {
+  const adminUser = resolveUserById(document.getElementById('org-admin-user').value.trim());
+  await API.saveOrganization({
+    ORG_ID: existingOrgId || undefined,
+    ORG_NAME: document.getElementById('org-name').value.trim(),
+    PRIMARY_EMAIL: document.getElementById('org-email').value.trim(),
+    PRIMARY_PHONE: document.getElementById('org-phone').value.trim(),
+    ORG_CODE: document.getElementById('org-code').value.trim(),
+    CLIENT_ADMIN_USER_ID: adminUser?.USER_ID || document.getElementById('org-admin-user').value.trim(),
+    ASSIGNED_STAFF_EMAIL: document.getElementById('org-staff').value.trim(),
+    STATUS: document.getElementById('org-status').value,
+    ADDRESS: document.getElementById('org-address').value.trim(),
+    NOTES: document.getElementById('org-notes').value.trim(),
+  });
+  closeModal('modal-generic');
+  await ensureOrgLookupLoaded(true);
+  loadMgmtOrganizationsV2(existingOrgId || ACTIVE_ORG_VIEW_ID);
+}
+
+async function openOrganizationUserModal(orgId, orgName) {
+  await ensureOrgLookupLoaded();
+  openUserModal('', { prefilledOrgId: orgId, prefilledOrgName: orgName });
+}
+
 function truncateText(value, max = 64) {
   const text = String(value || '').trim();
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -1703,19 +1873,24 @@ async function loadInbox() {
   try {
     await ensureUserLookupLoaded();
     const chats = await API.getDirectInbox();
+    const chatMap = new Map((chats || []).map(chat => [String(chat.counterpartEmail || '').toLowerCase(), chat]));
+    const availableUsers = (USER_LOOKUP_CACHE || [])
+      .filter(user => String(user.EMAIL || '').toLowerCase() !== String(SESSION.email || '').toLowerCase())
+      .filter(user => isInternalUserRole(user.ROLE || '') || getEffectiveRoleList(user).some(role => ['Super Admin','Admin','Galvanizer','Staff','Attorney'].includes(role)))
+      .map(user => ({ user, chat: chatMap.get(String(user.EMAIL || '').toLowerCase()) || null }));
     document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="createDirectMessage()">+ New Chat</button>`;
-    const list = (chats || []).map(chat => `
-      <button class="chat-list-item ${chat.unreadCount ? 'has-unread' : ''}" data-thread-id="${chat.THREAD_ID}" onclick="openInboxChat('${chat.THREAD_ID}')">
-        <div class="chat-avatar">${(chat.counterpartName || 'U').slice(0, 1).toUpperCase()}</div>
+    const list = availableUsers.map(({ user, chat }) => `
+      <button class="chat-list-item ${chat?.unreadCount ? 'has-unread' : ''}" data-user-email="${user.EMAIL}" data-thread-id="${chat?.THREAD_ID || ''}" onclick="openInboxChatByUser('${user.EMAIL}')">
+        <div class="chat-avatar">${(user.FULL_NAME || user.EMAIL || 'U').slice(0, 1).toUpperCase()}</div>
         <div class="chat-meta">
           <div class="chat-head">
-            <div class="chat-name">${chat.counterpartName || 'Unknown User'}</div>
-            <div class="chat-time">${formatChatTime(chat.LAST_MESSAGE_AT)}</div>
+            <div class="chat-name">${user.FULL_NAME || 'Unknown User'}</div>
+            <div class="chat-time">${formatChatTime(chat?.LAST_MESSAGE_AT)}</div>
           </div>
-          <div class="chat-role">${chat.counterpartRole || chat.counterpartEmail || ''}</div>
+          <div class="chat-role">${user.ROLE || ''}</div>
           <div class="chat-preview-row">
-            <div class="chat-preview">${truncateText(chat.lastMessageText || 'No messages yet.', 54)}</div>
-            ${chat.unreadCount ? `<span class="chat-unread">${chat.unreadCount}</span>` : ''}
+            <div class="chat-preview">${truncateText(chat?.lastMessageText || 'Start a direct conversation.', 54)}</div>
+            ${chat?.unreadCount ? `<span class="chat-unread">${chat.unreadCount}</span>` : ''}
           </div>
         </div>
       </button>`).join('');
@@ -1727,6 +1902,9 @@ async function loadInbox() {
               <div class="card-title">Direct Chats</div>
               <button class="btn btn-ghost btn-sm" onclick="createDirectMessage()">New</button>
             </div>
+            <div class="form-group" style="margin-bottom:12px">
+              <input class="form-control" id="inbox-user-search" placeholder="Search user name or email" oninput="filterInboxUsers()" />
+            </div>
             <div class="chat-list">
               ${list || '<div class="empty-state"><p>No direct chats yet.</p></div>'}
             </div>
@@ -1736,15 +1914,28 @@ async function loadInbox() {
           </div>
         </div>
       </div>`;
-    if (chats && chats.length) {
-      openInboxChat(chats[0].THREAD_ID);
+    if (availableUsers.length) {
+      openInboxChatByUser(availableUsers[0].user.EMAIL);
     }
   } catch (e) {
     document.getElementById('page-content').innerHTML = err(e.message);
   }
 }
 
-async function openInboxChat(threadId) {
+function filterInboxUsers() {
+  const query = String(document.getElementById('inbox-user-search')?.value || '').trim().toLowerCase();
+  document.querySelectorAll('.chat-list-item').forEach(item => {
+    item.style.display = !query || item.textContent.toLowerCase().includes(query) ? '' : 'none';
+  });
+}
+
+async function openInboxChatByUser(email) {
+  const result = await API.createDirectThread({ recipientEmail: email, title: 'Direct conversation' });
+  if (!(result && result.threadId)) return;
+  return openInboxChat(result.threadId, email);
+}
+
+async function openInboxChat(threadId, emailHint = '') {
   try {
     const [chats, messages] = await Promise.all([
       API.getDirectInbox(),
@@ -1753,8 +1944,10 @@ async function openInboxChat(threadId) {
     const chat = (chats || []).find(item => item.THREAD_ID === threadId);
     await API.markThreadRead(threadId);
     document.querySelectorAll('.chat-list-item').forEach((item) => {
-      item.classList.toggle('active', item.dataset.threadId === threadId);
-      if (item.dataset.threadId === threadId) {
+      const match = item.dataset.threadId === threadId || (emailHint && String(item.dataset.userEmail || '').toLowerCase() === String(emailHint || '').toLowerCase()) || (chat && String(item.dataset.userEmail || '').toLowerCase() === String(chat.counterpartEmail || '').toLowerCase());
+      item.classList.toggle('active', match);
+      if (match) {
+        item.dataset.threadId = threadId;
         item.classList.remove('has-unread');
         const badge = item.querySelector('.chat-unread');
         if (badge) badge.remove();
@@ -2190,7 +2383,9 @@ async function loadExpenses() {
   }
   try {
     const period = document.getElementById('expense-period')?.value || 'month';
-    const claims = await API.getExpenseClaims({ period });
+    const fromDate = document.getElementById('expense-from-date')?.value || '';
+    const toDate = document.getElementById('expense-to-date')?.value || '';
+    const claims = await API.getExpenseClaims({ period, fromDate, toDate });
     const rows = claims.map(c => `
       <tr>
         <td>${c.CLAIM_ID}</td>
@@ -2216,10 +2411,14 @@ async function loadExpenses() {
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px">
             <div class="card-title" style="margin-bottom:0">Claim History</div>
-            <select class="form-control" id="expense-period" style="max-width:160px" onchange="loadExpenses()">
-              <option value="month" ${period === 'month' ? 'selected' : ''}>This Month</option>
-              <option value="all" ${period === 'all' ? 'selected' : ''}>All Time</option>
-            </select>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+              <select class="form-control" id="expense-period" style="max-width:140px" onchange="loadExpenses()">
+                <option value="month" ${period === 'month' ? 'selected' : ''}>This Month</option>
+                <option value="all" ${period === 'all' ? 'selected' : ''}>All Time</option>
+              </select>
+              <input type="date" class="form-control" id="expense-from-date" style="max-width:150px" value="${fromDate}" onchange="loadExpenses()" />
+              <input type="date" class="form-control" id="expense-to-date" style="max-width:150px" value="${toDate}" onchange="loadExpenses()" />
+            </div>
           </div>
           <div class="table-wrap"><table>
             <thead><tr><th>ID</th><th>Date</th><th>Category</th><th>Amount</th><th>Status</th><th>User</th><th>Bill</th></tr></thead>
@@ -2351,11 +2550,13 @@ function syncClientCodeSelection() {
   }
 }
 
-function openCaseModal(jsonStr) {
+async function openCaseModal(jsonStr) {
+  await ensureOrgLookupLoaded();
   const c = jsonStr ? JSON.parse(jsonStr) : null;
   const staffOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Staff');
   const galvanizerOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Galvanizer');
   const attorneyOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Attorney');
+  const orgOptions = buildOrgOptions(ORG_LOOKUP_CACHE);
   document.getElementById('modal-case-title').textContent = c ? 'Edit Case' : 'New Case';
   document.getElementById('modal-case-body').innerHTML = `
     ${clientSearchBlock(c?.CLIENT_ID || '')}
@@ -2381,13 +2582,16 @@ function openCaseModal(jsonStr) {
       <div class="form-group"><label class="form-label">Workflow Stage</label><select class="form-control" id="mc-stage">${['Drafting','Ready for Attorney','Under Attorney Review','Filed'].map(x=>`<option${(c?.WORKFLOW_STAGE||'Drafting')===x?' selected':''}>${x}</option>`).join('')}</select></div>
     </div>
     <div class="form-row">
+      <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="mc-org" list="mc-org-list" value="${c?.ORG_ID || ''}" placeholder="Search organization" /><datalist id="mc-org-list">${orgOptions}</datalist></div>
       <div class="form-group"><label class="form-label">Priority</label><select class="form-control" id="mc-priority">${['Normal','High','Urgent'].map(x=>`<option${(c?.PRIORITY||'Normal')===x?' selected':''}>${x}</option>`).join('')}</select></div>
+    </div>
+    <div class="form-row">
       <div class="form-group"><label class="form-label">Case ID Preview</label><input class="form-control" id="mc-preview" value="${c?.CASE_ID||''}" readonly /></div>
     </div>
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="mc-notes">${c?.NOTES||''}</textarea></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-case')">Cancel</button>
-      <button class="btn btn-primary" id="mc-save" onclick="saveCase('${c?.CASE_ID||''}')">Save Case</button>
+      <button class="btn btn-primary" id="mc-save" onclick="saveCaseV2('${c?.CASE_ID||''}')">Save Case</button>
     </div>`;
   openModal('modal-case');
   syncClientCodeSelection();
@@ -2432,37 +2636,83 @@ async function saveCase(existingId) {
   }
 }
 
-function openClientModal(jsonStr) {
+async function saveCaseV2(existingId) {
+  const btn = document.getElementById('mc-save');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  const clientCode = document.getElementById('mc-client-code').value.trim().toUpperCase();
+  const client = resolveClientByCode(clientCode);
+  const org = resolveOrganization(document.getElementById('mc-org')?.value.trim() || '');
+  if (!client) {
+    btn.disabled = false; btn.textContent = 'Save Case';
+    alert('Select a valid client code.');
+    return;
+  }
+  const data = {
+    CASE_ID: existingId || undefined,
+    CLIENT_ID: client.CLIENT_ID || clientCode,
+    PATENT_TITLE: document.getElementById('mc-title').value.trim(),
+    APPLICATION_NUMBER: document.getElementById('mc-appno').value.trim(),
+    COUNTRY: document.getElementById('mc-country').value,
+    FILING_DATE: document.getElementById('mc-filed').value,
+    NEXT_DEADLINE: document.getElementById('mc-deadline').value,
+    CURRENT_STATUS: document.getElementById('mc-status').value,
+    PATENT_TYPE: document.getElementById('mc-type').value,
+    ASSIGNED_STAFF_EMAIL: document.getElementById('mc-staff').value.trim(),
+    GALVANIZER_EMAIL: document.getElementById('mc-galvanizer').value.trim(),
+    ATTORNEY: document.getElementById('mc-atty').value.trim(),
+    WORKFLOW_STAGE: document.getElementById('mc-stage').value,
+    PRIORITY: document.getElementById('mc-priority').value,
+    ORG_ID: org?.ORG_ID || client.ORG_ID || '',
+    NOTES: document.getElementById('mc-notes').value.trim(),
+  };
+  if (!existingId) delete data.CASE_ID;
+  try {
+    const r = await API.saveCase(data);
+    if (r.success) { closeModal('modal-case'); loadCases(); loadDashboard(); }
+    else throw new Error(r.error || r.message);
+  } catch (e) {
+    showPageError('saveCaseV2', e);
+    btn.disabled = false; btn.textContent = 'Save Case';
+  }
+}
+
+async function openClientModal(jsonStr) {
+  await ensureOrgLookupLoaded();
+  await ensureUserLookupLoaded();
   const c = jsonStr ? JSON.parse(jsonStr) : null;
   const region = c?.CLIENT_REGION || 'India';
   const rawCode = String(c?.CLIENT_CODE || '').replace(/[MY]$/,'');
+  const orgOptions = buildOrgOptions(ORG_LOOKUP_CACHE);
+  const clientAdminOptions = buildUserIdentityOptions(USER_LOOKUP_CACHE, user => ['Client Admin','Client Employee'].includes(user.ROLE || ''));
+  const assignedStaffOptions = buildUserNameEmailOptions(USER_LOOKUP_CACHE, user => getEffectiveRoleList(user).some(role => ['Super Admin','Admin','Galvanizer','Staff'].includes(role)));
   document.getElementById('modal-client-title').textContent = c ? 'Edit Client' : 'New Client';
   document.getElementById('modal-client-body').innerHTML = `
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Client Type</label><select class="form-control" id="cl-client-type">${['Individual','Organization'].map(x=>`<option${(c?.CLIENT_TYPE||'Individual')===x?' selected':''}>${x}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Client Type</label><select class="form-control" id="cl-client-type" onchange="refreshClientTypeFields()">${['Individual','Organization'].map(x=>`<option${(c?.CLIENT_TYPE||'Individual')===x?' selected':''}>${x}</option>`).join('')}</select></div>
       <div class="form-group"><label class="form-label">Region</label><select class="form-control" id="cl-region" onchange="updateClientCodePreview()">${['India','Abroad'].map(x=>`<option${region===x?' selected':''}>${x}</option>`).join('')}</select></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Base Code *</label><input class="form-control" id="cl-code-base" value="${rawCode}" placeholder="A61 or 870" oninput="updateClientCodePreview()" /></div>
       <div class="form-group"><label class="form-label">Final Client Code</label><input class="form-control" id="cl-code" value="${c?.CLIENT_CODE||''}" readonly /></div>
     </div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="cl-org-id" value="${c?.ORG_ID||''}" /></div>
-      <div class="form-group"><label class="form-label">Assigned Staff Email</label><input class="form-control" id="cl-staff" value="${c?.ASSIGNED_STAFF_EMAIL||''}" /></div>
+    <div class="form-row client-org-fields">
+      <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="cl-org-id" list="cl-org-list" value="${c?.ORG_ID||''}" placeholder="Search organization" /><datalist id="cl-org-list">${orgOptions}</datalist></div>
+      <div class="form-group"><label class="form-label">Assigned Staff Email</label><input class="form-control" id="cl-staff" list="cl-staff-list" value="${c?.ASSIGNED_STAFF_EMAIL||''}" placeholder="Search staff email" /><datalist id="cl-staff-list">${assignedStaffOptions}</datalist></div>
     </div>
     <div class="form-group"><label class="form-label">Client Name *</label><input class="form-control" id="cl-name" value="${c?.CLIENT_NAME||''}" /></div>
     <div class="form-group"><label class="form-label">Contact Person</label><input class="form-control" id="cl-contact" value="${c?.CONTACT_PERSON||''}" /></div>
     <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-control" id="cl-email" value="${c?.EMAIL||''}" /></div>
     <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="cl-phone" value="${c?.PHONE||''}" /></div>
-    <div class="form-group"><label class="form-label">Client Admin User ID</label><input class="form-control" id="cl-admin-user" value="${c?.CLIENT_ADMIN_USER_ID||''}" /></div>
+    <div class="form-group client-org-fields"><label class="form-label">Client Admin User ID</label><input class="form-control" id="cl-admin-user" list="cl-admin-list" value="${c?.CLIENT_ADMIN_USER_ID||''}" placeholder="Search user id" /><datalist id="cl-admin-list">${clientAdminOptions}</datalist></div>
     <div class="form-group"><label class="form-label">Address</label><textarea class="form-control" id="cl-addr">${c?.ADDRESS||''}</textarea></div>
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="cl-notes">${c?.NOTES||''}</textarea></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-client')">Cancel</button>
-      <button class="btn btn-primary" id="cl-save" onclick="saveClient('${c?.CLIENT_ID||''}')">Save Client</button>
+      <button class="btn btn-primary" id="cl-save" onclick="saveClientV2('${c?.CLIENT_ID||''}')">Save Client</button>
     </div>`;
   openModal('modal-client');
   updateClientCodePreview();
+  refreshClientTypeFields();
 }
 
 function updateClientCodePreview() {
@@ -2472,6 +2722,13 @@ function updateClientCodePreview() {
   const finalCode = base ? `${base}${suffix}` : '';
   const out = document.getElementById('cl-code');
   if (out) out.value = finalCode;
+}
+
+function refreshClientTypeFields() {
+  const type = document.getElementById('cl-client-type')?.value || 'Individual';
+  document.querySelectorAll('.client-org-fields').forEach(el => {
+    el.style.display = type === 'Organization' ? '' : 'none';
+  });
 }
 
 async function saveClient(existingId) {
@@ -2504,6 +2761,50 @@ async function saveClient(existingId) {
     else throw new Error(r.error || r.message);
   } catch(e) {
     showPageError('saveClient', e);
+    btn.disabled = false; btn.textContent = 'Save Client';
+  }
+}
+
+async function saveClientV2(existingId) {
+  const btn = document.getElementById('cl-save');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const clientType = document.getElementById('cl-client-type').value;
+  const org = clientType === 'Organization' ? resolveOrganization(document.getElementById('cl-org-id').value.trim()) : null;
+  const adminUser = clientType === 'Organization' ? resolveUserById(document.getElementById('cl-admin-user').value.trim()) : null;
+  const data = {
+    CLIENT_ID: existingId || undefined,
+    CLIENT_NAME: document.getElementById('cl-name').value.trim(),
+    CONTACT_PERSON: document.getElementById('cl-contact').value.trim(),
+    EMAIL: document.getElementById('cl-email').value.trim(),
+    PHONE: document.getElementById('cl-phone').value.trim(),
+    CLIENT_TYPE: clientType,
+    CLIENT_REGION: document.getElementById('cl-region').value,
+    CLIENT_CODE: document.getElementById('cl-code').value.trim().toUpperCase(),
+    ORG_ID: org?.ORG_ID || '',
+    CLIENT_ADMIN_USER_ID: adminUser?.USER_ID || '',
+    ASSIGNED_STAFF_EMAIL: document.getElementById('cl-staff').value.trim(),
+    ADDRESS: document.getElementById('cl-addr').value.trim(),
+    NOTES: document.getElementById('cl-notes').value.trim(),
+  };
+  if (!/^[A-Z0-9]{3,4}[MY]$/.test(data.CLIENT_CODE)) {
+    btn.disabled = false; btn.textContent = 'Save Client';
+    alert('Enter a valid client base code. Final code should look like A61M or 870Y.');
+    return;
+  }
+  if (!existingId) delete data.CLIENT_ID;
+  try {
+    const r = await API.saveClient(data);
+    if (r.success) {
+      closeModal('modal-client');
+      CLIENT_LOOKUP_CACHE = [];
+      await ensureClientLookupLoaded();
+      await ensureOrgLookupLoaded(true);
+      loadMgmtClients();
+    } else {
+      throw new Error(r.error || r.message);
+    }
+  } catch (e) {
+    showPageError('saveClientV2', e);
     btn.disabled = false; btn.textContent = 'Save Client';
   }
 }
@@ -2566,38 +2867,53 @@ async function saveClientLegacy(existingId) {
 }
 
 // ── User Modal ────────────────────────────────────────────────────────────────
-function openUserModal(jsonStr) {
+function openUserModal(jsonStr, options = {}) {
   const u = jsonStr ? JSON.parse(jsonStr) : null;
+  const prefilledOrg = options.prefilledOrgId ? resolveOrganization(options.prefilledOrgId) : null;
   document.getElementById('modal-user-title').textContent = u ? 'Edit User' : 'New User';
   const clientOptions = buildClientOptions(CLIENT_LOOKUP_CACHE);
   const circleOptions = buildCircleOptions(CIRCLE_LOOKUP_CACHE);
+  const orgOptions = buildOrgOptions(ORG_LOOKUP_CACHE);
   document.getElementById('modal-user-body').innerHTML = `
     <div class="form-group"><label class="form-label">Full Name *</label><input class="form-control" id="mu-name" value="${u?.FULL_NAME||''}" /></div>
     <div class="form-group"><label class="form-label">Email *</label><input type="email" class="form-control" id="mu-email" value="${u?.EMAIL||''}" /></div>
     <div class="form-group"><label class="form-label">Password ${u?'(leave blank to keep)':'*'}</label><input type="password" class="form-control" id="mu-pwd" /></div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Role</label>
-        <select class="form-control" id="mu-role">${['Super Admin','Admin','Galvanizer','Staff','Attorney','Client Admin','Client Employee','Individual Client'].map(x=>`<option${u?.ROLE===x?' selected':''}>${x}</option>`).join('')}</select>
+        <select class="form-control" id="mu-role" onchange="syncUserOrgSelection()">${['Super Admin','Admin','Galvanizer','Staff','Attorney','Client Admin','Client Employee','Individual Client'].map(x=>`<option${(u?.ROLE || (prefilledOrg ? 'Client Employee' : ''))===x?' selected':''}>${x}</option>`).join('')}</select>
       </div>
       <div class="form-group"><label class="form-label">Client Code</label><input class="form-control" id="mu-cid" list="mu-client-list" value="${u?.CLIENT_ID||''}" /><datalist id="mu-client-list">${clientOptions}</datalist></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="mu-org" value="${u?.ORG_ID||''}" /></div>
+      <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="mu-org" list="mu-org-list" value="${u?.ORG_ID || prefilledOrg?.ORG_ID || ''}" placeholder="Search organization" onchange="syncUserOrgSelection()" /><datalist id="mu-org-list">${orgOptions}</datalist></div>
       <div class="form-group"><label class="form-label">Can View Finance</label>
         <select class="form-control" id="mu-finance">${['No','Yes'].map(x=>`<option${(u?.CAN_VIEW_FINANCE||'No')===x?' selected':''}>${x}</option>`).join('')}</select>
       </div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Department</label><input class="form-control" id="mu-dept" value="${u?.DEPARTMENT||''}" /></div>
+      <div class="form-group"><label class="form-label">Department</label><select class="form-control" id="mu-dept">${['Management','External'].map(x=>`<option${(u?.DEPARTMENT || (prefilledOrg ? 'External' : 'Management'))===x?' selected':''}>${x}</option>`).join('')}</select></div>
       <div class="form-group"><label class="form-label">Reports To</label><input class="form-control" id="mu-reports" value="${u?.REPORTS_TO||''}" /></div>
     </div>
     <div class="form-group"><label class="form-label">Primary Circle</label><input class="form-control" id="mu-circle" list="mu-circle-list" value="" placeholder="Assign circle if needed" /><datalist id="mu-circle-list">${circleOptions}</datalist></div>
     <div class="form-group"><label class="form-label">Additional Roles</label><div>${renderRoleCheckboxes(u?.ADDITIONAL_ROLES||'')}</div></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-user')">Cancel</button>
-      <button class="btn btn-primary" id="mu-save" onclick="saveUser('${u?.USER_ID||''}')">Save User</button>
+      <button class="btn btn-primary" id="mu-save" onclick="saveUserV2('${u?.USER_ID||''}')">Save User</button>
     </div>`;
   openModal('modal-user');
+  syncUserOrgSelection();
+}
+
+function syncUserOrgSelection() {
+  const orgInput = document.getElementById('mu-org');
+  const roleInput = document.getElementById('mu-role');
+  const deptInput = document.getElementById('mu-dept');
+  const financeInput = document.getElementById('mu-finance');
+  const hasOrg = !!resolveOrganization(orgInput?.value || '');
+  if (!hasOrg) return;
+  if (roleInput && roleInput.value !== 'Client Admin') roleInput.value = 'Client Employee';
+  if (deptInput) deptInput.value = 'External';
+  if (financeInput) financeInput.value = 'No';
 }
 
 async function saveUser(existingId) {
@@ -2627,6 +2943,47 @@ async function saveUser(existingId) {
     if (r.success) { closeModal('modal-user'); ensureUserLookupLoaded(true); loadMgmtUsers(); }
     else throw new Error(r.error || r.message);
   } catch(e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false; btn.textContent = 'Save User';
+  }
+}
+
+async function saveUserV2(existingId) {
+  const btn = document.getElementById('mu-save');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const org = resolveOrganization(document.getElementById('mu-org').value.trim());
+  const selectedRole = document.getElementById('mu-role').value;
+  const data = {
+    USER_ID: existingId || undefined,
+    FULL_NAME: document.getElementById('mu-name').value.trim(),
+    EMAIL: document.getElementById('mu-email').value.trim(),
+    PASSWORD: document.getElementById('mu-pwd').value,
+    ROLE: org ? (selectedRole === 'Client Admin' ? 'Client Admin' : 'Client Employee') : selectedRole,
+    CLIENT_ID: document.getElementById('mu-cid').value.trim(),
+    ORG_ID: org?.ORG_ID || '',
+    DEPARTMENT: org ? 'External' : document.getElementById('mu-dept').value.trim(),
+    CAN_VIEW_FINANCE: org ? 'No' : document.getElementById('mu-finance').value,
+    REPORTS_TO: document.getElementById('mu-reports').value.trim(),
+    ADDITIONAL_ROLES: getSelectedAdditionalRoles(),
+  };
+  const primaryCircle = document.getElementById('mu-circle')?.value.trim();
+  if (!existingId) delete data.USER_ID;
+  try {
+    const r = await API.saveUser(data);
+    if (r.success && primaryCircle) {
+      await API.saveCircleMember({ CIRCLE_ID: primaryCircle, USER_EMAIL: data.EMAIL, ROLE_IN_CIRCLE: 'Member' });
+      await populateCircleNav();
+    }
+    if (r.success) {
+      closeModal('modal-user');
+      ensureUserLookupLoaded(true);
+      ensureOrgLookupLoaded(true);
+      if (_mgmtTab === 'organizations' && org?.ORG_ID) loadMgmtOrganizationsV2(org.ORG_ID);
+      else loadMgmtUsers();
+    } else {
+      throw new Error(r.error || r.message);
+    }
+  } catch (e) {
     alert('Error: ' + e.message);
     btn.disabled = false; btn.textContent = 'Save User';
   }
@@ -2732,7 +3089,7 @@ async function submitBulkCaseUpdate(caseIdsJson) {
   }
 }
 
-function openClientModal(jsonStr) {
+function openClientModalLegacyV0(jsonStr) {
   const c = jsonStr ? JSON.parse(jsonStr) : null;
   document.getElementById('modal-client-title').textContent = c ? 'Edit Client' : 'New Client';
   document.getElementById('modal-client-body').innerHTML = `
@@ -2765,7 +3122,7 @@ function openClientModal(jsonStr) {
   openModal('modal-client');
 }
 
-async function saveClient(existingId) {
+async function saveClientLegacyV0(existingId) {
   const btn = document.getElementById('cl-save');
   btn.disabled = true; btn.textContent = 'Saving…';
   const data = {
@@ -2794,7 +3151,7 @@ async function saveClient(existingId) {
   }
 }
 
-function openCaseModal(jsonStr) {
+function openCaseModalLegacyV0(jsonStr) {
   const c = jsonStr ? JSON.parse(jsonStr) : null;
   const staffOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Staff');
   const galvanizerOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Galvanizer');
@@ -2835,7 +3192,7 @@ function openCaseModal(jsonStr) {
   openModal('modal-case');
 }
 
-async function saveCase(existingId) {
+async function saveCaseLegacyV0(existingId) {
   const btn = document.getElementById('mc-save');
   btn.disabled = true; btn.textContent = 'Saving…';
   const data = {
