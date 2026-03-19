@@ -226,15 +226,15 @@ a:hover { color: #a5b4fc; }
 /* ── Stat Cards ──────────────────────────────────────────────────────────── */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
   margin-bottom: 24px;
 }
 .stat-card {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: 18px;
   transition: border-color 0.2s, background 0.2s;
 }
 .stat-card:hover { border-color: var(--border-hi); background: var(--card-hover); }
@@ -353,6 +353,17 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .filter-panel {
   margin-bottom: 16px;
   padding: 18px 20px;
+}
+.filter-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+.filter-drawer {
+  display: none;
+}
+.filter-drawer.open {
+  display: block;
 }
 .filter-head {
   display: flex;
@@ -605,7 +616,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
   .main { margin-left: 0; }
   .menu-toggle { display: flex; }
-  .grid-7-5, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .grid-7-5, .grid-2, .grid-3, .stats-grid { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
   .filter-grid, .filter-grid.compact-2 { grid-template-columns: 1fr; }
   .content { padding: 16px; }
