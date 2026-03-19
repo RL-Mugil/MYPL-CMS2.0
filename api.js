@@ -324,27 +324,33 @@ async function markNotificationRead(notificationId) {
   clearClientCache(['getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
   return result;
 }
+async function getDirectInbox() { return callGASCached('getDirectInbox', {}, 30000); }
 async function getMessageThreads() { return callGASCached('getMessageThreads', {}, 30000); }
 async function getGalvanizerQueue(filters = {}) { return callGASCached('getGalvanizerQueue', { filters }, 30000); }
 async function getThreadMessages(threadId) { return callGAS('getThreadMessages', { threadId }); }
+async function markThreadRead(threadId) {
+  const result = await callGAS('markThreadRead', { threadId });
+  clearClientCache(['getDirectInbox', 'getMessageThreads', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  return result;
+}
 async function saveMessageThread(threadData) {
   const result = await callGAS('saveMessageThread', { threadData });
-  clearClientCache(['getMessageThreads', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  clearClientCache(['getDirectInbox', 'getMessageThreads', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
   return result;
 }
 async function deleteMessageThread(threadId) {
   const result = await callGAS('deleteMessageThread', { threadId });
-  clearClientCache(['getMessageThreads', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  clearClientCache(['getDirectInbox', 'getMessageThreads', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
   return result;
 }
 async function sendThreadMessage(messageData) {
   const result = await callGAS('sendThreadMessage', { messageData });
-  clearClientCache(['getMessageThreads', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  clearClientCache(['getDirectInbox', 'getMessageThreads', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
   return result;
 }
 async function createDirectThread(threadData) {
   const result = await callGAS('createDirectThread', { threadData });
-  clearClientCache(['getMessageThreads', 'getNotifications']);
+  clearClientCache(['getDirectInbox', 'getMessageThreads', 'getNotifications']);
   return result;
 }
 async function getTasks(filters = {}) { return callGASCached('getTasks', { filters }, 60000); }
@@ -487,6 +493,10 @@ function getCachedMessageThreads() {
   return peekCachedValue('getMessageThreads', {}, false);
 }
 
+function getCachedDirectInbox() {
+  return peekCachedValue('getDirectInbox', {}, false);
+}
+
 window.API = {
   callGAS,
   callGASPublic,
@@ -500,6 +510,7 @@ window.API = {
   getCachedClients,
   getCachedNotifications,
   getCachedMessageThreads,
+  getCachedDirectInbox,
   getCases,
   getCasesPage,
   getInvoices,
@@ -522,9 +533,11 @@ window.API = {
   reviewExpenseClaim,
   getNotifications,
   markNotificationRead,
+  getDirectInbox,
   getMessageThreads,
   getGalvanizerQueue,
   getThreadMessages,
+  markThreadRead,
   saveMessageThread,
   createDirectThread,
   deleteMessageThread,

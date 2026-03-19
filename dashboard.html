@@ -78,9 +78,13 @@
           <span class="nav-section-chevron">▾</span>
         </button>
         <div class="nav-section-content" data-section-content="operations">
+        <button class="nav-item" data-page="inbox" onclick="showPage('inbox')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 3.5h11v7h-7l-3 2v-2h-1z"/><path d="M5 6h6M5 8.5h4"/></svg>
+          Inbox
+        </button>
         <button class="nav-item" data-page="messages" onclick="showPage('messages')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H6l-3 2v-2H2z"/></svg>
-          Messages
+          Threads
         </button>
         <button class="nav-item" data-page="notifications" onclick="showPage('notifications')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 14a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2z"/><path d="M4 11V7a4 4 0 1 1 8 0v4l1 1H3l1-1z"/></svg>
@@ -379,11 +383,12 @@ const PAGE_TITLES = {
   dashboard: 'Dashboard',
   cases: 'Cases',
   documents: 'Documents',
+  inbox: 'Inbox',
   workflow: 'Workflow Board',
   attorney: 'Attorney Workspace',
   docworkflow: 'Document Workflow',
   finance: 'Finance',
-  messages: 'Message Center',
+  messages: 'Threads',
   notifications: 'Notification Center',
   tasks: 'Task System',
   timeline: 'Activity Timeline',
@@ -414,6 +419,7 @@ function showPage(page) {
     dashboard: loadDashboard,
     cases: loadCases,
     documents: loadDocuments,
+    inbox: loadInbox,
     workflow: loadWorkflowBoard,
     attorney: loadAttorneyWorkspace,
     docworkflow: loadDocumentWorkflow,
@@ -1529,6 +1535,7 @@ async function loadMgmtUsers() {
       <td>${statusBadge(u.ROLE)}</td>
       <td>${statusBadge(u.STATUS)}</td>
       <td><div class="action-row">
+        ${String(u.EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase() ? '' : `<button class="btn btn-ghost btn-sm" onclick="openDirectMessageForUser('${escapeAttr(u.EMAIL)}','${escapeAttr(u.FULL_NAME)}')">Message</button>`}
         <button class="btn btn-ghost btn-sm" onclick='openUserModal(${JSON.stringify(JSON.stringify(u))})'>Edit</button>
         <button class="btn btn-danger btn-sm" onclick="deleteItem('User','${u.USER_ID}')">Del</button>
       </div></td>
@@ -1671,13 +1678,143 @@ async function openOrganizationPrompt() {
   }
 }
 
+function truncateText(value, max = 64) {
+  const text = String(value || '').trim();
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function escapeAttr(value) {
+  return String(value || '').replace(/"/g, '&quot;');
+}
+
+function formatChatTime(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  return sameDay
+    ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString([], { day: '2-digit', month: 'short' });
+}
+
+async function loadInbox() {
+  destroyCharts();
+  try {
+    await ensureUserLookupLoaded();
+    const chats = await API.getDirectInbox();
+    document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="createDirectMessage()">+ New Chat</button>`;
+    const list = (chats || []).map(chat => `
+      <button class="chat-list-item ${chat.unreadCount ? 'has-unread' : ''}" data-thread-id="${chat.THREAD_ID}" onclick="openInboxChat('${chat.THREAD_ID}')">
+        <div class="chat-avatar">${(chat.counterpartName || 'U').slice(0, 1).toUpperCase()}</div>
+        <div class="chat-meta">
+          <div class="chat-head">
+            <div class="chat-name">${chat.counterpartName || 'Unknown User'}</div>
+            <div class="chat-time">${formatChatTime(chat.LAST_MESSAGE_AT)}</div>
+          </div>
+          <div class="chat-role">${chat.counterpartRole || chat.counterpartEmail || ''}</div>
+          <div class="chat-preview-row">
+            <div class="chat-preview">${truncateText(chat.lastMessageText || 'No messages yet.', 54)}</div>
+            ${chat.unreadCount ? `<span class="chat-unread">${chat.unreadCount}</span>` : ''}
+          </div>
+        </div>
+      </button>`).join('');
+    document.getElementById('page-content').innerHTML = `
+      <div class="page">
+        <div class="inbox-layout">
+          <div class="card inbox-sidebar">
+            <div class="inbox-sidebar-head">
+              <div class="card-title">Direct Chats</div>
+              <button class="btn btn-ghost btn-sm" onclick="createDirectMessage()">New</button>
+            </div>
+            <div class="chat-list">
+              ${list || '<div class="empty-state"><p>No direct chats yet.</p></div>'}
+            </div>
+          </div>
+          <div class="card inbox-panel" id="inbox-panel">
+            <div class="empty-state"><p>Select a chat to start messaging.</p></div>
+          </div>
+        </div>
+      </div>`;
+    if (chats && chats.length) {
+      openInboxChat(chats[0].THREAD_ID);
+    }
+  } catch (e) {
+    document.getElementById('page-content').innerHTML = err(e.message);
+  }
+}
+
+async function openInboxChat(threadId) {
+  try {
+    const [chats, messages] = await Promise.all([
+      API.getDirectInbox(),
+      API.getThreadMessages(threadId)
+    ]);
+    const chat = (chats || []).find(item => item.THREAD_ID === threadId);
+    await API.markThreadRead(threadId);
+    document.querySelectorAll('.chat-list-item').forEach((item) => {
+      item.classList.toggle('active', item.dataset.threadId === threadId);
+      if (item.dataset.threadId === threadId) {
+        item.classList.remove('has-unread');
+        const badge = item.querySelector('.chat-unread');
+        if (badge) badge.remove();
+      }
+    });
+    const bubbles = (messages || []).map(message => {
+      const mine = String(message.SENDER_EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase();
+      return `
+        <div class="chat-bubble-row ${mine ? 'mine' : 'theirs'}">
+          <div class="chat-bubble ${mine ? 'mine' : 'theirs'}">
+            <div class="chat-bubble-author">${mine ? 'You' : (message.SENDER_NAME || chat?.counterpartName || 'User')}</div>
+            <div class="chat-bubble-text">${message.MESSAGE_TEXT || ''}</div>
+            <div class="chat-bubble-time">${fmt(message.CREATED_AT)}</div>
+          </div>
+        </div>`;
+    }).join('');
+    document.getElementById('inbox-panel').innerHTML = `
+      <div class="inbox-chat-head">
+        <div class="chat-avatar large">${((chat && chat.counterpartName) || 'U').slice(0,1).toUpperCase()}</div>
+        <div>
+          <div class="card-title" style="margin-bottom:4px">${chat?.counterpartName || 'Conversation'}</div>
+          <div class="text-muted">${chat?.counterpartRole || chat?.counterpartEmail || ''}</div>
+        </div>
+      </div>
+      <div class="chat-thread">
+        ${bubbles || '<div class="text-muted">No messages yet.</div>'}
+      </div>
+      <div class="chat-composer">
+        <textarea class="form-control" id="inbox-reply" rows="3" placeholder="Type a message"></textarea>
+        <div class="chat-composer-actions">
+          <button class="btn btn-primary btn-sm" onclick="sendInboxReply('${threadId}')">Send</button>
+        </div>
+      </div>`;
+    setTimeout(() => {
+      const threadEl = document.querySelector('.chat-thread');
+      if (threadEl) threadEl.scrollTop = threadEl.scrollHeight;
+    }, 0);
+  } catch (e) {
+    document.getElementById('inbox-panel').innerHTML = err(e.message);
+  }
+}
+
+async function sendInboxReply(threadId) {
+  const field = document.getElementById('inbox-reply');
+  const messageText = field?.value.trim() || '';
+  if (!messageText) return;
+  try {
+    await API.sendThreadMessage({ threadId, messageText, isInternal: 'Yes' });
+    await openInboxChat(threadId);
+    field.value = '';
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
 async function loadMessages() {
   destroyCharts();
   try {
-    const threads = await API.getMessageThreads();
-    document.getElementById('topbar-right').innerHTML = `
-      <button class="btn btn-ghost btn-sm" onclick="createDirectMessage()">+ Direct Message</button>
-      <button class="btn btn-primary btn-sm" onclick="createThread()">+ New Thread</button>`;
+    const threads = (await API.getMessageThreads()).filter(t => String(t.THREAD_TYPE || '') !== 'Direct');
+    document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="createThread()">+ New Thread</button>`;
     const rows = threads.map(t => `<tr>
       <td class="text-em">${t.THREAD_ID}</td>
       <td>${t.TITLE || 'Untitled'}</td>
@@ -1686,15 +1823,14 @@ async function loadMessages() {
       <td>${fmt(t.LAST_MESSAGE_AT || t.CREATED_AT)}</td>
       <td><div class="action-row"><button class="btn btn-ghost btn-sm" onclick="openThread('${t.THREAD_ID}')">Open</button><button class="btn btn-danger btn-sm" onclick="deleteThread('${t.THREAD_ID}')">Delete</button></div></td>
     </tr>`).join('');
-    document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="createThread()">+ New Thread</button>`;
     document.getElementById('page-content').innerHTML = `
     <div class="page">
       <div class="grid-2">
-        <div class="card"><div class="table-wrap"><table>
+        <div class="card"><div class="card-title">Threads</div><div class="table-wrap"><table>
           <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Status</th><th>Updated</th><th></th></tr></thead>
           <tbody>${rows || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No threads found.</td></tr>'}</tbody>
         </table></div></div>
-        <div class="card" id="thread-panel"><div class="card-title">Conversation</div><div class="text-muted">Select a thread to read or reply.</div></div>
+        <div class="card" id="thread-panel"><div class="card-title">Thread Conversation</div><div class="text-muted">Select a thread to read or reply.</div></div>
       </div>
     </div>`;
   } catch (e) {
@@ -1829,10 +1965,22 @@ async function removeCircleMember(membershipId, circleId) {
 }
 
 async function createThread() {
-  const title = prompt('Thread title');
+  openGenericModal('New Thread', `
+    <div class="form-group"><label class="form-label">Thread Title *</label><input class="form-control" id="thread-title" /></div>
+    <div class="form-group"><label class="form-label">Thread Type</label><select class="form-control" id="thread-type"><option value="General">General</option><option value="Case">Case</option><option value="Client">Client</option><option value="Internal">Internal</option></select></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitThreadModal()">Create Thread</button>
+    </div>`);
+}
+
+async function submitThreadModal() {
+  const title = document.getElementById('thread-title').value.trim();
+  const type = document.getElementById('thread-type').value || 'General';
   if (!title) return;
   try {
-    await API.saveMessageThread({ TITLE: title, THREAD_TYPE: 'General', STATUS: 'Open' });
+    await API.saveMessageThread({ TITLE: title, THREAD_TYPE: type, STATUS: 'Open' });
+    closeModal('modal-generic');
     loadMessages();
   } catch (e) {
     alert('Error: ' + e.message);
@@ -1850,12 +1998,24 @@ async function createDirectMessage() {
     </div>`);
 }
 
+async function openDirectMessageForUser(email, name = '') {
+  await ensureUserLookupLoaded();
+  openGenericModal(`Message ${name || email}`, `
+    <div class="form-group"><label class="form-label">Recipient</label><input class="form-control" id="direct-recipient" value="${escapeAttr(email)}" readonly /></div>
+    <div class="form-group"><label class="form-label">Conversation Title</label><input class="form-control" id="direct-title" value="${escapeAttr(name ? `Direct: ${name}` : 'Direct conversation')}" /></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitDirectMessageModal()">Open Chat</button>
+    </div>`);
+}
+
 async function submitDirectMessageModal() {
   const recipientEmail = document.getElementById('direct-recipient').value.trim();
   const title = document.getElementById('direct-title').value.trim() || 'Direct conversation';
-  await API.createDirectThread({ recipientEmail, title });
+  const result = await API.createDirectThread({ recipientEmail, title });
   closeModal('modal-generic');
-  loadMessages();
+  showPage('inbox');
+  setTimeout(() => openInboxChat(result.threadId), 50);
 }
 
 async function openThread(threadId) {
