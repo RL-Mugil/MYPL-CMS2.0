@@ -359,11 +359,45 @@ function showPageError(context, error) {
 }
 
 let CLIENT_LOOKUP_CACHE = [];
+let USER_LOOKUP_CACHE = [];
+let CIRCLE_LOOKUP_CACHE = [];
+let DASHBOARD_FILTER_OPEN = false;
+let DAILY_AUDIT_FILTER_OPEN = false;
+
 async function ensureClientLookupLoaded() {
   if (CLIENT_LOOKUP_CACHE.length) return CLIENT_LOOKUP_CACHE;
   const clients = await API.getClients();
-  CLIENT_LOOKUP_CACHE = Array.isArray(clients) ? clients : [];
+  CLIENT_LOOKUP_CACHE = (Array.isArray(clients) ? clients : []).sort((a, b) =>
+    String(a.CLIENT_CODE || a.CLIENT_ID || '').localeCompare(String(b.CLIENT_CODE || b.CLIENT_ID || ''))
+  );
   return CLIENT_LOOKUP_CACHE;
+}
+
+function getEffectiveRoleList(user) {
+  const roles = [];
+  if (user?.ROLE) roles.push(user.ROLE);
+  String(user?.ADDITIONAL_ROLES || '').split(',').map(v => v.trim()).filter(Boolean).forEach(role => {
+    if (!roles.includes(role)) roles.push(role);
+  });
+  return roles;
+}
+
+async function ensureUserLookupLoaded(force = false) {
+  if (!force && USER_LOOKUP_CACHE.length) return USER_LOOKUP_CACHE;
+  const users = await API.getUsers({});
+  USER_LOOKUP_CACHE = (Array.isArray(users) ? users : []).sort((a, b) =>
+    String(a.FULL_NAME || '').localeCompare(String(b.FULL_NAME || ''))
+  );
+  return USER_LOOKUP_CACHE;
+}
+
+async function ensureCircleLookupLoaded(force = false) {
+  if (!force && CIRCLE_LOOKUP_CACHE.length) return CIRCLE_LOOKUP_CACHE;
+  const circles = await API.getCircles();
+  CIRCLE_LOOKUP_CACHE = (Array.isArray(circles) ? circles : []).sort((a, b) =>
+    String(a.CIRCLE_NAME || '').localeCompare(String(b.CIRCLE_NAME || ''))
+  );
+  return CIRCLE_LOOKUP_CACHE;
 }
 
 function buildClientOptions(list) {
@@ -373,10 +407,47 @@ function buildClientOptions(list) {
   }).join('');
 }
 
+function buildUserOptions(list, role) {
+  return (list || [])
+    .filter(user => !role || getEffectiveRoleList(user).includes(role))
+    .map(user => `<option value="${user.EMAIL}">${user.FULL_NAME || user.EMAIL} (${user.EMAIL})</option>`)
+    .join('');
+}
+
+function buildNameOptions(list) {
+  return (list || []).map(user => `<option value="${user.FULL_NAME || ''}">${user.FULL_NAME || ''}</option>`).join('');
+}
+
+function buildCaseIdOptions(list) {
+  return (list || []).map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function buildCircleOptions(list) {
+  return (list || []).map(circle => `<option value="${circle.CIRCLE_ID}">${circle.CIRCLE_NAME}</option>`).join('');
+}
+
 function resolveClientByCode(code) {
   const lookup = CLIENT_LOOKUP_CACHE || [];
   const normalized = String(code || '').trim().toUpperCase();
   return lookup.find(c => String(c.CLIENT_CODE || c.CLIENT_ID || '').toUpperCase() === normalized) || null;
+}
+
+function getCaseIdLookupFromCases(cases) {
+  return Array.from(new Set((cases || []).map(c => c.CASE_ID).filter(Boolean))).sort();
+}
+
+function renderRoleCheckboxes(selectedCsv) {
+  const selected = String(selectedCsv || '').split(',').map(v => v.trim()).filter(Boolean);
+  const roles = ['Super Admin','Admin','Galvanizer','Staff','Attorney','Client Admin','Client Employee','Individual Client'];
+  return roles.map(role => `
+    <label style="display:inline-flex;align-items:center;gap:6px;margin:0 12px 8px 0;font-size:13px">
+      <input type="checkbox" class="mu-extra-role" value="${role}" ${selected.includes(role) ? 'checked' : ''} />
+      <span>${role}</span>
+    </label>`).join('');
+}
+
+function getSelectedAdditionalRoles() {
+  return Array.from(document.querySelectorAll('.mu-extra-role:checked')).map(el => el.value).join(', ');
 }
 
 // ── Destroy charts helper ─────────────────────────────────────────────────────
@@ -435,9 +506,12 @@ function renderDashboard(d) {
       <td class="text-muted" style="font-size:12px">Review case</td>
     </tr>`).join('') || '<tr><td colspan="4" class="text-muted" style="text-align:center;padding:20px">No active cases pending action</td></tr>';
 
+  const caseIds = getCaseIdLookupFromCases(d.recentActiveCases || []);
+  document.getElementById('topbar-right').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="toggleDashboardFilters()">${DASHBOARD_FILTER_OPEN ? 'Close Filter' : 'Filter'}</button>`;
   document.getElementById('page-content').innerHTML = `
   <div class="page">
-    <div class="card filter-panel" style="margin-bottom:20px">
+    <div class="filter-toggle-row"></div>
+    <div class="card filter-panel filter-drawer ${DASHBOARD_FILTER_OPEN ? 'open' : ''}" style="margin-bottom:20px">
       <div class="filter-head">
         <div class="card-title">Dashboard Filters</div>
         <div class="filter-actions">
@@ -453,7 +527,8 @@ function renderDashboard(d) {
         </div>
         <div class="form-group">
           <label class="form-label">Case ID</label>
-          <input class="form-control" id="dash-case-id" value="${DASHBOARD_FILTERS.caseId || ''}" placeholder="A61M002" />
+          <input class="form-control" id="dash-case-id" list="dash-case-options" value="${DASHBOARD_FILTERS.caseId || ''}" placeholder="A61M002" />
+          <datalist id="dash-case-options">${buildCaseIdOptions(caseIds)}</datalist>
         </div>
       </div>
     </div>
@@ -596,11 +671,18 @@ function applyDashboardFilters() {
     clientCode: document.getElementById('dash-client-code')?.value.trim().toUpperCase() || '',
     caseId: document.getElementById('dash-case-id')?.value.trim().toUpperCase() || '',
   };
+  DASHBOARD_FILTER_OPEN = false;
   loadDashboard();
 }
 
 function resetDashboardFilters() {
   DASHBOARD_FILTERS = { clientCode: '', caseId: '' };
+  DASHBOARD_FILTER_OPEN = false;
+  loadDashboard();
+}
+
+function toggleDashboardFilters() {
+  DASHBOARD_FILTER_OPEN = !DASHBOARD_FILTER_OPEN;
   loadDashboard();
 }
 
@@ -617,6 +699,7 @@ async function loadCases() {
   }
   try {
     await ensureClientLookupLoaded();
+    await ensureUserLookupLoaded();
     const cases = await API.getCases(CASE_FILTERS);
     renderCases(cases, canEdit, canBulk);
   } catch(e) {
@@ -837,8 +920,8 @@ function loadManagement() {
     <div class="tab-bar">
       <button class="tab-btn active" id="tab-users" onclick="switchMgmtTab('users')">Users</button>
       <button class="tab-btn" id="tab-clients" onclick="switchMgmtTab('clients')">Clients</button>
-      <button class="tab-btn" id="tab-cases" onclick="switchMgmtTab('cases')">Cases</button>
       <button class="tab-btn" id="tab-organizations" onclick="switchMgmtTab('organizations')">Organizations</button>
+      <button class="tab-btn" id="tab-circles" onclick="switchMgmtTab('circles')">Circles</button>
     </div>
     <div id="mgmt-content"><div class="loading-wrap"><div class="spinner"></div></div></div>
   </div>`;
@@ -847,7 +930,7 @@ function loadManagement() {
 
 function switchMgmtTab(tab) {
   _mgmtTab = tab;
-  ['users','clients','cases','organizations'].forEach(t => {
+  ['users','clients','organizations','circles'].forEach(t => {
     document.getElementById('tab-'+t)?.classList.toggle('active', t===tab);
   });
   const mc = document.getElementById('mgmt-content');
@@ -855,13 +938,15 @@ function switchMgmtTab(tab) {
   mc.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
   if (tab === 'users') loadMgmtUsers();
   if (tab === 'clients') loadMgmtClients();
-  if (tab === 'cases') loadMgmtCases();
   if (tab === 'organizations') loadMgmtOrganizations();
+  if (tab === 'circles') loadCircles();
 }
 
 async function loadMgmtUsers() {
   const mc = document.getElementById('mgmt-content');
   try {
+    await ensureClientLookupLoaded();
+    await ensureCircleLookupLoaded();
     const users = await API.getUsers(USER_FILTERS);
     const rows = users.map(u => `<tr>
       <td class="font-mono">${u.USER_ID}</td>
@@ -1022,7 +1107,7 @@ async function loadMessages() {
       <td>${t.THREAD_TYPE || 'General'}</td>
       <td>${statusBadge(t.STATUS || 'Open')}</td>
       <td>${fmt(t.LAST_MESSAGE_AT || t.CREATED_AT)}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="openThread('${t.THREAD_ID}')">Open</button></td>
+      <td><div class="action-row"><button class="btn btn-ghost btn-sm" onclick="openThread('${t.THREAD_ID}')">Open</button><button class="btn btn-danger btn-sm" onclick="deleteThread('${t.THREAD_ID}')">Delete</button></div></td>
     </tr>`).join('');
     document.getElementById('topbar-right').innerHTML = `<button class="btn btn-primary btn-sm" onclick="createThread()">+ New Thread</button>`;
     document.getElementById('page-content').innerHTML = `
@@ -1040,12 +1125,20 @@ async function loadMessages() {
   }
 }
 
+async function deleteThread(threadId) {
+  if (!confirm(`Delete thread ${threadId}?`)) return;
+  await API.deleteMessageThread(threadId);
+  loadMessages();
+}
+
 async function loadCircles(circleJson) {
   destroyCharts();
   let selectedCircle = null;
   if (circleJson) selectedCircle = JSON.parse(circleJson);
   try {
+    await ensureUserLookupLoaded();
     const circles = await API.getCircles();
+    CIRCLE_LOOKUP_CACHE = circles || [];
     const activeCircle = selectedCircle || circles[0] || null;
     let members = [];
     if (activeCircle) {
@@ -1094,7 +1187,7 @@ async function loadCircles(circleJson) {
             <div class="text-muted" style="margin-bottom:12px">${activeCircle.DESCRIPTION || ''}</div>
             ${hasRoleAtLeast(SESSION.role, 'Galvanizer') ? `
               <div class="form-row">
-                <div class="form-group"><input class="form-control" id="circle-user-email" placeholder="staff@company.com" /></div>
+                <div class="form-group"><input class="form-control" id="circle-user-email" list="circle-user-list" placeholder="Select internal user" /><datalist id="circle-user-list">${buildUserOptions(USER_LOOKUP_CACHE.filter(user => isInternalUserRole(user.ROLE || '')), '')}</datalist></div>
                 <div class="form-group"><input class="form-control" id="circle-role" placeholder="Lead / Member" /></div>
               </div>
               <button class="btn btn-primary btn-sm" onclick="addCircleMember('${activeCircle.CIRCLE_ID}')">Add Member</button>
@@ -1241,30 +1334,33 @@ async function saveDailyPriorities() {
 async function loadDailyAudit() {
   destroyCharts();
   try {
+    await ensureUserLookupLoaded();
     const filters = {
       entryDate: document.getElementById('audit-date')?.value || '',
-      userEmail: document.getElementById('audit-user')?.value || '',
-      query: document.getElementById('audit-query')?.value || '',
+      userName: document.getElementById('audit-user')?.value || '',
     };
     const audit = await API.getDailyAudit(filters);
+    const internalNames = USER_LOOKUP_CACHE.filter(user => isInternalUserRole(user.ROLE)).map(user => ({ FULL_NAME: user.FULL_NAME })).filter(user => user.FULL_NAME);
     const priorities = (audit.priorities || []).map(item => `
       <tr><td>${item.ENTRY_DATE}</td><td>${item.USER_NAME || item.USER_EMAIL}</td><td>${item.PRIORITY_1 || '—'}</td><td>${item.PRIORITY_2 || '—'}</td><td>${item.PRIORITY_3 || '—'}</td></tr>
     `).join('');
     const wrapups = (audit.wrapups || []).map(item => `
       <tr><td>${item.ENTRY_DATE}</td><td>${item.USER_NAME || item.USER_EMAIL}</td><td>${item.HIGH_POINTS || '—'}</td><td>${item.LOW_POINTS || '—'}</td><td>${item.HELP_NEEDED || '—'}</td></tr>
     `).join('');
+    document.getElementById('topbar-right').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="toggleDailyAuditFilters()">${DAILY_AUDIT_FILTER_OPEN ? 'Close Filter' : 'Filter'}</button>`;
     document.getElementById('page-content').innerHTML = `
     <div class="page">
-      <div class="card" style="margin-bottom:16px">
-        <div class="card-title">Daily Audit Filters</div>
-        <div class="form-row">
-          <div class="form-group"><label class="form-label">Date</label><input type="date" class="form-control" id="audit-date" value="${filters.entryDate}" /></div>
-          <div class="form-group"><label class="form-label">User Email</label><input class="form-control" id="audit-user" value="${filters.userEmail}" /></div>
-          <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="audit-query" value="${filters.query}" placeholder="Priority, high point, help needed" /></div>
+      <div class="card filter-panel filter-drawer ${DAILY_AUDIT_FILTER_OPEN ? 'open' : ''}" style="margin-bottom:16px">
+        <div class="filter-head">
+          <div class="card-title">Daily Audit Filters</div>
+          <div class="filter-actions">
+            <button class="btn btn-primary btn-sm" onclick="applyDailyAuditFilters()">Apply</button>
+            <button class="btn btn-ghost btn-sm" onclick="resetDailyAuditFilters()">Reset</button>
+          </div>
         </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-primary btn-sm" onclick="loadDailyAudit()">Apply</button>
-          <button class="btn btn-ghost btn-sm" onclick="resetDailyAuditFilters()">Reset</button>
+        <div class="filter-grid compact-2">
+          <div class="form-group"><label class="form-label">Date</label><input type="date" class="form-control" id="audit-date" value="${filters.entryDate}" /></div>
+          <div class="form-group"><label class="form-label">Name</label><input class="form-control" id="audit-user" list="audit-user-list" value="${filters.userName}" placeholder="Select internal user" /><datalist id="audit-user-list">${buildNameOptions(internalNames)}</datalist></div>
         </div>
       </div>
       <div class="grid-2">
@@ -1312,7 +1408,21 @@ async function saveWrapup() {
 }
 
 function resetDailyAuditFilters() {
-  document.getElementById('page-content').innerHTML = '';
+  DAILY_AUDIT_FILTER_OPEN = false;
+  loadDailyAudit();
+}
+
+function isInternalUserRole(role) {
+  return ['Super Admin','Admin','Galvanizer','Staff','Attorney'].includes(role);
+}
+
+function applyDailyAuditFilters() {
+  DAILY_AUDIT_FILTER_OPEN = false;
+  loadDailyAudit();
+}
+
+function toggleDailyAuditFilters() {
+  DAILY_AUDIT_FILTER_OPEN = !DAILY_AUDIT_FILTER_OPEN;
   loadDailyAudit();
 }
 
@@ -1323,7 +1433,8 @@ async function loadExpenses() {
     return;
   }
   try {
-    const claims = await API.getExpenseClaims();
+    const period = document.getElementById('expense-period')?.value || 'month';
+    const claims = await API.getExpenseClaims({ period });
     const rows = claims.map(c => `
       <tr>
         <td>${c.CLAIM_ID}</td>
@@ -1332,6 +1443,7 @@ async function loadExpenses() {
         <td>${money(c.AMOUNT)}</td>
         <td>${statusBadge(c.STATUS || 'Submitted')}</td>
         <td>${c.USER_NAME || '—'}</td>
+        <td>${c.BILL_LINK ? `<a href="${c.BILL_LINK}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">Open</a>` : '—'}</td>
       </tr>`).join('');
     document.getElementById('page-content').innerHTML = `
     <div class="page">
@@ -1346,10 +1458,16 @@ async function loadExpenses() {
           <button class="btn btn-primary" onclick="saveExpenseClaim()">Submit Claim</button>
         </div>
         <div class="card">
-          <div class="card-title">Claim History</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px">
+            <div class="card-title" style="margin-bottom:0">Claim History</div>
+            <select class="form-control" id="expense-period" style="max-width:160px" onchange="loadExpenses()">
+              <option value="month" ${period === 'month' ? 'selected' : ''}>This Month</option>
+              <option value="all" ${period === 'all' ? 'selected' : ''}>All Time</option>
+            </select>
+          </div>
           <div class="table-wrap"><table>
-            <thead><tr><th>ID</th><th>Date</th><th>Category</th><th>Amount</th><th>Status</th><th>User</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No expense claims yet.</td></tr>'}</tbody>
+            <thead><tr><th>ID</th><th>Date</th><th>Category</th><th>Amount</th><th>Status</th><th>User</th><th>Bill</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="7" class="text-muted" style="padding:20px;text-align:center">No expense claims yet.</td></tr>'}</tbody>
           </table></div>
         </div>
       </div>
@@ -1470,6 +1588,9 @@ function syncClientCodeSelection() {
 
 function openCaseModal(jsonStr) {
   const c = jsonStr ? JSON.parse(jsonStr) : null;
+  const staffOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Staff');
+  const galvanizerOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Galvanizer');
+  const attorneyOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Attorney');
   document.getElementById('modal-case-title').textContent = c ? 'Edit Case' : 'New Case';
   document.getElementById('modal-case-body').innerHTML = `
     ${clientSearchBlock(c?.CLIENT_ID || '')}
@@ -1487,11 +1608,11 @@ function openCaseModal(jsonStr) {
       <div class="form-group"><label class="form-label">Patent Type</label><select class="form-control" id="mc-type">${['Utility','Design','PCT','Provisional'].map(x=>`<option${c?.PATENT_TYPE===x?' selected':''}>${x}</option>`).join('')}</select></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Assigned Staff</label><input type="email" class="form-control" id="mc-staff" value="${c?.ASSIGNED_STAFF_EMAIL||''}" /></div>
-      <div class="form-group"><label class="form-label">Galvanizer</label><input type="email" class="form-control" id="mc-galvanizer" value="${c?.GALVANIZER_EMAIL||''}" /></div>
+      <div class="form-group"><label class="form-label">Assigned Staff</label><input class="form-control" id="mc-staff" list="mc-staff-list" value="${c?.ASSIGNED_STAFF_EMAIL||''}" placeholder="Search staff" /><datalist id="mc-staff-list">${staffOptions}</datalist></div>
+      <div class="form-group"><label class="form-label">Galvanizer</label><input class="form-control" id="mc-galvanizer" list="mc-galvanizer-list" value="${c?.GALVANIZER_EMAIL||''}" placeholder="Search galvanizer" /><datalist id="mc-galvanizer-list">${galvanizerOptions}</datalist></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Attorney</label><input type="email" class="form-control" id="mc-atty" value="${c?.ATTORNEY||''}" /></div>
+      <div class="form-group"><label class="form-label">Attorney</label><input class="form-control" id="mc-atty" list="mc-atty-list" value="${c?.ATTORNEY||''}" placeholder="Search attorney" /><datalist id="mc-atty-list">${attorneyOptions}</datalist></div>
       <div class="form-group"><label class="form-label">Workflow Stage</label><select class="form-control" id="mc-stage">${['Drafting','Ready for Attorney','Under Attorney Review','Filed'].map(x=>`<option${(c?.WORKFLOW_STAGE||'Drafting')===x?' selected':''}>${x}</option>`).join('')}</select></div>
     </div>
     <div class="form-row">
@@ -1683,15 +1804,17 @@ async function saveClientLegacy(existingId) {
 function openUserModal(jsonStr) {
   const u = jsonStr ? JSON.parse(jsonStr) : null;
   document.getElementById('modal-user-title').textContent = u ? 'Edit User' : 'New User';
+  const clientOptions = buildClientOptions(CLIENT_LOOKUP_CACHE);
+  const circleOptions = buildCircleOptions(CIRCLE_LOOKUP_CACHE);
   document.getElementById('modal-user-body').innerHTML = `
     <div class="form-group"><label class="form-label">Full Name *</label><input class="form-control" id="mu-name" value="${u?.FULL_NAME||''}" /></div>
     <div class="form-group"><label class="form-label">Email *</label><input type="email" class="form-control" id="mu-email" value="${u?.EMAIL||''}" /></div>
     <div class="form-group"><label class="form-label">Password ${u?'(leave blank to keep)':'*'}</label><input type="password" class="form-control" id="mu-pwd" /></div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Role</label>
-        <select class="form-control" id="mu-role">${['Super Admin','Admin','Staff','Attorney','Client Admin','Client Employee','Individual Client'].map(x=>`<option${u?.ROLE===x?' selected':''}>${x}</option>`).join('')}</select>
+        <select class="form-control" id="mu-role">${['Super Admin','Admin','Galvanizer','Staff','Attorney','Client Admin','Client Employee','Individual Client'].map(x=>`<option${u?.ROLE===x?' selected':''}>${x}</option>`).join('')}</select>
       </div>
-      <div class="form-group"><label class="form-label">Client ID</label><input class="form-control" id="mu-cid" value="${u?.CLIENT_ID||''}" /></div>
+      <div class="form-group"><label class="form-label">Client Code</label><input class="form-control" id="mu-cid" list="mu-client-list" value="${u?.CLIENT_ID||''}" /><datalist id="mu-client-list">${clientOptions}</datalist></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="mu-org" value="${u?.ORG_ID||''}" /></div>
@@ -1703,7 +1826,8 @@ function openUserModal(jsonStr) {
       <div class="form-group"><label class="form-label">Department</label><input class="form-control" id="mu-dept" value="${u?.DEPARTMENT||''}" /></div>
       <div class="form-group"><label class="form-label">Reports To</label><input class="form-control" id="mu-reports" value="${u?.REPORTS_TO||''}" /></div>
     </div>
-    <div class="form-group"><label class="form-label">Additional Roles</label><input class="form-control" id="mu-extra" value="${u?.ADDITIONAL_ROLES||''}" placeholder="Staff, Attorney" /></div>
+    <div class="form-group"><label class="form-label">Primary Circle</label><input class="form-control" id="mu-circle" list="mu-circle-list" value="" placeholder="Assign circle if needed" /><datalist id="mu-circle-list">${circleOptions}</datalist></div>
+    <div class="form-group"><label class="form-label">Additional Roles</label><div>${renderRoleCheckboxes(u?.ADDITIONAL_ROLES||'')}</div></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-user')">Cancel</button>
       <button class="btn btn-primary" id="mu-save" onclick="saveUser('${u?.USER_ID||''}')">Save User</button>
@@ -1725,12 +1849,17 @@ async function saveUser(existingId) {
     DEPARTMENT: document.getElementById('mu-dept').value.trim(),
     CAN_VIEW_FINANCE: document.getElementById('mu-finance').value,
     REPORTS_TO: document.getElementById('mu-reports').value.trim(),
-    ADDITIONAL_ROLES: document.getElementById('mu-extra').value.trim(),
+    ADDITIONAL_ROLES: getSelectedAdditionalRoles(),
   };
+  const primaryCircle = document.getElementById('mu-circle')?.value.trim();
   if (!existingId) delete data.USER_ID;
   try {
     const r = await API.saveUser(data);
-    if (r.success) { closeModal('modal-user'); loadMgmtUsers(); }
+    if (r.success && primaryCircle) {
+      await API.saveCircleMember({ CIRCLE_ID: primaryCircle, USER_EMAIL: data.EMAIL, ROLE_IN_CIRCLE: 'Member' });
+      await populateCircleNav();
+    }
+    if (r.success) { closeModal('modal-user'); ensureUserLookupLoaded(true); loadMgmtUsers(); }
     else throw new Error(r.error || r.message);
   } catch(e) {
     alert('Error: ' + e.message);
@@ -1902,9 +2031,12 @@ async function saveClient(existingId) {
 
 function openCaseModal(jsonStr) {
   const c = jsonStr ? JSON.parse(jsonStr) : null;
+  const staffOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Staff');
+  const galvanizerOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Galvanizer');
+  const attorneyOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Attorney');
   document.getElementById('modal-case-title').textContent = c ? 'Edit Case' : 'New Case';
   document.getElementById('modal-case-body').innerHTML = `
-    <div class="form-group"><label class="form-label">Client ID *</label><input class="form-control" id="mc-cid" value="${c?.CLIENT_ID||''}" ${c?'readonly':''} /></div>
+    <div class="form-group"><label class="form-label">Client Code *</label><input class="form-control" id="mc-cid" list="mc-client-list" value="${c?.CLIENT_ID||''}" ${c?'readonly':''} placeholder="Search client code" /><datalist id="mc-client-list">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist></div>
     <div class="form-group"><label class="form-label">Patent Title *</label><input class="form-control" id="mc-title" value="${c?.PATENT_TITLE||''}" /></div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">App. No.</label><input class="form-control" id="mc-appno" value="${c?.APPLICATION_NUMBER||''}" /></div>
@@ -1919,11 +2051,11 @@ function openCaseModal(jsonStr) {
       <div class="form-group"><label class="form-label">Type</label><select class="form-control" id="mc-type">${['Utility','Design','PCT','Provisional'].map(x=>`<option${c?.PATENT_TYPE===x?' selected':''}>${x}</option>`).join('')}</select></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Assigned Staff</label><input type="email" class="form-control" id="mc-staff" value="${c?.ASSIGNED_STAFF_EMAIL||''}" /></div>
-      <div class="form-group"><label class="form-label">Galvanizer</label><input type="email" class="form-control" id="mc-galvanizer" value="${c?.GALVANIZER_EMAIL||''}" /></div>
+      <div class="form-group"><label class="form-label">Assigned Staff</label><input class="form-control" id="mc-staff" list="mc-staff-list" value="${c?.ASSIGNED_STAFF_EMAIL||''}" placeholder="Search staff" /><datalist id="mc-staff-list">${staffOptions}</datalist></div>
+      <div class="form-group"><label class="form-label">Galvanizer</label><input class="form-control" id="mc-galvanizer" list="mc-galvanizer-list" value="${c?.GALVANIZER_EMAIL||''}" placeholder="Search galvanizer" /><datalist id="mc-galvanizer-list">${galvanizerOptions}</datalist></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Attorney Email</label><input type="email" class="form-control" id="mc-atty" value="${c?.ATTORNEY||''}" /></div>
+      <div class="form-group"><label class="form-label">Attorney</label><input class="form-control" id="mc-atty" list="mc-attorney-list" value="${c?.ATTORNEY||''}" placeholder="Search attorney" /><datalist id="mc-attorney-list">${attorneyOptions}</datalist></div>
       <div class="form-group"><label class="form-label">Workflow Stage</label><select class="form-control" id="mc-stage">${['Drafting','Ready for Attorney','Under Attorney Review','Filed'].map(x=>`<option${(c?.WORKFLOW_STAGE||'Drafting')===x?' selected':''}>${x}</option>`).join('')}</select></div>
     </div>
     <div class="form-row">
