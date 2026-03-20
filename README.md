@@ -1,118 +1,203 @@
 # Metayage Portal
 
-This frontend is intended to run on GitHub Pages and talk to the Cloudflare Worker, not directly to GAS.
+Frontend for the Metayage IP operations platform.
 
-Current public URLs:
+This repo is intended to be hosted on GitHub Pages and talk to a Cloudflare Worker, which then forwards trusted requests to Google Apps Script (GAS). The frontend does not talk directly to Sheets or Drive.
 
-- GitHub Pages: `https://rl-mugil.github.io/metayage-portal/`
-- Cloudflare Worker: `https://metayage-proxy.mugilvannan.workers.dev`
-- GAS Web App: `https://script.google.com/macros/s/AKfycbxBD_oT9Jv_MJkt77n2BJxserwv84iTVOS472DncMyYEVcdA_2g6oPqEj3zIb2nkeSfZA/exec`
+## What This Includes
+
+- Staff portal
+  - dashboard
+  - cases
+  - documents
+  - workflow board
+  - attorney workspace
+  - approvals
+  - tasks
+  - threads
+  - notifications
+  - management
+  - bulk DocketTrak import
+- Client portal
+  - overview
+  - case search and filters
+  - document library and upload
+  - document request tracking
+  - invoice filters
+  - notifications
+  - client-visible threads
+  - smart search
+- Shared auth flow with Clerk
+- Dark and light theme support
 
 ## Architecture
 
-1. User signs in with Clerk on the frontend.
-2. Frontend calls the Cloudflare Worker.
-3. Worker verifies the Clerk identity or token.
-4. Worker forwards trusted requests to GAS.
-5. GAS reads and writes Sheets/Drive data.
+1. User signs in with Clerk in the browser.
+2. Frontend exchanges the verified email for an app session through the Worker.
+3. Worker validates the request and forwards it to GAS.
+4. GAS reads and writes Sheets and Drive data.
+5. Frontend renders staff or client UI based on role and additional roles.
 
-## Local file overview
+## Repo Structure
 
-- `config.js`: environment config for development, staging, production
-- `api.js`: frontend API client and runtime error reporting
-- `auth.js`: Clerk auth bootstrap and app session handling
-- `index.html`: staff login
-- `client-login.html`: client login
-- `dashboard.html`: staff app
-- `client-portal.html`: client app
+- `index.html`
+  - staff login page
+- `dashboard.html`
+  - staff portal app
+- `client-login.html`
+  - client login page
+- `client-portal.html`
+  - client portal app
+- `api.js`
+  - Worker/GAS API client
+- `auth.js`
+  - Clerk bootstrapping and app-session handling
+- `config.js`
+  - environment-specific frontend config
+- `style.css`
+  - shared styling for staff and client portals
 
-## What was changed
+## Auth and Role Model
 
-- Frontend now expects the Worker as the API base.
-- Login goes through one shared auth path in `requireAuth()`.
-- `PASSWORD_HASH` is no longer returned to the browser from GAS user APIs.
-- New users can be created without a legacy local password.
-- New admin/client bootstrap users are no longer given default local passwords.
-- Critical create flows in GAS use `LockService` to reduce duplicate IDs on concurrent writes.
-- Invoice column mapping was corrected so government fees no longer overwrite payment dates.
-- Minimal CI was added in `.github/workflows/ci.yml`.
-- Runtime error logging hooks were added in `api.js`.
+The portal supports:
 
-## Manual checks you must do
+- `Super Admin`
+- `Admin`
+- `Galvanizer`
+- `Staff`
+- `Attorney`
+- `Client Admin`
+- `Client Employee`
+- `Individual Client`
 
-### 1. Verify the Cloudflare Worker is really checking Clerk
+Important:
 
-The Worker source is not in this workspace, so this check must be done manually.
+- portal routing uses both `role` and `additionalRoles`
+- any user with an internal role is routed to the staff portal
+- only pure client-side users are routed to the client portal
 
-Your Worker must do all of the following:
+## Configuration
 
-1. Accept frontend requests only from your GitHub Pages domain.
-2. Read the Clerk session proof from the request.
-3. Verify that proof with Clerk server-side.
-4. Extract the verified user email and identity from Clerk.
-5. Ignore any raw email sent directly by the browser unless it is matched to verified Clerk identity.
-6. Forward only trusted requests to GAS.
-7. Add CORS headers only for your allowed frontend origins.
+Frontend runtime config is in `config.js`.
 
-If your Worker is still just accepting `{ email }` from the browser and forwarding it, that still needs fixing.
+Current config values are selected by environment:
 
-### 2. Clerk dashboard setup
+- `apiBaseByEnv`
+- `clerkPublishableKeyByEnv`
+- `errorEndpointByEnv`
 
-1. Open Clerk Dashboard.
-2. Go to domain or allowed origin settings.
-3. Add `https://rl-mugil.github.io`.
-4. If you later use a custom domain, add that too.
-5. Keep using your `pk_test_...` key only for testing.
-6. Before real production use, switch to a live Clerk publishable key.
+Before production use, verify:
 
-### 3. GitHub Pages deployment
+- Worker URL is correct
+- Clerk publishable key is correct
+- GitHub Pages domain is allowed in Clerk
 
-1. Open your GitHub repo for the portal.
-2. Commit and push the updated files.
-3. Confirm GitHub Pages is enabled for the repository.
-4. Open the live site and test both login pages.
+## Deployment
 
-### 4. GAS deployment
+### Frontend
 
-1. Open the Apps Script project.
-2. Paste or sync the updated GAS files:
-   - `00_setup.gs`
-   - `01_ClientManagement.gs`
-   - `02_CaseManagement.gs`
-   - `03_InvoiceSystem.gs`
-   - `05_ClientPortal.gs`
-3. Create a new deployment version for the GAS web app.
-4. Keep the Worker pointing to the latest GAS deployment URL if your Worker stores it as config.
+Push these files to the GitHub Pages branch/repo:
 
-## End-to-end test checklist
+- `index.html`
+- `dashboard.html`
+- `client-login.html`
+- `client-portal.html`
+- `api.js`
+- `auth.js`
+- `config.js`
+- `style.css`
 
-### Staff flow
+### Backend
 
-1. Open `https://rl-mugil.github.io/metayage-portal/`
-2. Sign in as an Admin or Attorney through Clerk.
-3. Confirm redirect to `dashboard.html`.
-4. Confirm dashboard, cases, documents, finance load.
-5. If Admin, confirm management tab appears.
-6. Create or edit a user without entering a password and confirm it still saves.
+This frontend expects a live Worker and GAS deployment.
 
-### Client flow
+Relevant GAS files live outside this repo, including:
 
-1. Open `https://rl-mugil.github.io/metayage-portal/client-login.html`
-2. Sign in as a Client through Clerk.
-3. Confirm redirect to `client-portal.html`.
-4. Confirm dashboard, cases, documents, invoices load.
-5. Send a contact message and confirm it reaches your admin mailbox.
+- `05_ClientPortal.gs`
+- `07_Addons.gs`
 
-### Legacy local-password flow
+If frontend changes depend on new actions or access rules, deploy a new GAS version as well.
 
-1. Use an old user that already has a local password hash stored.
-2. Confirm legacy login still works if you still need it.
-3. Confirm a newly created user without a local password cannot use local password login.
+## Main Features
 
-## Next recommended steps
+### Staff Portal
 
-1. Move Worker source into version control.
-2. Add staging Worker and staging GitHub Pages environment.
-3. Replace large `innerHTML` UI building blocks with safer DOM rendering over time.
-4. Add a real monitoring sink for `errorEndpoint`.
-5. Later, move core multi-tenant data out of Sheets/GAS.
+- role-aware navigation
+- finance and management access control
+- case creation and editing
+- bulk case updates
+- DocketTrak Excel import
+- document upload
+- workflow board
+- galvanizer queue
+- approvals and document workflow
+- inbox and threads
+- notifications with clear actions
+
+### Client Portal
+
+- organization/client-aware access
+- searchable and filterable cases
+- searchable and filterable invoices
+- searchable documents
+- client document upload
+- document request visibility
+- client-visible thread conversations
+- smart search
+- notifications with clear actions
+
+## DocketTrak Bulk Import
+
+The staff portal supports bulk import from DocketTrak exports.
+
+Current behavior:
+
+- select an existing client code first
+- upload the Excel file
+- import both `Patent` and `Trademark` rows
+- imported rows are created under the selected client
+- duplicate checks are applied during import
+- progress is shown during upload/import
+
+## Safety Notes
+
+- frontend sanitizes API payloads before rendering
+- client portal only shows client-visible threads/messages
+- client portal document access is restricted to accessible clients
+- notification deletes are soft-delete operations
+- most portal data calls are cached client-side for performance
+
+## Manual Test Checklist
+
+### Login
+
+- staff login opens `dashboard.html`
+- client login opens `client-portal.html`
+- mixed-role users route correctly based on effective roles
+
+### Staff Portal
+
+- dashboard loads
+- cases load
+- documents load
+- finance visibility matches permission
+- management visibility matches permission
+- galvanizer queue visibility matches permission
+
+### Client Portal
+
+- overview loads
+- cases load for the correct client/org
+- documents open
+- document upload works
+- invoices load when finance access is allowed
+- notifications clear correctly
+- threads open and reply correctly
+
+## Recommended Next Improvements
+
+- move Worker source into version control
+- add staging config values in `config.js`
+- add CI checks for HTML inline-script syntax
+- add smoke tests for login routing and role-based navigation
+- document GAS deployment steps in a separate backend README
