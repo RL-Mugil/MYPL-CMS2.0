@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate JavaScript syntax
+        run: |
+          node --check api.js
+          node --check auth.js
+          node --check config.js
+
+      - name: Validate HTML inline-script syntax
+        run: node scripts/check-inline-scripts.js
+
+      - name: Smoke test login routing
+        run: node tests/smoke-role-routing.js
+
+      - name: Smoke test role-based navigation
+        run: node tests/smoke-role-navigation.js
+
+      - name: Check required frontend files
+        run: |
+          test -f index.html
+          test -f client-login.html
+          test -f client-portal.html
+          test -f dashboard.html
+          test -f style.css
