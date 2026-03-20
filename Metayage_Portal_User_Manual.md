@@ -206,13 +206,43 @@ Typical powers:
 
 ### Login
 
-Users log in through Clerk. After successful login, the portal exchanges the identity with the backend and maps the user against `USER_ROLES`.
+Users log in through Clerk. After successful login, the portal exchanges the identity with the backend and maps the user against the backend user-role table.
+
+The portal now evaluates both:
+
+- primary role
+- additional roles
+
+This is called effective role handling.
+
+### Portal Routing Rule
+
+After login:
+
+- if the user has any internal role, the user is routed to the staff portal
+- only pure client-side users are routed to the client portal
+
+Internal roles:
+
+- Super Admin
+- Admin
+- Galvanizer
+- Staff
+- Attorney
+
+Client-side roles:
+
+- Client Admin
+- Client Employee
+- Individual Client
 
 If login works but portal access fails, common causes are:
 
-- email not mapped in `USER_ROLES`
+- email not mapped in `USERS`
 - inactive status
 - wrong role mapping
+- wrong additional role mapping
+- user expected client portal but has an internal additional role, so staff portal opens instead
 
 ### Session Expiry
 
@@ -241,19 +271,45 @@ This is useful when working with large tables or the inbox.
 
 ### Main Sections
 
+The portal now has two operating experiences:
+
+- Staff Portal
+- Client Portal
+
+Depending on role and additional roles, users may see different modules.
+
+### Staff Portal Main Sections
+
 - Dashboard
 - Cases
 - Documents
+- Workflow Board
+- Attorney Workspace
+- Document Workflow
 - Finance
 - Inbox
 - Threads
 - Notifications
+- Tasks
+- Activity Timeline
+- Smart Search
+- Approvals
 - Daily Audit
 - Expense Claims
 - Galvanizer Queue
 - Management
 
-Depending on role, some sections may be hidden.
+### Client Portal Main Sections
+
+- Overview
+- My Cases
+- Documents
+- Document Requests
+- Invoices
+- Threads
+- Notifications
+- Search
+- Contact Firm
 
 ## Theme Switching
 
@@ -546,6 +602,119 @@ When a thread is deleted from the portal:
 - it disappears from the active frontend
 - it is soft-deleted in the backend
 - it remains in sheets for audit/history
+
+## Client Portal
+
+The client portal is no longer a minimal read-only view. It now includes a client-safe operating subset of the platform.
+
+### Client Portal Purpose
+
+The client portal is intended for:
+
+- organization-linked external users
+- client admins
+- client employees
+- individual clients
+
+It is designed to expose only client-safe data and workflows.
+
+### Client Portal Modules
+
+Current client portal modules include:
+
+- Overview
+- My Cases
+- Documents
+- Document Requests
+- Invoices
+- Threads
+- Notifications
+- Search
+- Contact Firm
+
+### Client Portal Cases
+
+Client-side users can:
+
+- search cases
+- filter cases
+- use date range filters
+- use load more for large lists
+
+Typical case filters include:
+
+- search text
+- client
+- status
+- country
+- from date
+- to date
+
+### Client Portal Documents
+
+Client-side users can:
+
+- browse visible documents
+- filter by search
+- filter by client
+- filter by category
+- upload documents directly from the client portal
+
+Upload is restricted to clients the logged-in user can access.
+
+### Client Portal Document Requests
+
+Client-side users can:
+
+- see document requests made visible to them
+- filter document requests
+- track due dates
+- open linked Drive items when available
+
+### Client Portal Invoices
+
+Client-side users can:
+
+- filter invoice history
+- search invoice records
+- filter by month
+- filter by from/to date
+
+Finance visibility still depends on business rules and role permissions.
+
+### Client Portal Threads
+
+Client portal Threads are client-visible shared conversations only.
+
+Client-side users can:
+
+- open visible threads
+- reply to visible threads
+- create new client-visible threads
+
+Internal-only messages are not shown in the client portal.
+
+### Client Portal Notifications
+
+Client-side users can:
+
+- read notifications
+- mark notifications read
+- clear individual notifications
+- clear all notifications
+
+### Client Portal Search
+
+Client-side search is a client-safe smart search.
+
+It can search across visible:
+
+- cases
+- clients
+- threads
+- notifications
+- invoices
+- documents where returned by safe scope
 
 ## Notifications
 
@@ -963,10 +1132,11 @@ Use Threads if:
 
 Check:
 
-- user exists in `USER_ROLES`
+- user exists in `USERS`
 - email matches exactly
 - status is active
 - role is mapped correctly
+- additional roles are mapped correctly
 
 ### Dashboard Seems Slow
 

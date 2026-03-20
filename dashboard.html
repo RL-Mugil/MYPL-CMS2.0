@@ -276,20 +276,44 @@ function hasRoleAtLeast(role, minimumRole) {
     'Client Employee': 15,
     'Individual Client': 10,
   };
+  if (Array.isArray(role)) {
+    return role.some((item) => (order[item] || 0) >= (order[minimumRole] || 0));
+  }
   return (order[role] || 0) >= (order[minimumRole] || 0);
 }
 
+function getEffectiveSessionRoles() {
+  const roles = [];
+  if (SESSION?.role) roles.push(SESSION.role);
+  String(SESSION?.additionalRoles || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .forEach((role) => {
+      if (!roles.includes(role)) roles.push(role);
+    });
+  return roles;
+}
+
+function sessionHasRoleAtLeast(minimumRole) {
+  return hasRoleAtLeast(getEffectiveSessionRoles(), minimumRole);
+}
+
+function sessionHasAnyRole(roles) {
+  const effectiveRoles = getEffectiveSessionRoles();
+  return roles.some((role) => effectiveRoles.includes(role));
+}
+
 function canAccessFinance() {
-  return !!SESSION?.canViewFinance || hasRoleAtLeast(SESSION?.role, 'Admin');
+  return !!SESSION?.canViewFinance || sessionHasRoleAtLeast('Admin');
 }
 
 function canAccessManagement() {
-  return ['Super Admin', 'Admin', 'Client Admin'].includes(SESSION?.role);
+  return sessionHasAnyRole(['Super Admin', 'Admin', 'Client Admin']);
 }
 
 function isInternalUser() {
-  return ['Super Admin','Admin','Galvanizer','Staff','Attorney'].includes(SESSION?.role) ||
-    String(SESSION?.additionalRoles || '').split(',').some(v => ['Super Admin','Admin','Galvanizer','Staff','Attorney'].includes(v.trim()));
+  return sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney']);
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
@@ -1265,8 +1289,8 @@ function toggleDashboardFilters() {
 // ═══════════════════════════════════════════════════════════════════════════════
 async function loadCases() {
   destroyCharts();
-  const canEdit = hasRoleAtLeast(SESSION.role, 'Staff');
-  const canBulk = hasRoleAtLeast(SESSION.role, 'Admin');
+  const canEdit = sessionHasRoleAtLeast('Staff');
+  const canBulk = sessionHasRoleAtLeast('Admin');
   if (canEdit) {
     setTopbarActions(`${canBulk ? `<button class="btn btn-ghost btn-sm" onclick="openBulkCaseUpdate()">Bulk Update</button>` : ''}<button class="btn btn-ghost btn-sm" onclick="openBulkDocketTrakImport()">Bulk Import</button><button class="btn btn-primary btn-sm" onclick="openCaseModal()">+ New Case</button>`);
   } else {
@@ -1341,7 +1365,7 @@ async function loadMoreCases() {
     CASES_TOTAL = page.total || CASES_ITEMS.length;
     CASES_HAS_MORE = !!page.hasMore;
     CASES_PAGE_OFFSET = page.nextOffset || CASES_ITEMS.length;
-    renderCases(CASES_ITEMS, hasRoleAtLeast(SESSION.role, 'Staff'), hasRoleAtLeast(SESSION.role, 'Admin'));
+    renderCases(CASES_ITEMS, sessionHasRoleAtLeast('Staff'), sessionHasRoleAtLeast('Admin'));
   } catch (e) {
     if (btn) {
       btn.disabled = false;
@@ -1638,7 +1662,7 @@ async function loadApprovals() {
   setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openApprovalModal()">+ New Approval</button>`);
   try {
     const items = await API.getApprovalRequests({});
-    const canManageAll = hasRoleAtLeast(SESSION.role, 'Admin');
+    const canManageAll = sessionHasRoleAtLeast('Admin');
     document.getElementById('page-content').innerHTML = `
       <div class="page">
         <div class="card">
@@ -1823,7 +1847,7 @@ async function loadFinance() {
     document.getElementById('page-content').innerHTML = err('Finance access is restricted for your role.');
     return;
   }
-  const canEdit = hasRoleAtLeast(SESSION.role, 'Admin');
+  const canEdit = sessionHasRoleAtLeast('Admin');
   if (canEdit) {
     setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openInvoiceModal()">+ New Invoice</button>`);
   } else {
@@ -2445,7 +2469,7 @@ async function loadCircles(circleJson) {
           </div>
           <div class="action-row">
             <button class="btn btn-ghost btn-sm" onclick='loadCircles(${JSON.stringify(JSON.stringify(circle))})'>Open</button>
-            ${hasRoleAtLeast(SESSION.role, 'Galvanizer') ? `<button class="btn btn-ghost btn-sm" onclick='prefillCircleForm(${JSON.stringify(JSON.stringify(circle))})'>Edit</button><button class="btn btn-danger btn-sm" onclick="deactivateCircle('${circle.CIRCLE_ID}')">Del</button>` : ''}
+            ${sessionHasRoleAtLeast('Galvanizer') ? `<button class="btn btn-ghost btn-sm" onclick='prefillCircleForm(${JSON.stringify(JSON.stringify(circle))})'>Edit</button><button class="btn btn-danger btn-sm" onclick="deactivateCircle('${circle.CIRCLE_ID}')">Del</button>` : ''}
           </div>
         </div>
       </div>`).join('');
@@ -2459,7 +2483,7 @@ async function loadCircles(circleJson) {
     <div class="page">
       <div class="grid-2">
         <div>
-          ${hasRoleAtLeast(SESSION.role, 'Galvanizer') ? `
+          ${sessionHasRoleAtLeast('Galvanizer') ? `
             <div class="card" style="margin-bottom:12px">
               <div class="card-title">Circle Editor</div>
               <input type="hidden" id="circle-id" value="${activeCircle ? activeCircle.CIRCLE_ID : ''}" />
@@ -2477,7 +2501,7 @@ async function loadCircles(circleJson) {
           <div class="card-title">${activeCircle ? activeCircle.CIRCLE_NAME : 'Circle Members'}</div>
           ${activeCircle ? `
             <div class="text-muted" style="margin-bottom:12px">${activeCircle.DESCRIPTION || ''}</div>
-            ${hasRoleAtLeast(SESSION.role, 'Galvanizer') ? `
+            ${sessionHasRoleAtLeast('Galvanizer') ? `
               <div class="form-row">
                 <div class="form-group"><input class="form-control" id="circle-user-email" list="circle-user-list" placeholder="Select internal user" /><datalist id="circle-user-list">${buildUserOptions(USER_LOOKUP_CACHE.filter(user => isInternalUserRole(user.ROLE || '')), '')}</datalist></div>
                 <div class="form-group"><input class="form-control" id="circle-role" placeholder="Lead / Member" /></div>
@@ -2622,7 +2646,7 @@ async function sendThreadReply(threadId) {
   const messageText = document.getElementById('thread-reply').value.trim();
   if (!messageText) return;
   try {
-    await API.sendThreadMessage({ threadId, messageText, isInternal: hasRoleAtLeast(SESSION.role, 'Staff') ? 'Yes' : 'No' });
+    await API.sendThreadMessage({ threadId, messageText, isInternal: sessionHasRoleAtLeast('Staff') ? 'Yes' : 'No' });
     openThread(threadId);
   } catch (e) {
     alert('Error: ' + e.message);
@@ -2836,7 +2860,7 @@ async function loadExpenses() {
 
 async function loadGalvanizerQueue() {
   destroyCharts();
-  if (!['Super Admin','Admin','Galvanizer'].includes(SESSION.role)) {
+  if (!sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer'])) {
     document.getElementById('page-content').innerHTML = err('Galvanizer queue is restricted.');
     return;
   }
