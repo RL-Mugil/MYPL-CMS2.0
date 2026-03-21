@@ -1113,8 +1113,17 @@ function buildCircleOptions(list) {
   return (list || []).map(circle => `<option value="${circle.CIRCLE_ID}">${circle.CIRCLE_NAME}</option>`).join('');
 }
 
+function getOrganizationDisplayName(org) {
+  return String(org?.ORG_NAME || org?.ORG_ID || '').trim();
+}
+
+function getOrganizationInputValue(value) {
+  const org = resolveOrganization(value);
+  return org ? getOrganizationDisplayName(org) : String(value || '').trim();
+}
+
 function buildOrgOptions(list) {
-  return (list || []).map(org => `<option value="${org.ORG_ID}">${org.ORG_ID} | ${org.ORG_NAME || ''}</option>`).join('');
+  return (list || []).map(org => `<option value="${escapeAttr(getOrganizationDisplayName(org))}"></option>`).join('');
 }
 
 function resolveClientByCode(code) {
@@ -2388,7 +2397,7 @@ function renderMgmtClients() {
   <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.mgmtClients ? 'open' : ''}" style="margin-bottom:12px">
     <div class="form-row">
       <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="mgmt-client-query" value="${MGMT_CLIENT_FILTERS.query || ''}" placeholder="Client code, name, email" /></div>
-      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="mgmt-client-org" value="${MGMT_CLIENT_FILTERS.orgId || ''}" placeholder="ORG0002" /></div>
+      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="mgmt-client-org" list="mgmt-client-org-list" value="${escapeAttr(getOrganizationInputValue(MGMT_CLIENT_FILTERS.orgId || ''))}" placeholder="Search organization" /><datalist id="mgmt-client-org-list">${buildOrgOptions(ORG_LOOKUP_CACHE)}</datalist></div>
       <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="mgmt-client-sort"><option value="az"${MGMT_CLIENT_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${MGMT_CLIENT_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
     </div>
     <div style="display:flex;gap:8px">
@@ -2408,9 +2417,10 @@ function renderMgmtClients() {
 }
 
 function applyMgmtClientFilters() {
+  const org = resolveOrganization(document.getElementById('mgmt-client-org')?.value.trim() || '');
   MGMT_CLIENT_FILTERS = {
     query: document.getElementById('mgmt-client-query')?.value.trim() || '',
-    orgId: document.getElementById('mgmt-client-org')?.value.trim().toUpperCase() || '',
+    orgId: org?.ORG_ID || '',
     sortDir: document.getElementById('mgmt-client-sort')?.value || 'az',
   };
   FILTER_PANEL_STATE.mgmtClients = false;
@@ -2476,8 +2486,7 @@ async function loadMgmtOrganizations(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
     const activeOrg = (orgs || []).find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || null;
     const orgUsers = activeOrg ? await API.getOrganizationUsers(activeOrg.ORG_ID) : [];
     const rows = orgs.map(o => `<tr>
-      <td class="font-mono">${o.ORG_ID}</td>
-      <td>${o.ORG_NAME}</td>
+      <td>${o.ORG_NAME || o.ORG_ID}</td>
       <td>${o.ASSIGNED_STAFF_EMAIL || '—'}</td>
       <td>${statusBadge(o.STATUS || 'Active')}</td>
     </tr>`).join('');
@@ -2486,8 +2495,8 @@ async function loadMgmtOrganizations(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
       <button class="btn btn-primary btn-sm" onclick="openOrganizationPrompt()">+ New Organization</button>
     </div>
     <div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>ID</th><th>Organization</th><th>Assigned Staff</th><th>Status</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="4" class="text-muted" style="padding:20px;text-align:center">No organizations found.</td></tr>'}</tbody>
+      <thead><tr><th>Organization</th><th>Assigned Staff</th><th>Status</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="3" class="text-muted" style="padding:20px;text-align:center">No organizations found.</td></tr>'}</tbody>
     </table></div></div>`;
   } catch (e) {
     mc.innerHTML = err(e.message);
@@ -2542,7 +2551,7 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
       </div>
       <div class="grid-2">
         <div class="card"><div class="table-wrap"><table>
-          <thead><tr><th>ID</th><th>Organization</th><th>Assigned Staff</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Organization</th><th>Assigned Staff</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>${rows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No organizations found.</td></tr>'}</tbody>
         </table></div></div>
         <div class="card">
@@ -2551,7 +2560,7 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
             ${activeOrg ? `<button class="btn btn-primary btn-sm" onclick="openOrganizationClientModal('${activeOrg.ORG_ID}','${escapeAttr(activeOrg.ORG_NAME || '')}')">+ Add Client</button>` : ''}
           </div>
           ${activeOrg ? `
-            <div class="text-muted" style="margin:10px 0 14px">${activeOrg.ORG_ID} | ${activeOrg.PRIMARY_EMAIL || 'No email'} | Staff: ${activeOrg.ASSIGNED_STAFF_EMAIL || 'Unassigned'}</div>
+            <div class="text-muted" style="margin:10px 0 14px">${activeOrg.PRIMARY_EMAIL || 'No email'} | Staff: ${activeOrg.ASSIGNED_STAFF_EMAIL || 'Unassigned'}</div>
             <div class="table-wrap"><table>
               <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Type</th><th></th></tr></thead>
               <tbody>${userRows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No organization clients yet.</td></tr>'}</tbody>
@@ -2576,8 +2585,7 @@ function renderMgmtOrganizations() {
   const orgClients = activeOrg ? (CLIENT_LOOKUP_CACHE || []).filter(client => String(client.ORG_ID || '') === String(activeOrg.ORG_ID)) : [];
   const paged = paginateItems(filtered, 'mgmt-orgs', 10);
   const rows = paged.items.map(o => `<tr>
-    <td class="font-mono">${o.ORG_ID}</td>
-    <td>${o.ORG_NAME}</td>
+    <td>${o.ORG_NAME || o.ORG_ID}</td>
     <td>${o.ASSIGNED_STAFF_EMAIL || 'â€”'}</td>
     <td>${statusBadge(o.STATUS || 'Active')}</td>
     <td><div class="action-row">
@@ -2596,7 +2604,7 @@ function renderMgmtOrganizations() {
   mc.innerHTML = `
     <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.mgmtOrganizations ? 'open' : ''}" style="margin-bottom:12px">
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="mgmt-org-query" value="${MGMT_ORG_FILTERS.query || ''}" placeholder="Organization, ID, email, staff" /></div>
+        <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="mgmt-org-query" value="${MGMT_ORG_FILTERS.query || ''}" placeholder="Organization, email, staff" /></div>
         <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="mgmt-org-sort"><option value="az"${MGMT_ORG_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${MGMT_ORG_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
       </div>
       <div style="display:flex;gap:8px">
@@ -2610,8 +2618,8 @@ function renderMgmtOrganizations() {
     </div>
     <div class="grid-2">
       <div class="card"><div class="table-wrap"><table>
-        <thead><tr><th>ID</th><th>Organization</th><th>Assigned Staff</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No organizations found.</td></tr>'}</tbody>
+        <thead><tr><th>Organization</th><th>Assigned Staff</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="4" class="text-muted" style="padding:20px;text-align:center">No organizations found.</td></tr>'}</tbody>
       </table></div></div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
@@ -2619,7 +2627,7 @@ function renderMgmtOrganizations() {
           ${activeOrg ? `<button class="btn btn-primary btn-sm" onclick="openOrganizationClientModal('${activeOrg.ORG_ID}','${escapeAttr(activeOrg.ORG_NAME || '')}')">+ Add Client</button>` : ''}
         </div>
         ${activeOrg ? `
-          <div class="text-muted" style="margin:10px 0 14px">${activeOrg.ORG_ID} | ${activeOrg.PRIMARY_EMAIL || 'No email'} | Staff: ${activeOrg.ASSIGNED_STAFF_EMAIL || 'Unassigned'}</div>
+          <div class="text-muted" style="margin:10px 0 14px">${activeOrg.PRIMARY_EMAIL || 'No email'} | Staff: ${activeOrg.ASSIGNED_STAFF_EMAIL || 'Unassigned'}</div>
           <div class="table-wrap"><table>
             <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Type</th><th></th></tr></thead>
             <tbody>${userRows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No organization clients yet.</td></tr>'}</tbody>
@@ -3199,9 +3207,10 @@ async function openAnnouncementModal() {
 }
 
 async function submitAnnouncementModal() {
+  const org = resolveOrganization(document.getElementById('announcement-org').value.trim());
   await API.sendAnnouncement({
     audience: document.getElementById('announcement-audience').value,
-    orgId: document.getElementById('announcement-org').value.trim(),
+    orgId: org?.ORG_ID || '',
     role: document.getElementById('announcement-role').value,
     title: document.getElementById('announcement-title').value.trim(),
     body: document.getElementById('announcement-body').value.trim()
@@ -3583,7 +3592,7 @@ async function openCaseModal(jsonStr) {
       <div class="form-group"><label class="form-label">Workflow Stage</label><select class="form-control" id="mc-stage">${['Drafting','Ready for Attorney','Under Attorney Review','Filed','Under Examination','Granted','Closed'].map(x=>`<option${(deriveWorkflowStageFromStatus(c?.CURRENT_STATUS, c?.WORKFLOW_STAGE||'Drafting'))===x?' selected':''}>${x}</option>`).join('')}</select></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="mc-org" list="mc-org-list" value="${c?.ORG_ID || ''}" placeholder="Search organization" /><datalist id="mc-org-list">${orgOptions}</datalist></div>
+      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="mc-org" list="mc-org-list" value="${escapeAttr(getOrganizationInputValue(c?.ORG_ID || ''))}" placeholder="Search organization" /><datalist id="mc-org-list">${orgOptions}</datalist></div>
       <div class="form-group"><label class="form-label">Priority</label><select class="form-control" id="mc-priority">${['Normal','High','Urgent'].map(x=>`<option${(c?.PRIORITY||'Normal')===x?' selected':''}>${x}</option>`).join('')}</select></div>
     </div>
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="mc-notes">${c?.NOTES||''}</textarea></div>
@@ -3717,14 +3726,14 @@ async function openClientModal(jsonStr) {
       <div class="form-group"><label class="form-label">Final Client Code</label><input class="form-control" id="cl-code" value="${c?.CLIENT_CODE||''}" readonly /></div>
     </div>
     <div class="form-row client-org-fields">
-      <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="cl-org-id" list="cl-org-list" value="${c?.ORG_ID||''}" placeholder="Search organization" /><datalist id="cl-org-list">${orgOptions}</datalist></div>
+      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="cl-org-id" list="cl-org-list" value="${escapeAttr(getOrganizationInputValue(c?.ORG_ID || ''))}" placeholder="Search organization" /><datalist id="cl-org-list">${orgOptions}</datalist></div>
       <div class="form-group"><label class="form-label">Assigned Staff Email</label><input class="form-control" id="cl-staff" list="cl-staff-list" value="${c?.ASSIGNED_STAFF_EMAIL||''}" placeholder="Search staff email" /><datalist id="cl-staff-list">${assignedStaffOptions}</datalist></div>
     </div>
     <div class="form-group"><label class="form-label">Client Name *</label><input class="form-control" id="cl-name" value="${c?.CLIENT_NAME||''}" /></div>
     <div class="form-group"><label class="form-label">Contact Person</label><input class="form-control" id="cl-contact" value="${c?.CONTACT_PERSON||''}" /></div>
     <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-control" id="cl-email" value="${c?.EMAIL||''}" /></div>
     <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="cl-phone" value="${c?.PHONE||''}" /></div>
-    <div class="form-group client-org-fields"><label class="form-label">Client Admin User ID</label><input class="form-control" id="cl-admin-user" list="cl-admin-list" value="${c?.CLIENT_ADMIN_USER_ID||''}" placeholder="Search user id" /><datalist id="cl-admin-list">${clientAdminOptions}</datalist></div>
+    <div class="form-group client-org-fields"><label class="form-label">Client Admin User</label><input class="form-control" id="cl-admin-user" list="cl-admin-list" value="${c?.CLIENT_ADMIN_USER_ID||''}" placeholder="Search user id" /><datalist id="cl-admin-list">${clientAdminOptions}</datalist></div>
     <div class="form-group"><label class="form-label">Address</label><textarea class="form-control" id="cl-addr">${c?.ADDRESS||''}</textarea></div>
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="cl-notes">${c?.NOTES||''}</textarea></div>
     <div class="modal-footer">
@@ -3764,7 +3773,7 @@ async function saveClient(existingId) {
     CLIENT_TYPE: document.getElementById('cl-client-type').value,
     CLIENT_REGION: document.getElementById('cl-region').value,
     CLIENT_CODE: document.getElementById('cl-code').value.trim().toUpperCase(),
-    ORG_ID: document.getElementById('cl-org-id').value.trim(),
+    ORG_ID: resolveOrganization(document.getElementById('cl-org-id').value.trim())?.ORG_ID || '',
     CLIENT_ADMIN_USER_ID: document.getElementById('cl-admin-user').value.trim(),
     ASSIGNED_STAFF_EMAIL: document.getElementById('cl-staff').value.trim(),
     ADDRESS: document.getElementById('cl-addr').value.trim(),
@@ -3906,7 +3915,7 @@ function openUserModal(jsonStr, options = {}) {
       <div class="form-group"><label class="form-label">Client Code</label><input class="form-control" id="mu-cid" list="mu-client-list" value="${u?.CLIENT_ID||''}" /><datalist id="mu-client-list">${clientOptions}</datalist></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="mu-org" list="mu-org-list" value="${u?.ORG_ID || prefilledOrg?.ORG_ID || ''}" placeholder="Search organization" onchange="syncUserOrgSelection()" /><datalist id="mu-org-list">${orgOptions}</datalist></div>
+      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="mu-org" list="mu-org-list" value="${escapeAttr(getOrganizationInputValue(u?.ORG_ID || prefilledOrg?.ORG_ID || ''))}" placeholder="Search organization" onchange="syncUserOrgSelection()" /><datalist id="mu-org-list">${orgOptions}</datalist></div>
       <div class="form-group"><label class="form-label">Can View Finance</label>
         <select class="form-control" id="mu-finance">${['No','Yes'].map(x=>`<option${(u?.CAN_VIEW_FINANCE||'No')===x?' selected':''}>${x}</option>`).join('')}</select>
       </div>
@@ -3947,7 +3956,7 @@ async function saveUser(existingId) {
     PASSWORD: document.getElementById('mu-pwd').value,
     ROLE: document.getElementById('mu-role').value,
     CLIENT_ID: document.getElementById('mu-cid').value.trim(),
-    ORG_ID: document.getElementById('mu-org').value.trim(),
+    ORG_ID: resolveOrganization(document.getElementById('mu-org').value.trim())?.ORG_ID || '',
     DEPARTMENT: document.getElementById('mu-dept').value.trim(),
     CAN_VIEW_FINANCE: document.getElementById('mu-finance').value,
     REPORTS_TO: document.getElementById('mu-reports').value.trim(),
@@ -4241,14 +4250,14 @@ function openClientModalLegacyV0(jsonStr) {
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Client Code</label><input class="form-control" id="cl-code" value="${c?.CLIENT_CODE||''}" placeholder="A61M or 970Y" /></div>
-      <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="cl-org-id" value="${c?.ORG_ID||''}" /></div>
+      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="cl-org-id" value="${escapeAttr(getOrganizationInputValue(c?.ORG_ID || ''))}" /></div>
     </div>
     <div class="form-group"><label class="form-label">Client Name *</label><input class="form-control" id="cl-name" value="${c?.CLIENT_NAME||''}" /></div>
     <div class="form-group"><label class="form-label">Contact Person</label><input class="form-control" id="cl-contact" value="${c?.CONTACT_PERSON||''}" /></div>
     <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-control" id="cl-email" value="${c?.EMAIL||''}" /></div>
     <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="cl-phone" value="${c?.PHONE||''}" /></div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Client Admin User ID</label><input class="form-control" id="cl-admin-user" value="${c?.CLIENT_ADMIN_USER_ID||''}" /></div>
+      <div class="form-group"><label class="form-label">Client Admin User</label><input class="form-control" id="cl-admin-user" value="${c?.CLIENT_ADMIN_USER_ID||''}" /></div>
       <div class="form-group"><label class="form-label">Assigned Staff Email</label><input class="form-control" id="cl-staff" value="${c?.ASSIGNED_STAFF_EMAIL||''}" /></div>
     </div>
     <div class="form-group"><label class="form-label">Address</label><textarea class="form-control" id="cl-addr">${c?.ADDRESS||''}</textarea></div>
@@ -4320,7 +4329,7 @@ function openCaseModalLegacyV0(jsonStr) {
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Priority</label><select class="form-control" id="mc-priority">${['Normal','High','Urgent'].map(x=>`<option${(c?.PRIORITY||'Normal')===x?' selected':''}>${x}</option>`).join('')}</select></div>
-      <div class="form-group"><label class="form-label">Org ID</label><input class="form-control" id="mc-org" value="${c?.ORG_ID||''}" /></div>
+      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="mc-org" value="${escapeAttr(getOrganizationInputValue(c?.ORG_ID || ''))}" /></div>
     </div>
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="mc-notes">${c?.NOTES||''}</textarea></div>
     <div class="modal-footer">
@@ -4348,7 +4357,7 @@ async function saveCaseLegacyV0(existingId) {
     ATTORNEY: document.getElementById('mc-atty').value.trim(),
     WORKFLOW_STAGE: document.getElementById('mc-stage').value,
     PRIORITY: document.getElementById('mc-priority').value,
-    ORG_ID: document.getElementById('mc-org').value.trim(),
+    ORG_ID: resolveOrganization(document.getElementById('mc-org').value.trim())?.ORG_ID || '',
     NOTES: document.getElementById('mc-notes').value.trim(),
   };
   if (!existingId) delete data.CASE_ID;
