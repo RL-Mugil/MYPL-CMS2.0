@@ -110,14 +110,14 @@ function clearGasSession() {
   sessionStorage.removeItem('mg_session');
   try {
     Object.keys(sessionStorage).forEach((key) => {
-      if (key.startsWith('mg_api_cache_v1:')) {
+      if (key.startsWith('mg_api_cache_v')) {
         sessionStorage.removeItem(key);
       }
     });
   } catch {}
   try {
     Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith('mg_api_cache_v1:')) {
+      if (key.startsWith('mg_api_cache_v')) {
         localStorage.removeItem(key);
       }
     });

@@ -38,6 +38,9 @@
     const CLIENT_SIDE_ROLES = ['Client', 'Client Admin', 'Client Employee', 'Individual Client'];
 
     function getEffectiveSessionRoles(session) {
+      if (window.Auth && typeof window.Auth.getEffectiveSessionRoles === 'function') {
+        return window.Auth.getEffectiveSessionRoles(session);
+      }
       const roles = [];
       if (session && session.role) roles.push(session.role);
       String(session && session.additionalRoles || '')
