@@ -104,6 +104,17 @@ async function requireAuth(allowedRoles) {
 
   const existing = getGasSession();
   if (existing && existing.email === email) {
+    if (!existing.userId && window.API && typeof window.API.getUserInfo === 'function') {
+      try {
+        const info = await window.API.getUserInfo();
+        const hydrated = { ...existing, ...info };
+        setGasSession(hydrated);
+        if (allowedRoles && !allowedRoles.includes(hydrated.role)) {
+          return null;
+        }
+        return hydrated;
+      } catch {}
+    }
     if (allowedRoles && !allowedRoles.includes(existing.role)) {
       return null;
     }

@@ -257,6 +257,10 @@ async function clerkLogin(email) {
   return callGASPublic('clerklogin', { email });
 }
 
+async function getUserInfo() {
+  return callGAS('getUserInfo', {});
+}
+
 async function getStreamAuth() {
   ensureApiBase();
   const session = window.Auth.getGasSession();
@@ -617,6 +621,7 @@ window.API = {
   callGAS,
   callGASPublic,
   clerkLogin,
+  getUserInfo,
   getStreamAuth,
   ensureStreamUsers,
   clearStreamChannel,
