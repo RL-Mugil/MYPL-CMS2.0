@@ -361,11 +361,11 @@ function sessionHasAnyRole(roles) {
 }
 
 function canAccessFinance() {
-  return !!SESSION?.canViewFinance || sessionHasRoleAtLeast('Admin');
+  return !!SESSION?.canViewFinance || sessionHasRoleAtLeast('Galvanizer');
 }
 
 function canAccessManagement() {
-  return sessionHasAnyRole(['Super Admin', 'Admin', 'Client Admin']);
+  return sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer', 'Client Admin']);
 }
 
 function canImpersonateUsers() {
@@ -2329,7 +2329,7 @@ async function loadFinance() {
     document.getElementById('page-content').innerHTML = err('Finance access is restricted for your role.');
     return;
   }
-  const canEdit = sessionHasRoleAtLeast('Admin');
+    const canEdit = sessionHasRoleAtLeast('Galvanizer');
   if (canEdit) {
     setTopbarActions(`${renderFilterToggleButton('finance')}<button class="btn btn-primary btn-sm" onclick="openInvoiceModal()">+ New Invoice</button>`);
   } else {
@@ -2458,7 +2458,7 @@ function renderFinanceFilters() {
     </div>`;
 }
 
-function renderFinance(invoices = FINANCE_INVOICES_CACHE, canEdit = sessionHasRoleAtLeast('Admin')) {
+function renderFinance(invoices = FINANCE_INVOICES_CACHE, canEdit = sessionHasRoleAtLeast('Galvanizer')) {
   if (Array.isArray(invoices)) FINANCE_INVOICES_CACHE = invoices;
   const filteredInvoices = getFilteredFinanceInvoices();
   const paged = paginateItems(filteredInvoices, 'finance-invoices', 10);
