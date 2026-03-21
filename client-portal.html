@@ -229,7 +229,10 @@ function readCssVar(name) {
 }
 
 function setTopbarActions(html) {
-  document.getElementById('topbar-actions').innerHTML = html || '';
+  var impersonationHtml = SESSION && SESSION.impersonatedByUserId
+    ? '<span class="topbar-actions-extra"><span class="stream-chip">Impersonating ' + esc(SESSION.name || SESSION.email || 'Client') + '</span><button class="btn btn-ghost btn-sm" onclick="stopImpersonation()">Stop Impersonation</button></span>'
+    : '';
+  document.getElementById('topbar-actions').innerHTML = impersonationHtml + (html || '');
 }
 
 function destroyCharts() {
@@ -251,6 +254,22 @@ function toggleSidebar(forceOpen) {
 
 function toggleSidebarDesktop() {
   document.body.classList.toggle('sidebar-hidden');
+}
+
+function stopImpersonation() {
+  try {
+    var raw = sessionStorage.getItem('mg_original_session');
+    if (!raw) {
+      alert('Original session not found.');
+      return;
+    }
+    var originalSession = JSON.parse(raw);
+    Auth.setGasSession(originalSession);
+    sessionStorage.removeItem('mg_original_session');
+    window.location.href = 'dashboard.html';
+  } catch (e) {
+    alert('Unable to restore original session.');
+  }
 }
 
 function loadTheme() {

@@ -280,6 +280,7 @@ a:hover { color: #a5b4fc; }
 }
 .topbar-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
+.topbar-actions-extra { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .sidebar-desktop-toggle {
   background: var(--card);
   border: 1px solid var(--border);
@@ -829,6 +830,8 @@ body.sidebar-hidden .sidebar-collapse-btn svg {
 
 /* ── Action rows ─────────────────────────────────────────────────────────── */
 .action-row { display: flex; gap: 6px; }
+.icon-btn { min-width: 36px; width: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.icon-btn .material-symbols-outlined { font-size: 18px; line-height: 1; }
 
 /* ── Inline text muted ───────────────────────────────────────────────────── */
 .text-muted { color: var(--text-3); }

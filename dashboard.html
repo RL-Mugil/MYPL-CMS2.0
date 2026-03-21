@@ -1204,6 +1204,10 @@ function setTopbarActions(extraHtml = '') {
   right.innerHTML = `${getThemeToggleHtml()}${impersonationHtml}${extraHtml ? `<span class="topbar-actions-extra">${extraHtml}</span>` : ''}`;
 }
 
+function financeActionIconButton(label, icon, className, onClick) {
+  return `<button class="btn ${className || 'btn-ghost'} btn-sm icon-btn" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}" onclick="${onClick}"><span class="material-symbols-outlined">${icon}</span></button>`;
+}
+
 function toggleTheme() {
   applyTheme(CURRENT_THEME === 'light' ? 'dark' : 'light');
   setTopbarActions(window.__lastTopbarExtra || '');
@@ -2464,11 +2468,11 @@ function renderFinance(invoices = FINANCE_INVOICES_CACHE, canEdit = sessionHasRo
       <td style="font-weight:600">${money(getInvoiceUiDue(inv))}</td>
       <td>${statusBadge(inv.PAYMENT_STATUS)}</td>
       ${canEdit ? `<td><div class="action-row">
-        ${!isPaid ? `<button class="btn btn-success btn-sm" onclick="markPaid('${escapeAttr(getInvoiceUiId(inv))}',this)">Paid</button>` : ''}
-        <button class="btn btn-ghost btn-sm" onclick="previewInvoiceByLink('${escapeAttr(inv.INVOICE_PDF_LINK || '')}')">Preview</button>
-        <button class="btn btn-ghost btn-sm" onclick="sendInvoiceNow('${escapeAttr(getInvoiceUiId(inv))}', this)">Send</button>
-        <button class="btn btn-ghost btn-sm" onclick="openInvoicePaymentModalFromEncoded('${encoded}')">Payment</button>
-        <button class="btn btn-ghost btn-sm" onclick="openInvoiceModalFromEncoded('${encoded}')">Edit</button>
+        ${!isPaid ? financeActionIconButton('Mark Paid', 'payments', 'btn-success', `markPaid('${escapeAttr(getInvoiceUiId(inv))}', this)`) : ''}
+        ${financeActionIconButton('Preview', 'visibility', 'btn-ghost', `previewInvoiceByLink('${escapeAttr(inv.INVOICE_PDF_LINK || '')}')`)}
+        ${financeActionIconButton('Send Invoice', 'rocket_launch', 'btn-ghost', `sendInvoiceNow('${escapeAttr(getInvoiceUiId(inv))}', this)`)}
+        ${financeActionIconButton('Payment', 'currency_rupee', 'btn-ghost', `openInvoicePaymentModalFromEncoded('${encoded}')`)}
+        ${financeActionIconButton('Edit Invoice', 'edit', 'btn-ghost', `openInvoiceModalFromEncoded('${encoded}')`)}
         <button class="btn btn-danger btn-sm" onclick="deleteItem('Invoice','${escapeAttr(getInvoiceUiId(inv))}')">Del</button>
       </div></td>` : ''}
     </tr>`;
@@ -3600,6 +3604,10 @@ async function openStreamNewGroupModal() {
 
 async function createStreamConversation() {
   const recipientEmail = String(document.getElementById('stream-recipient')?.value || '').trim().toLowerCase();
+  return createStreamConversationForEmail(recipientEmail);
+}
+
+async function createStreamConversationForEmail(recipientEmail) {
   const recipient = getInternalStreamCandidates().find((user) => String(user.EMAIL || '').toLowerCase() === recipientEmail);
   if (!recipient) {
     alert('Select a valid internal user.');
@@ -4158,13 +4166,12 @@ async function createDirectMessage() {
 
 async function openDirectMessageForUser(email, name = '') {
   await ensureUserLookupLoaded();
-  openGenericModal(`Message ${name || email}`, `
-    <div class="form-group"><label class="form-label">Recipient</label><input class="form-control" id="direct-recipient" value="${escapeAttr(email)}" readonly /></div>
-    <div class="form-group"><label class="form-label">Conversation Title</label><input class="form-control" id="direct-title" value="${escapeAttr(name ? `Direct: ${name}` : 'Direct conversation')}" /></div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitDirectMessageModal()">Open Chat</button>
-    </div>`);
+  showPage('stream');
+  setTimeout(() => {
+    createStreamConversationForEmail(String(email || '').trim().toLowerCase()).catch((error) => {
+      alert(error?.message || 'Unable to open Stream conversation.');
+    });
+  }, 50);
 }
 
 async function submitDirectMessageModal() {
