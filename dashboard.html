@@ -8,6 +8,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/stream-chat@8/dist/browser/index.min.js"></script>
   <style>
     .filter-drawer { display: none; }
     .filter-drawer.open { display: block; }
@@ -127,6 +128,10 @@
         <button class="nav-item" data-page="inbox" onclick="showPage('inbox')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 3.5h11v7h-7l-3 2v-2h-1z"/><path d="M5 6h6M5 8.5h4"/></svg>
           Inbox
+        </button>
+        <button class="nav-item" id="nav-stream" data-page="stream" onclick="showPage('stream')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4.5h11v6h-4l-2.5 2-2.5-2h-2z"/><path d="M5 6.5h6M5 8.5h4"/></svg>
+          Stream
         </button>
         <button class="nav-item" data-page="messages" onclick="showPage('messages')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H6l-3 2v-2H2z"/></svg>
@@ -370,6 +375,10 @@ function isInternalUser() {
   return sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney']);
 }
 
+function canAccessStreamMessaging() {
+  return !!window.APP_CONFIG?.streamEnabled && isInternalUser();
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
   applyTheme(getStoredTheme());
@@ -386,10 +395,13 @@ function isInternalUser() {
     document.getElementById('nav-finance').style.display = 'none';
   }
   if (!isInternalUser()) {
-    ['messages','notifications','dailyaudit','expenses','galvanizer','contact'].forEach((page) => {
+    ['stream','messages','notifications','dailyaudit','expenses','galvanizer','contact'].forEach((page) => {
       document.querySelector(`[data-page="${page}"]`)?.style.setProperty('display', 'none');
     });
     document.getElementById('circle-nav-section').style.display = 'none';
+  }
+  if (!canAccessStreamMessaging()) {
+    document.getElementById('nav-stream')?.style.setProperty('display', 'none');
   }
 
   // Populate sidebar user info
@@ -471,6 +483,7 @@ const PAGE_TITLES = {
   cases: 'Cases',
   documents: 'Documents',
   inbox: 'Inbox',
+  stream: 'Stream Messaging',
   workflow: 'Workflow Board',
   attorney: 'Attorney Workspace',
   docworkflow: 'Document Request',
@@ -505,6 +518,7 @@ function showPage(page) {
     cases: loadCases,
     documents: loadDocuments,
     inbox: loadInbox,
+    stream: loadStreamMessaging,
     workflow: loadWorkflowBoard,
     attorney: loadAttorneyWorkspace,
     docworkflow: loadDocumentWorkflow,
@@ -607,6 +621,13 @@ let ATTORNEY_WORKSPACE_CACHE = { cases: [], tasks: [], pendingReview: [], active
 let WORKFLOW_BOARD_CACHE = {};
 let GALVANIZER_CASE_ID_OPTIONS = [];
 let ACTIVE_CUSTOM_DROPDOWN = '';
+let STREAM_STATE = {
+  client: null,
+  auth: null,
+  channels: [],
+  activeChannel: null,
+  unsubscribe: null,
+};
 
 function deriveWorkflowStageFromStatus(status, currentStage) {
   const normalized = String(status || '').trim();
@@ -2756,6 +2777,261 @@ function formatChatTime(value) {
     ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : d.toLocaleDateString([], { day: '2-digit', month: 'short' });
 }
+
+function getStreamSdkCtor() {
+  return window.streamChat?.StreamChat || window.StreamChat || null;
+}
+
+async function disconnectStreamMessaging() {
+  if (STREAM_STATE.unsubscribe && typeof STREAM_STATE.unsubscribe.unsubscribe === 'function') {
+    try { STREAM_STATE.unsubscribe.unsubscribe(); } catch {}
+  }
+  STREAM_STATE.unsubscribe = null;
+  if (STREAM_STATE.client && typeof STREAM_STATE.client.disconnectUser === 'function') {
+    try { await STREAM_STATE.client.disconnectUser(); } catch {}
+  }
+  STREAM_STATE.client = null;
+  STREAM_STATE.auth = null;
+  STREAM_STATE.channels = [];
+  STREAM_STATE.activeChannel = null;
+}
+
+async function ensureStreamMessagingClient() {
+  if (!canAccessStreamMessaging()) {
+    throw new Error('Stream messaging is available only for internal users.');
+  }
+  const StreamChatCtor = getStreamSdkCtor();
+  if (!StreamChatCtor) {
+    throw new Error('Stream Chat SDK failed to load.');
+  }
+  if (STREAM_STATE.client && STREAM_STATE.auth) {
+    return STREAM_STATE.client;
+  }
+
+  const auth = await API.getStreamAuth();
+  const apiKey = auth.apiKey || window.APP_CONFIG?.streamApiKey || '';
+  if (!apiKey) {
+    throw new Error('Stream API key is not configured.');
+  }
+
+  const client = StreamChatCtor.getInstance ? StreamChatCtor.getInstance(apiKey) : new StreamChatCtor(apiKey);
+  await client.connectUser(auth.user, auth.token);
+  STREAM_STATE.client = client;
+  STREAM_STATE.auth = auth;
+  if (STREAM_STATE.unsubscribe && typeof STREAM_STATE.unsubscribe.unsubscribe === 'function') {
+    try { STREAM_STATE.unsubscribe.unsubscribe(); } catch {}
+  }
+  STREAM_STATE.unsubscribe = client.on((event) => {
+    if (CURRENT_PAGE !== 'stream') return;
+    if (['message.new', 'notification.message_new', 'channel.updated', 'channel.deleted', 'notification.added_to_channel'].includes(event.type)) {
+      refreshStreamChannelList(false);
+    }
+    if (STREAM_STATE.activeChannel && event.cid === STREAM_STATE.activeChannel.cid) {
+      renderStreamActiveChannel();
+    }
+  });
+  return client;
+}
+
+function getInternalStreamCandidates() {
+  const selfEmail = String(SESSION?.email || '').toLowerCase();
+  return (USER_LOOKUP_CACHE || [])
+    .filter((user) => String(user.EMAIL || '').toLowerCase() !== selfEmail)
+    .filter((user) => isInternalUserRole(user.ROLE || '') || getEffectiveRoleList(user).some((role) => ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'].includes(role)))
+    .sort((a, b) => String(a.FULL_NAME || a.EMAIL || '').localeCompare(String(b.FULL_NAME || b.EMAIL || ''), undefined, { sensitivity: 'base' }));
+}
+
+function buildStreamUserIdForDirectory(user) {
+  if (user?.USER_ID) return `user_${String(user.USER_ID).replace(/[^A-Za-z0-9_-]/g, '_')}`;
+  return `email_${String(user?.EMAIL || '').toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`;
+}
+
+async function refreshStreamChannelList(keepSelection = true) {
+  const client = await ensureStreamMessagingClient();
+  const userId = STREAM_STATE.auth?.user?.id;
+  const channels = await client.queryChannels(
+    { type: 'messaging', members: { $in: [userId] } },
+    { last_message_at: -1 },
+    { watch: true, state: true, limit: 30 }
+  );
+  const previousCid = keepSelection ? STREAM_STATE.activeChannel?.cid : '';
+  STREAM_STATE.channels = channels || [];
+  if (previousCid) {
+    STREAM_STATE.activeChannel = STREAM_STATE.channels.find((channel) => channel.cid === previousCid) || STREAM_STATE.activeChannel;
+  }
+  if (!STREAM_STATE.activeChannel && STREAM_STATE.channels.length) {
+    STREAM_STATE.activeChannel = STREAM_STATE.channels[0];
+  }
+  renderStreamChannelList();
+  renderStreamActiveChannel();
+}
+
+function renderStreamChannelList() {
+  const target = document.getElementById('stream-channel-list');
+  if (!target) return;
+  const rows = (STREAM_STATE.channels || []).map((channel) => {
+    const state = channel.state || {};
+    const messages = state.messages || [];
+    const lastMessage = messages[messages.length - 1] || null;
+    const otherMembers = Object.values(state.members || {}).filter((member) => member.user?.id !== STREAM_STATE.auth?.user?.id);
+    const title = channel.data?.name || otherMembers.map((member) => member.user?.name || member.user?.id).join(', ') || 'Untitled chat';
+    const subtitle = lastMessage?.text || 'No messages yet.';
+    return `
+      <button class="chat-list-item ${STREAM_STATE.activeChannel?.cid === channel.cid ? 'active' : ''}" onclick="openStreamChannel('${escapeAttr(channel.cid)}')">
+        <div class="chat-avatar">${String(title || 'U').slice(0, 1).toUpperCase()}</div>
+        <div class="chat-meta">
+          <div class="chat-head">
+            <div class="chat-name">${title}</div>
+            <div class="chat-time">${formatChatTime(lastMessage?.created_at)}</div>
+          </div>
+          <div class="chat-preview">${truncateText(subtitle, 54)}</div>
+        </div>
+      </button>`;
+  }).join('');
+  target.innerHTML = rows || '<div class="empty-state"><p>No Stream conversations yet.</p></div>';
+}
+
+function renderStreamActiveChannel() {
+  const target = document.getElementById('stream-active-panel');
+  if (!target) return;
+  const channel = STREAM_STATE.activeChannel;
+  if (!channel) {
+    target.innerHTML = '<div class="text-muted" style="padding:24px">Select a Stream conversation to start messaging.</div>';
+    return;
+  }
+  const state = channel.state || {};
+  const messages = state.messages || [];
+  const otherMembers = Object.values(state.members || {}).filter((member) => member.user?.id !== STREAM_STATE.auth?.user?.id);
+  const title = channel.data?.name || otherMembers.map((member) => member.user?.name || member.user?.id).join(', ') || 'Conversation';
+  const items = messages.map((message) => {
+    const mine = message.user?.id === STREAM_STATE.auth?.user?.id;
+    return `
+      <div style="display:flex;justify-content:${mine ? 'flex-end' : 'flex-start'};margin-bottom:10px">
+        <div style="max-width:78%;padding:10px 12px;border-radius:14px;background:${mine ? 'rgba(99, 102, 241, 0.18)' : 'var(--surface)'};border:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--text-2);margin-bottom:4px">${mine ? 'You' : (message.user?.name || 'User')}</div>
+          <div style="white-space:pre-wrap">${message.text || ''}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:6px">${formatChatTime(message.created_at)}</div>
+        </div>
+      </div>`;
+  }).join('');
+  target.innerHTML = `
+    <div class="inbox-panel">
+      <div class="inbox-chat-head">
+        <div>
+          <div class="card-title" style="margin-bottom:2px">${title}</div>
+          <div class="text-muted" style="font-size:12px">${otherMembers.length ? otherMembers.map((member) => member.user?.email || member.user?.id).join(', ') : 'Direct stream conversation'}</div>
+        </div>
+      </div>
+      <div class="chat-thread" id="stream-message-thread">${items || '<div class="text-muted" style="padding:12px">No messages yet.</div>'}</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <textarea class="form-control" id="stream-message-input" rows="3" placeholder="Type a message"></textarea>
+        <button class="btn btn-primary" style="align-self:flex-end" onclick="sendStreamMessage()">Send</button>
+      </div>
+    </div>`;
+  const thread = document.getElementById('stream-message-thread');
+  if (thread) thread.scrollTop = thread.scrollHeight;
+}
+
+async function openStreamChannel(cid) {
+  const channel = (STREAM_STATE.channels || []).find((item) => item.cid === cid);
+  if (!channel) return;
+  STREAM_STATE.activeChannel = channel;
+  await channel.watch();
+  renderStreamChannelList();
+  renderStreamActiveChannel();
+}
+
+async function sendStreamMessage() {
+  const channel = STREAM_STATE.activeChannel;
+  const input = document.getElementById('stream-message-input');
+  const text = String(input?.value || '').trim();
+  if (!channel || !text) return;
+  await channel.sendMessage({ text });
+  if (input) input.value = '';
+  renderStreamActiveChannel();
+}
+
+function filterStreamChannels() {
+  const query = String(document.getElementById('stream-channel-search')?.value || '').trim().toLowerCase();
+  document.querySelectorAll('#stream-channel-list .chat-list-item').forEach((item) => {
+    item.style.display = !query || item.textContent.toLowerCase().includes(query) ? '' : 'none';
+  });
+}
+
+async function openStreamNewChatModal() {
+  await ensureUserLookupLoaded();
+  const options = getInternalStreamCandidates().map((user) => {
+    const label = [user.FULL_NAME || user.EMAIL, user.EMAIL].filter(Boolean).join(' | ');
+    return `<option value="${escapeAttr(user.EMAIL || '')}">${label}</option>`;
+  }).join('');
+  openGenericModal('New Stream Conversation', `
+    <div class="form-group">
+      <label class="form-label">Recipient</label>
+      <input class="form-control" id="stream-recipient" list="stream-recipient-list" placeholder="Search internal user email" />
+      <datalist id="stream-recipient-list">${options}</datalist>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" onclick="createStreamConversation()">Open Conversation</button>
+    </div>`);
+}
+
+async function createStreamConversation() {
+  const recipientEmail = String(document.getElementById('stream-recipient')?.value || '').trim().toLowerCase();
+  const recipient = getInternalStreamCandidates().find((user) => String(user.EMAIL || '').toLowerCase() === recipientEmail);
+  if (!recipient) {
+    alert('Select a valid internal user.');
+    return;
+  }
+  const client = await ensureStreamMessagingClient();
+  const selfId = STREAM_STATE.auth.user.id;
+  const recipientId = buildStreamUserIdForDirectory(recipient);
+  const memberIds = [selfId, recipientId].sort();
+  const channelId = `dm_${memberIds.join('__')}`;
+  const channel = client.channel('messaging', channelId, {
+    members: [selfId, recipientId],
+    name: recipient.FULL_NAME || recipient.EMAIL || 'Direct Message',
+  });
+  await channel.watch();
+  closeModal('modal-generic');
+  await refreshStreamChannelList(false);
+  await openStreamChannel(channel.cid);
+}
+
+async function loadStreamMessaging() {
+  destroyCharts();
+  try {
+    if (!canAccessStreamMessaging()) {
+      document.getElementById('page-content').innerHTML = `<div class="page"><div class="card"><div class="text-muted">Stream messaging is available only for internal staff.</div></div></div>`;
+      return;
+    }
+    await ensureUserLookupLoaded();
+    setTopbarActions(`<button class="btn btn-ghost btn-sm" onclick="refreshStreamChannelList(false)">Refresh</button><button class="btn btn-primary btn-sm" onclick="openStreamNewChatModal()">+ New Stream Chat</button>`);
+    document.getElementById('page-content').innerHTML = `
+      <div class="page">
+        <div class="inbox-layout">
+          <div class="card inbox-sidebar">
+            <div class="inbox-sidebar-head">
+              <div class="card-title">Stream Channels</div>
+              <button class="btn btn-ghost btn-sm" onclick="openStreamNewChatModal()">New</button>
+            </div>
+            <div class="form-group" style="margin-bottom:12px">
+              <input class="form-control" id="stream-channel-search" placeholder="Search channels or people" oninput="filterStreamChannels()" />
+            </div>
+            <div class="chat-list" id="stream-channel-list"><div class="loading-wrap"><div class="spinner"></div><span>Loading…</span></div></div>
+          </div>
+          <div class="card" id="stream-active-panel"><div class="text-muted" style="padding:24px">Loading Stream conversations…</div></div>
+        </div>
+      </div>`;
+    await refreshStreamChannelList(false);
+  } catch (e) {
+    document.getElementById('page-content').innerHTML = err(e.message);
+  }
+}
+
+window.StreamMessaging = {
+  disconnect: disconnectStreamMessaging,
+};
 
 async function loadInbox() {
   destroyCharts();

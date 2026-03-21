@@ -162,6 +162,9 @@ async function mountSignIn(containerId, options = {}) {
 }
 
 async function signOut() {
+  if (window.StreamMessaging && typeof window.StreamMessaging.disconnect === 'function') {
+    try { await window.StreamMessaging.disconnect(); } catch {}
+  }
   clearGasSession();
   if (_clerkInstance) {
     await _clerkInstance.signOut();
