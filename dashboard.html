@@ -367,7 +367,7 @@ function canAccessManagement() {
 }
 
 function canImpersonateUsers() {
-  return String(SESSION?.userId || '') === 'USR001';
+  return String(SESSION?.userId || '') === 'USR001' || String(SESSION?.email || '').toLowerCase() === 'mugilvannan@myipstrategy.com';
 }
 
 function isInternalUser() {

@@ -103,7 +103,11 @@ async function requireAuth(allowedRoles) {
   if (!email) return null;
 
   const existing = getGasSession();
-  if (existing && existing.email === email) {
+  const matchesRealUser = existing && existing.email === email;
+  const matchesImpersonationOwner = existing
+    && existing.impersonatedByUserId
+    && String(existing.originalEmail || '').toLowerCase() === String(email || '').toLowerCase();
+  if (existing && (matchesRealUser || matchesImpersonationOwner)) {
     if (!existing.userId && window.API && typeof window.API.getUserInfo === 'function') {
       try {
         const info = await window.API.getUserInfo();
