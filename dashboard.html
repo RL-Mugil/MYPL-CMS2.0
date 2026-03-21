@@ -340,16 +340,15 @@ function hasRoleAtLeast(role, minimumRole) {
 }
 
 function getEffectiveSessionRoles() {
-  const roles = [];
-  if (SESSION?.role) roles.push(SESSION.role);
-  String(SESSION?.additionalRoles || '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .forEach((role) => {
-      if (!roles.includes(role)) roles.push(role);
-    });
-  return roles;
+  return window.Auth?.getEffectiveSessionRoles ? window.Auth.getEffectiveSessionRoles(SESSION) : [SESSION?.role].filter(Boolean);
+}
+
+function getAvailableViewRoles() {
+  return window.Auth?.getAvailableViewRoles ? window.Auth.getAvailableViewRoles(SESSION) : getEffectiveSessionRoles();
+}
+
+function getActiveViewRole() {
+  return window.Auth?.getActiveViewRole ? window.Auth.getActiveViewRole(SESSION) : getEffectiveSessionRoles()[0] || '';
 }
 
 function sessionHasRoleAtLeast(minimumRole) {
@@ -414,7 +413,7 @@ function canAccessStreamMessaging() {
   const initials = (SESSION.name || 'U').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('sidebar-avatar').textContent = initials;
   document.getElementById('sidebar-name').textContent = SESSION.name || SESSION.email;
-  document.getElementById('sidebar-role').textContent = SESSION.role;
+  document.getElementById('sidebar-role').textContent = getActiveViewRole() || SESSION.role;
   applySidebarState();
   applyNavSectionState();
   await populateCircleNav();
@@ -1211,10 +1210,26 @@ function setTopbarActions(extraHtml = '') {
   window.__lastTopbarExtra = extraHtml || '';
   const right = document.getElementById('topbar-right');
   if (!right) return;
+  const roles = getAvailableViewRoles();
+  const activeViewRole = getActiveViewRole();
+  const roleViewHtml = roles.length > 1
+    ? `<span class="topbar-actions-extra"><select class="form-control" style="min-width:170px" onchange="changeRoleView(this.value)">${roles.map((role) => `<option value="${escapeAttr(role)}"${role === activeViewRole ? ' selected' : ''}>Viewing as ${escapeHtml(role)}</option>`).join('')}</select></span>`
+    : '';
   const impersonationHtml = SESSION?.impersonatedByUserId
     ? `<span class="topbar-actions-extra"><span class="stream-chip">Impersonating ${escapeAttr(SESSION.name || SESSION.email || '')}</span><button class="btn btn-ghost btn-sm" onclick="stopImpersonation()">Stop Impersonation</button></span>`
     : '';
-  right.innerHTML = `${getThemeToggleHtml()}${impersonationHtml}${extraHtml ? `<span class="topbar-actions-extra">${extraHtml}</span>` : ''}`;
+  right.innerHTML = `${getThemeToggleHtml()}${roleViewHtml}${impersonationHtml}${extraHtml ? `<span class="topbar-actions-extra">${extraHtml}</span>` : ''}`;
+}
+
+function changeRoleView(role) {
+  const nextSession = window.Auth?.setActiveViewRole ? window.Auth.setActiveViewRole(role) : null;
+  if (!nextSession) return;
+  SESSION = nextSession;
+  const activeRole = getActiveViewRole();
+  const isInternal = ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'].includes(activeRole);
+  const targetBase = isInternal ? 'dashboard.html' : 'client-portal.html';
+  const targetHash = isInternal ? (window.location.hash || '#dashboard') : '#dashboard';
+  window.location.href = `${targetBase}${targetHash}`;
 }
 
 function financeActionIconButton(label, icon, className, onClick) {

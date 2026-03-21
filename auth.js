@@ -70,9 +70,39 @@ function getGasSession() {
   return null;
 }
 
+function getAllSessionRoles(session) {
+  const roles = [];
+  if (session?.role) roles.push(session.role);
+  String(session?.additionalRoles || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .forEach((role) => {
+      if (!roles.includes(role)) roles.push(role);
+    });
+  return roles;
+}
+
+function getActiveViewRole(session) {
+  const roles = getAllSessionRoles(session);
+  const requested = String(session?.activeViewRole || '').trim();
+  if (requested && roles.includes(requested)) return requested;
+  return roles[0] || '';
+}
+
 function setGasSession(session) {
-  _gasSession = session;
-  sessionStorage.setItem('mg_session', JSON.stringify(session));
+  if (!session) {
+    _gasSession = null;
+    sessionStorage.removeItem('mg_session');
+    return;
+  }
+  const next = { ...session };
+  const roles = getAllSessionRoles(next);
+  if (next.activeViewRole && !roles.includes(next.activeViewRole)) {
+    delete next.activeViewRole;
+  }
+  _gasSession = next;
+  sessionStorage.setItem('mg_session', JSON.stringify(next));
 }
 
 function clearGasSession() {
@@ -95,16 +125,23 @@ function clearGasSession() {
 }
 
 function getEffectiveSessionRoles(session) {
-  const roles = [];
-  if (session?.role) roles.push(session.role);
-  String(session?.additionalRoles || '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .forEach((role) => {
-      if (!roles.includes(role)) roles.push(role);
-    });
-  return roles;
+  const active = getActiveViewRole(session);
+  return active ? [active] : [];
+}
+
+function getAvailableViewRoles(session) {
+  return getAllSessionRoles(session);
+}
+
+function setActiveViewRole(role) {
+  const session = getGasSession();
+  if (!session) return null;
+  const roles = getAllSessionRoles(session);
+  const requested = String(role || '').trim();
+  if (requested && roles.includes(requested)) session.activeViewRole = requested;
+  else delete session.activeViewRole;
+  setGasSession(session);
+  return session;
 }
 
 function sessionMatchesAllowedRoles(session, allowedRoles) {
@@ -213,6 +250,9 @@ window.Auth = {
   getClerkUser,
   getClerkEmail,
   getEffectiveSessionRoles,
+  getAvailableViewRoles,
+  getActiveViewRole,
+  setActiveViewRole,
   getGasSession,
   setGasSession,
   clearGasSession,

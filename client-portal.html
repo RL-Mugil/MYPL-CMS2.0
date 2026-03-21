@@ -145,6 +145,18 @@ const STATE = {
   search: { query: '', scope: 'all', results: null }
 };
 
+function getEffectiveSessionRoles() {
+  return window.Auth?.getEffectiveSessionRoles ? window.Auth.getEffectiveSessionRoles(SESSION) : [SESSION?.role].filter(Boolean);
+}
+
+function getAvailableViewRoles() {
+  return window.Auth?.getAvailableViewRoles ? window.Auth.getAvailableViewRoles(SESSION) : getEffectiveSessionRoles();
+}
+
+function getActiveViewRole() {
+  return window.Auth?.getActiveViewRole ? window.Auth.getActiveViewRole(SESSION) : getEffectiveSessionRoles()[0] || '';
+}
+
 (async function bootstrap() {
   applyTheme(loadTheme());
   SESSION = await Auth.requireAuth(CLIENT_ROLES);
@@ -163,7 +175,7 @@ const STATE = {
   const initials = (SESSION.name || 'C').split(' ').map(function(part) { return part ? part[0] : ''; }).join('').slice(0, 2).toUpperCase();
   document.getElementById('sidebar-avatar').textContent = initials || 'C';
   document.getElementById('sidebar-name').textContent = SESSION.name || SESSION.email || 'Client';
-  document.getElementById('sidebar-role').textContent = SESSION.role || 'Client';
+  document.getElementById('sidebar-role').textContent = getActiveViewRole() || SESSION.role || 'Client';
 
   await ensureAccessibleClientsLoaded();
   showPage(getValidPageFromHash(), true);
@@ -231,10 +243,30 @@ function readCssVar(name) {
 }
 
 function setTopbarActions(html) {
+  var roles = getAvailableViewRoles();
+  var activeRole = getActiveViewRole();
+  var roleViewHtml = roles.length > 1
+    ? '<span class="topbar-actions-extra"><select class="form-control" style="min-width:170px" onchange="changeRoleView(this.value)">' +
+      roles.map(function(role) {
+        return '<option value="' + esc(role) + '"' + (role === activeRole ? ' selected' : '') + '>Viewing as ' + esc(role) + '</option>';
+      }).join('') +
+      '</select></span>'
+    : '';
   var impersonationHtml = SESSION && SESSION.impersonatedByUserId
     ? '<span class="topbar-actions-extra"><span class="stream-chip">Impersonating ' + esc(SESSION.name || SESSION.email || 'Client') + '</span><button class="btn btn-ghost btn-sm" onclick="stopImpersonation()">Stop Impersonation</button></span>'
     : '';
-  document.getElementById('topbar-actions').innerHTML = impersonationHtml + (html || '');
+  document.getElementById('topbar-actions').innerHTML = roleViewHtml + impersonationHtml + (html || '');
+}
+
+function changeRoleView(role) {
+  var nextSession = window.Auth && typeof window.Auth.setActiveViewRole === 'function' ? window.Auth.setActiveViewRole(role) : null;
+  if (!nextSession) return;
+  SESSION = nextSession;
+  var activeRole = getActiveViewRole();
+  var isInternal = ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'].indexOf(activeRole) > -1;
+  var targetBase = isInternal ? 'dashboard.html' : 'client-portal.html';
+  var targetHash = isInternal ? '#dashboard' : (window.location.hash || '#dashboard');
+  window.location.href = targetBase + targetHash;
 }
 
 function destroyCharts() {

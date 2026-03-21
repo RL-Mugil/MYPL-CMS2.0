@@ -49,7 +49,7 @@ function stableStringify(value) {
 
 function getCacheScope() {
   const session = window.Auth?.getGasSession?.();
-  return session?.email || session?.token || 'public';
+  return [session?.email || session?.token || 'public', session?.activeViewRole || 'default'].join(':');
 }
 
 function buildClientCacheKey(action, params = {}) {
@@ -193,7 +193,8 @@ async function requestJson(payload, context) {
 async function callGAS(action, params = {}) {
   const session = window.Auth.getGasSession();
   const token = session?.token || null;
-  const data = await requestJson({ action, params: { ...params, token } }, `callGAS:${action}`);
+  const activeViewRole = session?.activeViewRole || '';
+  const data = await requestJson({ action, params: { ...params, token, activeViewRole } }, `callGAS:${action}`);
 
   if (data.sessionExpired) {
     window.Auth.clearGasSession();
