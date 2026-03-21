@@ -2285,6 +2285,9 @@ function getInvoiceUiTotal(inv) {
 
 function getInvoiceUiDue(inv) {
   if (inv?.['Amount due'] != null && String(inv['Amount due']) !== '') return parseFloat(inv['Amount due']) || 0;
+  if (inv?.PAYMENT_STATUS === 'Partially Paid') {
+    return Math.max(getInvoiceUiTotal(inv) - (parseFloat(inv?.PAYMENT_AMOUNT || 0) || 0), 0);
+  }
   return inv?.PAYMENT_STATUS === 'Paid' ? 0 : getInvoiceUiTotal(inv);
 }
 
@@ -4920,6 +4923,10 @@ async function openInvoiceModal(jsonStr) {
         <div class="form-group"><label class="form-label">Referral fee</label><input type="number" step="0.01" class="form-control" id="mi-referral-fee" value="${invoiceFieldValue(inv,'Referral fee')}" oninput="refreshInvoiceCalculatedFields()" /></div>
         <div class="form-group"><label class="form-label">Payment Status</label><select class="form-control" id="mi-payment-status" onchange="refreshInvoiceCalculatedFields()">${['Unpaid','Paid','Partially Paid','Cancelled'].map(x=>`<option value="${x}"${(inv?.PAYMENT_STATUS||'Unpaid')===x?' selected':''}>${x}</option>`).join('')}</select></div>
       </div>
+      <div class="form-row" id="mi-payment-amount-row" style="display:none">
+        <div class="form-group"><label class="form-label">Amount Paid</label><input type="number" step="0.01" class="form-control" id="mi-payment-amount" value="${invoiceFieldValue(inv,'PAYMENT_AMOUNT')}" oninput="refreshInvoiceCalculatedFields()" /></div>
+        <div class="form-group"></div>
+      </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">InvAmount</label><input class="form-control" id="mi-inv-amount" value="${money(getInvoiceUiTotal(inv)).replace('₹','')}" readonly /></div>
         <div class="form-group"><label class="form-label">Amount due</label><input class="form-control" id="mi-amount-due" value="${money(getInvoiceUiDue(inv)).replace('₹','')}" readonly /></div>
@@ -4965,7 +4972,12 @@ function refreshInvoiceCalculatedFields() {
     getInvoiceNumberInputValue('mi-consultant-fee') -
     getInvoiceNumberInputValue('mi-referral-fee');
   const paymentStatus = document.getElementById('mi-payment-status')?.value || 'Unpaid';
-  const amountDue = paymentStatus === 'Paid' ? 0 : invAmount;
+  const paymentAmountRow = document.getElementById('mi-payment-amount-row');
+  const paymentAmount = getInvoiceNumberInputValue('mi-payment-amount');
+  if (paymentAmountRow) paymentAmountRow.style.display = paymentStatus === 'Partially Paid' ? 'flex' : 'none';
+  const amountDue = paymentStatus === 'Paid'
+    ? 0
+    : (paymentStatus === 'Partially Paid' ? Math.max(invAmount - paymentAmount, 0) : invAmount);
   const amountField = document.getElementById('mi-inv-amount');
   const dueField = document.getElementById('mi-amount-due');
   const revenueField = document.getElementById('mi-net-revenue');
@@ -5020,6 +5032,7 @@ async function saveInvoice(existingId) {
     PAYMENT_STATUS: document.getElementById('mi-payment-status').value,
     PAYMENT_MODE: document.getElementById('mi-payment-mode').value.trim(),
     PAYMENT_DATE: document.getElementById('mi-payment-date').value,
+    PAYMENT_AMOUNT: document.getElementById('mi-payment-amount')?.value || '',
     CLIENT_ID: selectedClient.CLIENT_ID || '',
     CLIENT_NAME: selectedClient.CLIENT_NAME || '',
     CASE_ID: document.getElementById('mi-case-id').value.trim(),
