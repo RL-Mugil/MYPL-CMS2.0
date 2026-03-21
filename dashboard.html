@@ -1398,8 +1398,6 @@ function renderDashboardSummary(d) {
       <div class="stat-card accent-sky"><div class="stat-label">Pending</div><div class="stat-value">${d.totalPending || 0}</div><div class="stat-sub">active cases</div></div>
       <div class="stat-card accent-amber"><div class="stat-label">Deadlines</div><div class="stat-value">${d.upcomingDeadlineCount || 0}</div><div class="stat-sub">upcoming 30d</div></div>
       <div class="stat-card accent-rose"><div class="stat-label">Unpaid</div><div class="stat-value">${d.pendingInvoicesCount || 0}</div><div class="stat-sub">invoices</div></div>
-      <div class="stat-card accent-sky"><div class="stat-label">Unread Alerts</div><div class="stat-value">${d.unreadNotifications || 0}</div><div class="stat-sub">notifications</div></div>
-      <div class="stat-card accent-primary"><div class="stat-label">Open Threads</div><div class="stat-value">${d.openThreads || 0}</div><div class="stat-sub">messages</div></div>
       <div class="stat-card accent-emerald"><div class="stat-label">My Clients</div><div class="stat-value">${d.myClientCount || 0}</div><div class="stat-sub">in scope</div></div>
     </div>
     <div id="dashboard-detail-loading" class="card" style="margin-top:20px">
@@ -1511,16 +1509,6 @@ function renderDashboard(d) {
         <div class="stat-label">Unpaid</div>
         <div class="stat-value">${(d.pendingInvoicesList||[]).length}</div>
         <div class="stat-sub">invoices</div>
-      </div>
-      <div class="stat-card accent-sky">
-        <div class="stat-label">Unread Alerts</div>
-        <div class="stat-value">${d.unreadNotifications || 0}</div>
-        <div class="stat-sub">notifications</div>
-      </div>
-      <div class="stat-card accent-primary">
-        <div class="stat-label">Open Threads</div>
-        <div class="stat-value">${d.openThreads || 0}</div>
-        <div class="stat-sub">messages</div>
       </div>
       <div class="stat-card accent-emerald">
         <div class="stat-label">My Clients</div>
