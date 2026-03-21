@@ -512,6 +512,9 @@ async function markInvoicePaid(invoiceId) {
 async function updateInvoicePayment(invoiceId, paymentData) {
   return callGAS('updateInvoicePayment', { invoiceId, paymentData });
 }
+async function sendInvoice(invoiceId) {
+  return callGAS('sendInvoice', { invoiceId });
+}
 
 async function getUsers(filters = {}) {
   const hasFilters = filters && Object.keys(filters).some((key) => String(filters[key] || '').trim() !== '');
@@ -693,6 +696,7 @@ window.API = {
   submitContact,
   markInvoicePaid,
   updateInvoicePayment,
+  sendInvoice,
   getUsers, saveUser, deleteUser,
   impersonateUser,
   getClients, getAccessibleClients, saveClient, deleteClient,

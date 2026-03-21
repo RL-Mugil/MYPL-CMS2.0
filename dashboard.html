@@ -2316,9 +2316,10 @@ function renderFinance(invoices, canEdit) {
       <td>${money(getInvoiceUiTotal(inv))}</td>
       <td style="font-weight:600">${money(getInvoiceUiDue(inv))}</td>
       <td>${statusBadge(inv.PAYMENT_STATUS)}</td>
-      <td>${inv.INVOICE_PDF_LINK ? `<a href="${inv.INVOICE_PDF_LINK}" target="_blank" style="font-size:12px">View PDF</a>` : '—'}</td>
       ${canEdit ? `<td><div class="action-row">
         ${!isPaid ? `<button class="btn btn-success btn-sm" onclick="markPaid('${escapeAttr(getInvoiceUiId(inv))}',this)">Paid</button>` : ''}
+        ${inv.INVOICE_PDF_LINK ? `<button class="btn btn-ghost btn-sm" onclick="window.open('${escapeAttr(inv.INVOICE_PDF_LINK)}','_blank')">Preview</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="sendInvoiceNow('${escapeAttr(getInvoiceUiId(inv))}', this)">Send</button>
         <button class="btn btn-ghost btn-sm" onclick='openInvoicePaymentModal(${JSON.stringify(JSON.stringify(inv))})'>Payment</button>
         <button class="btn btn-ghost btn-sm" onclick='openInvoiceModal(${JSON.stringify(JSON.stringify(inv))})'>Edit</button>
         <button class="btn btn-danger btn-sm" onclick="deleteItem('Invoice','${escapeAttr(getInvoiceUiId(inv))}')">Del</button>
@@ -2338,8 +2339,8 @@ function renderFinance(invoices, canEdit) {
     <div class="card">
       <div class="card-title">Invoice Ledger</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Invoice UIN</th><th>Date</th><th>Client Code</th><th>Client</th><th>Docket</th><th>Service Code</th><th>Invoice Amount</th><th>Amount Due</th><th>Status</th><th>PDF</th>${canEdit?'<th>Actions</th>':''}</tr></thead>
-        <tbody>${rows || `<tr><td colspan="${canEdit ? 11 : 10}" class="text-muted" style="padding:20px;text-align:center">No invoices found.</td></tr>`}</tbody>
+        <thead><tr><th>Invoice UIN</th><th>Date</th><th>Client Code</th><th>Client</th><th>Docket</th><th>Service Code</th><th>Invoice Amount</th><th>Amount Due</th><th>Status</th>${canEdit?'<th>Actions</th>':''}</tr></thead>
+        <tbody>${rows || `<tr><td colspan="${canEdit ? 10 : 9}" class="text-muted" style="padding:20px;text-align:center">No invoices found.</td></tr>`}</tbody>
       </table></div>
     </div>
   </div>`;
@@ -2407,6 +2408,22 @@ async function submitQuickInvoicePayment(invoiceId, total) {
     alert('Error: ' + e.message);
     btn.disabled = false;
     btn.textContent = 'Save Payment';
+  }
+}
+
+async function sendInvoiceNow(invoiceId, btn) {
+  if (!confirm(`Send invoice ${invoiceId} to the client now?`)) return;
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    const result = await API.sendInvoice(invoiceId);
+    alert(result.message || 'Invoice sent.');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
   }
 }
 
@@ -4962,12 +4979,16 @@ async function openInvoiceModal(jsonStr) {
         <div class="form-group"><label class="form-label">ServFee</label><input type="number" step="0.01" class="form-control" id="mi-servfee" value="${invoiceFieldValue(inv,'ServFee')}" oninput="refreshInvoiceCalculatedFields()" /></div>
       </div>
       <div class="form-row">
+        <div class="form-group"><label class="form-label">Tax Type</label><select class="form-control" id="mi-tax-type" onchange="refreshInvoiceCalculatedFields()">${['CGST_SGST','IGST'].map(x=>`<option value="${x}"${(inv?.TAX_TYPE||'CGST_SGST')===x?' selected':''}>${x === 'IGST' ? 'IGST' : 'CGST + SGST'}</option>`).join('')}</select></div>
         <div class="form-group"><label class="form-label">IGST</label><input type="number" step="0.01" class="form-control" id="mi-igst" value="${invoiceFieldValue(inv,'IGST')}" oninput="refreshInvoiceCalculatedFields()" /></div>
-        <div class="form-group"><label class="form-label">SGST</label><input type="number" step="0.01" class="form-control" id="mi-sgst" value="${invoiceFieldValue(inv,'SGST')}" oninput="refreshInvoiceCalculatedFields()" /></div>
       </div>
       <div class="form-row">
+        <div class="form-group"><label class="form-label">SGST</label><input type="number" step="0.01" class="form-control" id="mi-sgst" value="${invoiceFieldValue(inv,'SGST')}" oninput="refreshInvoiceCalculatedFields()" /></div>
         <div class="form-group"><label class="form-label">CGST</label><input type="number" step="0.01" class="form-control" id="mi-cgst" value="${invoiceFieldValue(inv,'CGST')}" oninput="refreshInvoiceCalculatedFields()" /></div>
+      </div>
+      <div class="form-row">
         <div class="form-group"><label class="form-label">Expenses</label><input type="number" step="0.01" class="form-control" id="mi-expenses" value="${invoiceFieldValue(inv,'Expenses')}" oninput="refreshInvoiceCalculatedFields()" /></div>
+        <div class="form-group"></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Attorney Fee</label><input type="number" step="0.01" class="form-control" id="mi-attorney-fee" value="${invoiceFieldValue(inv,'Attorney Fee')}" oninput="refreshInvoiceCalculatedFields()" /></div>
@@ -5015,6 +5036,13 @@ function getInvoiceNumberInputValue(id) {
 }
 
 function refreshInvoiceCalculatedFields() {
+  const taxType = document.getElementById('mi-tax-type')?.value || 'CGST_SGST';
+  if (taxType === 'IGST') {
+    if (document.getElementById('mi-sgst')) document.getElementById('mi-sgst').value = '';
+    if (document.getElementById('mi-cgst')) document.getElementById('mi-cgst').value = '';
+  } else {
+    if (document.getElementById('mi-igst')) document.getElementById('mi-igst').value = '';
+  }
   const invAmount = getInvoiceNumberInputValue('mi-pofee') +
     getInvoiceNumberInputValue('mi-servfee') +
     getInvoiceNumberInputValue('mi-igst') +
@@ -5076,6 +5104,7 @@ async function saveInvoice(existingId) {
     POFeeAck: document.getElementById('mi-pofee-ack').value.trim(),
     POFee: document.getElementById('mi-pofee').value,
     ServFee: document.getElementById('mi-servfee').value,
+    TAX_TYPE: document.getElementById('mi-tax-type').value,
     IGST: document.getElementById('mi-igst').value,
     SGST: document.getElementById('mi-sgst').value,
     CGST: document.getElementById('mi-cgst').value,
