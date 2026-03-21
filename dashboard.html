@@ -866,7 +866,13 @@ document.addEventListener('click', (event) => {
 
 async function ensureClientLookupLoaded() {
   if (CLIENT_LOOKUP_CACHE.length) return CLIENT_LOOKUP_CACHE;
-  const clients = await API.getClients();
+  let clients = [];
+  try {
+    clients = await API.getClients();
+  } catch (e) {
+    if (!String(e && e.message || '').toLowerCase().includes('access denied')) throw e;
+    clients = await API.getAccessibleClients();
+  }
   CLIENT_LOOKUP_CACHE = (Array.isArray(clients) ? clients : []).sort((a, b) =>
     String(a.CLIENT_CODE || a.CLIENT_ID || '').localeCompare(String(b.CLIENT_CODE || b.CLIENT_ID || ''))
   );
@@ -884,7 +890,14 @@ function getEffectiveRoleList(user) {
 
 async function ensureUserLookupLoaded(force = false) {
   if (!force && USER_LOOKUP_CACHE.length) return USER_LOOKUP_CACHE;
-  const users = await API.getUsers({});
+  let users = [];
+  try {
+    users = await API.getUsers({});
+  } catch (e) {
+    if (!String(e && e.message || '').toLowerCase().includes('access denied')) throw e;
+    USER_LOOKUP_CACHE = [];
+    return USER_LOOKUP_CACHE;
+  }
   USER_LOOKUP_CACHE = (Array.isArray(users) ? users : []).sort((a, b) =>
     String(a.FULL_NAME || '').localeCompare(String(b.FULL_NAME || ''))
   );
