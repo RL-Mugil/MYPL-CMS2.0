@@ -389,6 +389,10 @@ function canAccessStreamMessaging() {
     window.location.href = 'index.html';
     return;
   }
+  if (!isInternalUser()) {
+    window.location.href = 'client-portal.html';
+    return;
+  }
 
   if (!canAccessManagement()) {
     document.getElementById('nav-mgmt-section').style.display = 'none';
@@ -581,7 +585,11 @@ async function startImpersonation(userId) {
     const result = await API.impersonateUser(userId);
     const nextSession = Object.assign({}, result.session || {}, { token: result.token });
     Auth.setGasSession(nextSession);
-    location.reload();
+    const effectiveRoles = (window.Auth && typeof window.Auth.getEffectiveSessionRoles === 'function')
+      ? window.Auth.getEffectiveSessionRoles(nextSession)
+      : [nextSession.role].filter(Boolean);
+    const isInternal = effectiveRoles.some((role) => ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'].includes(role));
+    window.location.href = isInternal ? 'dashboard.html' : 'client-portal.html';
   } catch (e) {
     alert(e.message || 'Unable to impersonate user.');
   }

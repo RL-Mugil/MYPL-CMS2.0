@@ -150,6 +150,13 @@ const STATE = {
     window.location.href = 'client-login.html';
     return;
   }
+  const effectiveRoles = (window.Auth && typeof window.Auth.getEffectiveSessionRoles === 'function')
+    ? window.Auth.getEffectiveSessionRoles(SESSION)
+    : [SESSION.role].filter(Boolean);
+  if (effectiveRoles.some((role) => ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'].includes(role))) {
+    window.location.href = 'dashboard.html';
+    return;
+  }
 
   const initials = (SESSION.name || 'C').split(' ').map(function(part) { return part ? part[0] : ''; }).join('').slice(0, 2).toUpperCase();
   document.getElementById('sidebar-avatar').textContent = initials || 'C';

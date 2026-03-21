@@ -94,6 +94,25 @@ function clearGasSession() {
   } catch {}
 }
 
+function getEffectiveSessionRoles(session) {
+  const roles = [];
+  if (session?.role) roles.push(session.role);
+  String(session?.additionalRoles || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .forEach((role) => {
+      if (!roles.includes(role)) roles.push(role);
+    });
+  return roles;
+}
+
+function sessionMatchesAllowedRoles(session, allowedRoles) {
+  if (!allowedRoles || !allowedRoles.length) return true;
+  const effectiveRoles = getEffectiveSessionRoles(session);
+  return effectiveRoles.some((role) => allowedRoles.includes(role));
+}
+
 async function requireAuth(allowedRoles) {
   const Clerk = await initClerk();
 
@@ -113,13 +132,13 @@ async function requireAuth(allowedRoles) {
         const info = await window.API.getUserInfo();
         const hydrated = { ...existing, ...info };
         setGasSession(hydrated);
-        if (allowedRoles && !allowedRoles.includes(hydrated.role)) {
+        if (!sessionMatchesAllowedRoles(hydrated, allowedRoles)) {
           return null;
         }
         return hydrated;
       } catch {}
     }
-    if (allowedRoles && !allowedRoles.includes(existing.role)) {
+    if (!sessionMatchesAllowedRoles(existing, allowedRoles)) {
       return null;
     }
     return existing;
@@ -132,7 +151,7 @@ async function requireAuth(allowedRoles) {
     const session = { ...result, email };
     setGasSession(session);
 
-    if (allowedRoles && !allowedRoles.includes(session.role)) {
+    if (!sessionMatchesAllowedRoles(session, allowedRoles)) {
       return null;
     }
     return session;
@@ -193,6 +212,7 @@ window.Auth = {
   signOut,
   getClerkUser,
   getClerkEmail,
+  getEffectiveSessionRoles,
   getGasSession,
   setGasSession,
   clearGasSession,
