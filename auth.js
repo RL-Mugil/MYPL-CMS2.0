@@ -152,13 +152,22 @@ function sessionMatchesAllowedRoles(session, allowedRoles) {
 
 async function requireAuth(allowedRoles) {
   const Clerk = await initClerk();
-
-  if (!Clerk.user) return null;
+  const existing = getGasSession();
+  if (!Clerk.user) {
+    if (existing && existing.impersonatedByUserId && sessionMatchesAllowedRoles(existing, allowedRoles)) {
+      return existing;
+    }
+    return null;
+  }
 
   const email = getClerkEmail();
-  if (!email) return null;
+  if (!email) {
+    if (existing && existing.impersonatedByUserId && sessionMatchesAllowedRoles(existing, allowedRoles)) {
+      return existing;
+    }
+    return null;
+  }
 
-  const existing = getGasSession();
   const matchesRealUser = existing && existing.email === email;
   const matchesImpersonationOwner = existing
     && existing.impersonatedByUserId
