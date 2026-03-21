@@ -587,6 +587,27 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   box-shadow: var(--shadow-lg);
   animation: slideUp 0.2s ease;
 }
+.modal-landscape {
+  max-width: min(1200px, 92vw);
+}
+.modal-case-form,
+.modal-invoice-form {
+  max-width: min(1320px, 94vw);
+}
+.modal-case-form .form-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.modal-invoice-form .form-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.modal-case-form .card,
+.modal-invoice-form .card {
+  padding: 20px;
+}
+.modal-case-form textarea,
+.modal-invoice-form textarea {
+  min-height: 88px;
+}
 .modal-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 20px;
@@ -827,6 +848,11 @@ body.sidebar-hidden .sidebar-collapse-btn svg {
   .stream-composer { flex-direction: column; }
   .stream-header-actions { justify-content: flex-start; }
   .chat-thread { max-height: 50vh; }
+  .modal-landscape,
+  .modal-case-form,
+  .modal-invoice-form { max-width: 100%; }
+  .modal-case-form .form-row,
+  .modal-invoice-form .form-row { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
   .filter-grid, .filter-grid.compact-2 { grid-template-columns: 1fr; }
   .content { padding: 16px; }
