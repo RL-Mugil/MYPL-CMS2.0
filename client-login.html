@@ -82,10 +82,29 @@
       return getEffectiveSessionRoles(session).some((role) => CLIENT_SIDE_ROLES.includes(role));
     }
 
+    function getStoredImpersonatedSession() {
+      if (!window.Auth || typeof window.Auth.getGasSession !== 'function') return null;
+      const session = window.Auth.getGasSession();
+      if (!session || !session.impersonatedByUserId) return null;
+      return session;
+    }
+
     (async () => {
       const status = document.getElementById('login-status');
 
       try {
+        const storedImpersonated = getStoredImpersonatedSession();
+        if (storedImpersonated) {
+          if (hasInternalAccess(storedImpersonated)) {
+            window.location.href = 'dashboard.html';
+            return;
+          }
+          if (hasClientAccess(storedImpersonated)) {
+            window.location.href = 'client-portal.html';
+            return;
+          }
+        }
+
         await Auth.initClerk();
         const session = await Auth.requireAuth([...CLIENT_SIDE_ROLES, ...INTERNAL_ROLES]);
 

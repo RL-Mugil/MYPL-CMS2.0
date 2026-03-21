@@ -159,7 +159,20 @@ function getActiveViewRole() {
 
 (async function bootstrap() {
   applyTheme(loadTheme());
-  SESSION = await Auth.requireAuth(CLIENT_ROLES);
+  var storedImpersonatedSession = window.Auth && typeof window.Auth.getGasSession === 'function'
+    ? window.Auth.getGasSession()
+    : null;
+  if (storedImpersonatedSession && storedImpersonatedSession.impersonatedByUserId) {
+    var storedRoles = (window.Auth && typeof window.Auth.getEffectiveSessionRoles === 'function')
+      ? window.Auth.getEffectiveSessionRoles(storedImpersonatedSession)
+      : [storedImpersonatedSession.role].filter(Boolean);
+    if (storedRoles.some(function(role) { return CLIENT_ROLES.indexOf(role) > -1; })) {
+      SESSION = storedImpersonatedSession;
+    }
+  }
+  if (!SESSION) {
+    SESSION = await Auth.requireAuth(CLIENT_ROLES);
+  }
   if (!SESSION) {
     window.location.href = 'client-login.html';
     return;
