@@ -8,7 +8,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/stream-chat@9"></script>
   <style>
     .filter-drawer { display: none; }
     .filter-drawer.open { display: block; }
@@ -2778,8 +2777,19 @@ function formatChatTime(value) {
     : d.toLocaleDateString([], { day: '2-digit', month: 'short' });
 }
 
-function getStreamSdkCtor() {
-  return window.streamChat?.StreamChat || window.StreamChat || null;
+async function loadStreamSdk() {
+  if (window.__STREAM_CHAT_CTOR__) return window.__STREAM_CHAT_CTOR__;
+  if (window.streamChat?.StreamChat) {
+    window.__STREAM_CHAT_CTOR__ = window.streamChat.StreamChat;
+    return window.__STREAM_CHAT_CTOR__;
+  }
+  if (window.StreamChat) {
+    window.__STREAM_CHAT_CTOR__ = window.StreamChat;
+    return window.__STREAM_CHAT_CTOR__;
+  }
+  const mod = await import('https://esm.sh/stream-chat@9?bundle');
+  window.__STREAM_CHAT_CTOR__ = mod.StreamChat || mod.default?.StreamChat || mod.default || null;
+  return window.__STREAM_CHAT_CTOR__;
 }
 
 async function disconnectStreamMessaging() {
@@ -2800,7 +2810,7 @@ async function ensureStreamMessagingClient() {
   if (!canAccessStreamMessaging()) {
     throw new Error('Stream messaging is available only for internal users.');
   }
-  const StreamChatCtor = getStreamSdkCtor();
+  const StreamChatCtor = await loadStreamSdk();
   if (!StreamChatCtor) {
     throw new Error('Stream Chat SDK failed to load.');
   }
