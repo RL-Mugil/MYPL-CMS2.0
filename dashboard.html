@@ -627,6 +627,7 @@ let STREAM_STATE = {
   activeCall: null,
   callSubscription: null,
   callBindings: [],
+  draftText: '',
 };
 
 function deriveWorkflowStageFromStatus(status, currentStage) {
@@ -2808,6 +2809,7 @@ async function disconnectStreamMessaging() {
   STREAM_STATE.pendingFile = null;
   STREAM_STATE.pendingPoll = null;
   STREAM_STATE.typingTimeout = null;
+  STREAM_STATE.draftText = '';
   await leaveStreamCall(true);
   STREAM_STATE.videoClient = null;
 }
@@ -2993,6 +2995,13 @@ function clearStreamCallBindings() {
   STREAM_STATE.callBindings = [];
 }
 
+function withTimeout(promise, timeoutMs, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message || 'Timed out.')), timeoutMs)),
+  ]);
+}
+
 function renderStreamCallParticipants() {
   const call = STREAM_STATE.activeCall;
   const host = document.getElementById('stream-call-grid');
@@ -3071,21 +3080,20 @@ async function startStreamCall(kind) {
   const channel = STREAM_STATE.activeChannel;
   if (!channel) return;
   try {
+    openStreamCallModal(kind);
     const videoClient = await ensureStreamVideoClient();
     const memberIds = Object.keys(channel.state?.members || {});
     const call = videoClient.call('default', buildStreamCallId(channel, kind));
-    await call.getOrCreate({
+    await withTimeout(call.getOrCreate({
       data: {
         custom: { channelCid: channel.cid, kind },
         members: memberIds.map((id) => ({ user_id: id })),
       },
-    });
-    await call.join({ create: true });
-    await call.microphone?.enable?.();
+    }), 10000, 'Call setup timed out.');
+    await withTimeout(call.join({ create: true }), 12000, 'Call join timed out.');
+    await withTimeout(call.microphone?.enable?.() || Promise.resolve(), 8000, 'Microphone enable timed out.');
     if (kind === 'video') {
-      await call.camera?.enable?.();
-    } else {
-      await call.camera?.disable?.();
+      await withTimeout(call.camera?.enable?.() || Promise.resolve(), 8000, 'Camera enable timed out.');
     }
     STREAM_STATE.activeCall = call;
     if (STREAM_STATE.callSubscription && typeof STREAM_STATE.callSubscription.unsubscribe === 'function') {
@@ -3094,9 +3102,10 @@ async function startStreamCall(kind) {
     if (call.state?.participants$?.subscribe) {
       STREAM_STATE.callSubscription = call.state.participants$.subscribe(() => renderStreamCallParticipants());
     }
-    openStreamCallModal(kind);
     setTimeout(renderStreamCallParticipants, 80);
   } catch (e) {
+    try { await leaveStreamCall(true); } catch {}
+    closeModal('modal-generic');
     alert(e.message || 'Unable to start Stream call.');
   }
 }
@@ -3131,7 +3140,7 @@ async function ensureStreamMessagingClient() {
     if (['message.new', 'notification.message_new', 'channel.updated', 'channel.deleted', 'notification.added_to_channel', 'message.updated', 'message.deleted', 'reaction.new', 'reaction.deleted', 'typing.start', 'typing.stop', 'message.read', 'channel.truncated'].includes(event.type)) {
       refreshStreamChannelList(false);
     }
-    if (STREAM_STATE.activeChannel && event.cid === STREAM_STATE.activeChannel.cid) {
+    if (STREAM_STATE.activeChannel && event.cid === STREAM_STATE.activeChannel.cid && !['typing.start', 'typing.stop'].includes(event.type)) {
       renderStreamActiveChannel();
     }
   });
@@ -3262,7 +3271,7 @@ function renderStreamActiveChannel() {
       <div class="stream-thread" id="stream-message-thread">${items || '<div class="text-muted" style="padding:12px">No messages yet.</div>'}</div>
       <div class="stream-pending-bar">${pendingFileName}${pendingPollName}</div>
       <div class="stream-composer">
-        <textarea class="form-control" id="stream-message-input" rows="3" placeholder="Type a message. Use @email for mentions or /giphy cats" oninput="handleStreamComposerInput()"></textarea>
+        <textarea class="form-control" id="stream-message-input" rows="3" placeholder="Type a message. Use @email for mentions or /giphy cats" oninput="handleStreamComposerInput()">${escapeAttr(STREAM_STATE.draftText || '')}</textarea>
         <input type="file" id="stream-file-input" style="display:none" onchange="handleStreamAttachmentSelected(event)" />
         <button class="btn btn-primary" style="align-self:flex-end" onclick="sendStreamMessage()">Send</button>
       </div>
@@ -3275,6 +3284,7 @@ async function openStreamChannel(cid) {
   const channel = (STREAM_STATE.channels || []).find((item) => item.cid === cid);
   if (!channel) return;
   STREAM_STATE.activeChannel = channel;
+  STREAM_STATE.draftText = '';
   await channel.watch();
   renderStreamChannelList();
   renderStreamActiveChannel();
@@ -3283,7 +3293,7 @@ async function openStreamChannel(cid) {
 async function sendStreamMessage() {
   const channel = STREAM_STATE.activeChannel;
   const input = document.getElementById('stream-message-input');
-  const text = String(input?.value || '').trim();
+  const text = String(input?.value || STREAM_STATE.draftText || '').trim();
   if (!channel) return;
   const attachments = [];
   if (STREAM_STATE.pendingFile) {
@@ -3311,6 +3321,7 @@ async function sendStreamMessage() {
     mentioned_users: mentionedUsers.map((item) => item.id),
   });
   if (input) input.value = '';
+  STREAM_STATE.draftText = '';
   STREAM_STATE.pendingFile = null;
   STREAM_STATE.pendingPoll = null;
   renderStreamActiveChannel();
@@ -3435,6 +3446,8 @@ async function createStreamGroupConversation() {
 }
 
 function handleStreamComposerInput() {
+  const input = document.getElementById('stream-message-input');
+  STREAM_STATE.draftText = String(input?.value || '');
   const channel = STREAM_STATE.activeChannel;
   if (!channel || typeof channel.keystroke !== 'function') return;
   channel.keystroke();
@@ -3459,6 +3472,7 @@ function insertStreamGiphy() {
   const input = document.getElementById('stream-message-input');
   if (!input) return;
   input.value = input.value ? `${input.value} /giphy ` : '/giphy ';
+  STREAM_STATE.draftText = input.value;
   input.focus();
 }
 
@@ -3466,6 +3480,7 @@ function insertStreamMention(email) {
   const input = document.getElementById('stream-message-input');
   if (!input) return;
   input.value = `${String(input.value || '').trim()} @${email} `.trimStart();
+  STREAM_STATE.draftText = input.value;
   input.focus();
 }
 
