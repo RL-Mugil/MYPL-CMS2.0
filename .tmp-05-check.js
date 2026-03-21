@@ -293,7 +293,7 @@ function getPortalData(action, params) {
         
       case "saveCase":
         if (!hasRoleAtLeast_(getEffectiveRoles_(userRole), "Staff")) return { error: "Access denied." };
-        return savePortalCase_(params.caseData, userRole);
+        return savePortalCase_(params.caseData);
       case "bulkUpdateCases":
         return bulkUpdateCases_(userRole, params.bulkData || {});
       case "bulkImportDocketTrakRows":
@@ -336,9 +336,6 @@ function getPortalData(action, params) {
         return deleteNotification_(userRole, params.notificationId);
       case "clearNotifications":
         return clearNotifications_(userRole);
-      case "sendAnnouncement":
-        if (!hasAnyRole_(userRole, ["Super Admin", "Admin"])) return { error: "Access denied." };
-        return sendAnnouncement_(userRole, params.announcementData || {});
       case "getMessageThreads":
         return getMessageThreads_(userRole);
       case "getDirectInbox":
@@ -584,7 +581,7 @@ function deletePortalClient_(clientId) {
   return { error: "Client not found" };
 }
 
-function savePortalCase_(caseData, session) {
+function savePortalCase_(caseData) {
   function notifyAssignee_(email, label, caseId, title) {
     if (!email) return;
     createNotification_(email, "Case assigned", label + " assignment for " + caseId, "CASE", caseId);
@@ -606,17 +603,9 @@ function savePortalCase_(caseData, session) {
   }
 
   if (caseData.CASE_ID) {
-    var originalCaseId = caseData.ORIGINAL_CASE_ID || caseData.CASE_ID;
-    var existingCase = (getAllCases() || []).find(function(item) { return item.CASE_ID === originalCaseId; }) || null;
-    if (originalCaseId !== caseData.CASE_ID) {
-      if (!session || !canAccessManagement_(session)) return { error: "Only management members can edit Case ID." };
-      var renameResult = renameCaseId_(session, originalCaseId, caseData.CASE_ID);
-      if (!renameResult || !renameResult.success) return renameResult || { error: "Case ID update failed." };
-    }
+    var existingCase = (getAllCases() || []).find(function(item) { return item.CASE_ID === caseData.CASE_ID; }) || null;
     var updates = Object.assign({}, caseData);
     delete updates.CASE_ID;
-    delete updates.ORIGINAL_CASE_ID;
-    updates.WORKFLOW_STAGE = normalizeWorkflowStageFromStatus_(updates.CURRENT_STATUS, updates.WORKFLOW_STAGE || (existingCase && existingCase.WORKFLOW_STAGE) || "");
     // Handle Date conversions
     if (updates.FILING_DATE) { updates.FILING_DATE = new Date(updates.FILING_DATE); }
     if (updates.NEXT_DEADLINE) { updates.NEXT_DEADLINE = new Date(updates.NEXT_DEADLINE); }
@@ -634,7 +623,7 @@ function savePortalCase_(caseData, session) {
           notifyAssignee_(caseData[item.field], item.label, caseData.CASE_ID, caseData.PATENT_TITLE || (existingCase && existingCase.PATENT_TITLE) || "");
         }
       });
-      clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "documents", "galvanizerQueue", "workflowBoard", "attorneyWorkspace", "smartSearch"]);
+      clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "documents", "galvanizerQueue"]);
       return { success: true, message: "Case updated successfully" };
     }
     return res;
@@ -653,14 +642,14 @@ function savePortalCase_(caseData, session) {
       orgId: caseData.ORG_ID || "",
       assignedStaffEmail: caseData.ASSIGNED_STAFF_EMAIL || "",
       galvanizerEmail: caseData.GALVANIZER_EMAIL || "",
-      workflowStage: normalizeWorkflowStageFromStatus_(caseData.CURRENT_STATUS, caseData.WORKFLOW_STAGE || ""),
+      workflowStage: caseData.WORKFLOW_STAGE || "",
       notes: caseData.NOTES
     });
     if(res.success) {
       notifyAssignee_(caseData.ASSIGNED_STAFF_EMAIL || "", "Staff", res.caseId, caseData.PATENT_TITLE || "");
       notifyAssignee_(caseData.GALVANIZER_EMAIL || "", "Galvanizer", res.caseId, caseData.PATENT_TITLE || "");
       notifyAssignee_(caseData.ATTORNEY || "", "Attorney", res.caseId, caseData.PATENT_TITLE || "");
-      clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "documents", "galvanizerQueue", "workflowBoard", "attorneyWorkspace", "smartSearch"]);
+      clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "documents", "galvanizerQueue"]);
       return { success: true, message: "Case created successfully" };
     }
     return res;
@@ -675,7 +664,7 @@ function deletePortalCase_(caseId) {
   for (var i = 1; i < data.length; i++) {
     if (data[i][0] === caseId) {
       sheet.getRange(i + 1, statusCol + 1).setValue("Deleted");
-      clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "invoices", "documents", "galvanizerQueue", "workflowBoard", "attorneyWorkspace", "smartSearch"]);
+      clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "invoices"]);
       return { success: true, message: "Case deleted safely" };
     }
   }

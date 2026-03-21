@@ -193,3 +193,11 @@ Current behavior:
 - invoices load when finance access is allowed
 - notifications clear correctly
 - threads open and reply correctly
+
+## Recommended Next Improvements
+
+- move Worker source into version control
+- add staging config values in `config.js`
+- add CI checks for HTML inline-script syntax
+- add smoke tests for login routing and role-based navigation
+- document GAS deployment steps in a separate backend README
