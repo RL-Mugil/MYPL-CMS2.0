@@ -59,9 +59,6 @@
     const CLIENT_SIDE_ROLES = ['Client', 'Client Admin', 'Client Employee', 'Individual Client'];
 
     function getEffectiveSessionRoles(session) {
-      if (typeof window !== 'undefined' && window.Auth && typeof window.Auth.getEffectiveSessionRoles === 'function') {
-        return window.Auth.getEffectiveSessionRoles(session);
-      }
       const roles = [];
       if (session && session.role) roles.push(session.role);
       String(session && session.additionalRoles || '')
@@ -82,29 +79,10 @@
       return getEffectiveSessionRoles(session).some((role) => CLIENT_SIDE_ROLES.includes(role));
     }
 
-    function getStoredImpersonatedSession() {
-      if (typeof window === 'undefined' || !window.Auth || typeof window.Auth.getGasSession !== 'function') return null;
-      const session = window.Auth.getGasSession();
-      if (!session || !session.impersonatedByUserId) return null;
-      return session;
-    }
-
     (async () => {
       const status = document.getElementById('login-status');
 
       try {
-        const storedImpersonated = getStoredImpersonatedSession();
-        if (storedImpersonated) {
-          if (hasInternalAccess(storedImpersonated)) {
-            window.location.href = 'dashboard.html';
-            return;
-          }
-          if (hasClientAccess(storedImpersonated)) {
-            window.location.href = 'client-portal.html';
-            return;
-          }
-        }
-
         await Auth.initClerk();
         const session = await Auth.requireAuth([...CLIENT_SIDE_ROLES, ...INTERNAL_ROLES]);
 

@@ -8,50 +8,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <style>
-    .filter-drawer { display: none; }
-    .filter-drawer.open { display: block; }
-    .search-dropdown { position: relative; }
-    .search-dropdown-shell { position: relative; }
-    .search-dropdown-menu {
-      position: absolute;
-      top: calc(100% + 6px);
-      left: 0;
-      right: 0;
-      z-index: 60;
-      max-height: 220px;
-      overflow-y: auto;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
-      display: none;
-      padding: 6px;
-    }
-    .search-dropdown-menu.open { display: block; }
-    .search-dropdown-option {
-      width: 100%;
-      border: 0;
-      background: transparent;
-      color: var(--text);
-      text-align: left;
-      padding: 10px 12px;
-      border-radius: 10px;
-      cursor: pointer;
-      display: block;
-      font: inherit;
-    }
-    .search-dropdown-option:hover,
-    .search-dropdown-option.active { background: rgba(122, 107, 255, 0.16); }
-    .search-dropdown-empty {
-      padding: 10px 12px;
-      color: var(--text-2);
-      font-size: 12px;
-    }
-    .chat-list { max-height: calc(100vh - 320px); overflow-y: auto; padding-right: 4px; }
-    .inbox-panel { display: flex; flex-direction: column; min-height: 560px; max-height: calc(100vh - 180px); }
-    .chat-thread { flex: 1; min-height: 260px; overflow-y: auto; padding-right: 6px; }
-  </style>
 </head>
 <body>
 
@@ -110,7 +66,7 @@
         </button>
         <button class="nav-item" data-page="docworkflow" onclick="showPage('docworkflow')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h6l2 2v10H4z"/><path d="M10 2v3h3"/><path d="M6 8h4M6 11h4"/></svg>
-          Document Request
+          Document Workflow
         </button>
         <button class="nav-item" id="nav-finance" data-page="finance" onclick="showPage('finance')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="10" rx="1.5"/><path d="M4 4V3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v1"/><line x1="8" y1="8" x2="8" y2="12"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
@@ -124,9 +80,9 @@
           <span class="nav-section-chevron">▾</span>
         </button>
         <div class="nav-section-content" data-section-content="operations">
-        <button class="nav-item" id="nav-stream" data-page="stream" onclick="showPage('stream')">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4.5h11v6h-4l-2.5 2-2.5-2h-2z"/><path d="M5 6.5h6M5 8.5h4"/></svg>
-          Stream
+        <button class="nav-item" data-page="inbox" onclick="showPage('inbox')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 3.5h11v7h-7l-3 2v-2h-1z"/><path d="M5 6h6M5 8.5h4"/></svg>
+          Inbox
         </button>
         <button class="nav-item" data-page="messages" onclick="showPage('messages')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H6l-3 2v-2H2z"/></svg>
@@ -139,6 +95,14 @@
         <button class="nav-item" data-page="tasks" onclick="showPage('tasks')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>
           Tasks
+        </button>
+        <button class="nav-item" data-page="timeline" onclick="showPage('timeline')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v10M8 5v8M13 2v11"/><circle cx="3" cy="8" r="1"/><circle cx="8" cy="9" r="1"/><circle cx="13" cy="6" r="1"/></svg>
+          Activity Timeline
+        </button>
+        <button class="nav-item" data-page="search" onclick="showPage('search')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+          Smart Search
         </button>
         <button class="nav-item" data-page="approvals" onclick="showPage('approvals')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8l3 3 7-7"/><path d="M2 2h12v12H2z"/></svg>
@@ -218,7 +182,7 @@
 <!-- ── Modals ────────────────────────────────────────────────────────────── -->
 <!-- Case Modal -->
 <div class="modal-overlay" id="modal-case">
-  <div class="modal modal-landscape modal-case-form">
+  <div class="modal">
     <div class="modal-header">
       <h3 id="modal-case-title">Case</h3>
       <button class="modal-close" onclick="closeModal('modal-case')">✕</button>
@@ -229,7 +193,7 @@
 
 <!-- Client Modal -->
 <div class="modal-overlay" id="modal-client">
-  <div class="modal modal-landscape modal-invoice-form">
+  <div class="modal">
     <div class="modal-header">
       <h3 id="modal-client-title">Client</h3>
       <button class="modal-close" onclick="closeModal('modal-client')">✕</button>
@@ -279,15 +243,8 @@
 let SESSION = null;
 let _charts = {};
 let DASHBOARD_FILTERS = { clientCode: '', caseId: '', fromDate: '', toDate: '' };
-let CASE_FILTERS = { clientCode: '', caseId: '', status: '', country: '', workflowStage: '', query: '', sortDir: 'az' };
-let GALVANIZER_FILTERS = { clientCode: '', caseId: '', workflowStage: '', query: '', sortDir: 'az' };
-let USER_FILTERS = { query: '', role: '', sortDir: 'az' };
-let MGMT_CLIENT_FILTERS = { query: '', orgId: '', sortDir: 'az' };
-let MGMT_ORG_FILTERS = { query: '', sortDir: 'az' };
-let TASK_FILTERS = { query: '', status: '', sortDir: 'az' };
-let APPROVAL_FILTERS = { query: '', status: '', type: '', sortDir: 'az' };
-let EXPENSE_FILTERS = { period: 'month', fromDate: '', toDate: '', sortDir: 'az' };
-let FINANCE_FILTERS = { clientCode: '', query: '', sortDir: 'az' };
+let CASE_FILTERS = { clientCode: '', caseId: '', status: '', country: '', workflowStage: '', query: '' };
+let USER_FILTERS = { query: '', role: '' };
 let CASES_PAGE_LIMIT = 50;
 let CASES_PAGE_OFFSET = 0;
 let CASES_HAS_MORE = false;
@@ -304,23 +261,9 @@ let NOTICES_VISIBLE_COUNT = 25;
 let SAFE_PREFETCH_STARTED = false;
 let CURRENT_THEME = 'dark';
 let CURRENT_PAGE = 'dashboard';
-let CASE_FILTER_TARGET = 'cases';
-let CASE_MODAL_RETURN_PAGE = 'cases';
 let CASE_IMPORT_STATE = { parsedRows: [], importableRows: [], skippedRows: [], fileName: '' };
-let FINANCE_INVOICES_CACHE = [];
 const NAV_SECTION_STORAGE_KEY = 'mg_sidebar_sections_v1';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'mg_sidebar_collapsed_v1';
-const FILTER_PANEL_STATE = {
-  cases: false,
-  finance: false,
-  galvanizer: false,
-  tasks: false,
-  approvals: false,
-  mgmtUsers: false,
-  mgmtClients: false,
-  mgmtOrganizations: false,
-  expenses: false,
-};
 
 function hasRoleAtLeast(role, minimumRole) {
   const order = {
@@ -340,15 +283,16 @@ function hasRoleAtLeast(role, minimumRole) {
 }
 
 function getEffectiveSessionRoles() {
-  return window.Auth?.getEffectiveSessionRoles ? window.Auth.getEffectiveSessionRoles(SESSION) : [SESSION?.role].filter(Boolean);
-}
-
-function getAvailableViewRoles() {
-  return window.Auth?.getAvailableViewRoles ? window.Auth.getAvailableViewRoles(SESSION) : getEffectiveSessionRoles();
-}
-
-function getActiveViewRole() {
-  return window.Auth?.getActiveViewRole ? window.Auth.getActiveViewRole(SESSION) : getEffectiveSessionRoles()[0] || '';
+  const roles = [];
+  if (SESSION?.role) roles.push(SESSION.role);
+  String(SESSION?.additionalRoles || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .forEach((role) => {
+      if (!roles.includes(role)) roles.push(role);
+    });
+  return roles;
 }
 
 function sessionHasRoleAtLeast(minimumRole) {
@@ -361,23 +305,15 @@ function sessionHasAnyRole(roles) {
 }
 
 function canAccessFinance() {
-  return !!SESSION?.canViewFinance || sessionHasRoleAtLeast('Galvanizer');
+  return !!SESSION?.canViewFinance || sessionHasRoleAtLeast('Admin');
 }
 
 function canAccessManagement() {
-  return sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer', 'Client Admin']);
-}
-
-function canImpersonateUsers() {
-  return String(SESSION?.userId || '') === 'USR001' || String(SESSION?.email || '').toLowerCase() === 'mugilvannan@myipstrategy.com';
+  return sessionHasAnyRole(['Super Admin', 'Admin', 'Client Admin']);
 }
 
 function isInternalUser() {
   return sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney']);
-}
-
-function canAccessStreamMessaging() {
-  return !!window.APP_CONFIG?.streamEnabled && isInternalUser();
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
@@ -388,10 +324,6 @@ function canAccessStreamMessaging() {
     window.location.href = 'index.html';
     return;
   }
-  if (!isInternalUser()) {
-    window.location.href = 'client-portal.html';
-    return;
-  }
 
   if (!canAccessManagement()) {
     document.getElementById('nav-mgmt-section').style.display = 'none';
@@ -400,36 +332,24 @@ function canAccessStreamMessaging() {
     document.getElementById('nav-finance').style.display = 'none';
   }
   if (!isInternalUser()) {
-    ['stream','messages','notifications','dailyaudit','expenses','galvanizer','contact'].forEach((page) => {
+    ['messages','notifications','dailyaudit','expenses','galvanizer','contact'].forEach((page) => {
       document.querySelector(`[data-page="${page}"]`)?.style.setProperty('display', 'none');
     });
     document.getElementById('circle-nav-section').style.display = 'none';
-  }
-  if (!canAccessStreamMessaging()) {
-    document.getElementById('nav-stream')?.style.setProperty('display', 'none');
   }
 
   // Populate sidebar user info
   const initials = (SESSION.name || 'U').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('sidebar-avatar').textContent = initials;
   document.getElementById('sidebar-name').textContent = SESSION.name || SESSION.email;
-  document.getElementById('sidebar-role').textContent = getActiveViewRole() || SESSION.role;
+  document.getElementById('sidebar-role').textContent = SESSION.role;
   applySidebarState();
   applyNavSectionState();
   await populateCircleNav();
   startSafePrefetch();
 
-  const initialPage = getValidPageFromHash();
-  syncHashToPage(initialPage, true);
-  showPage(initialPage);
+  showPage('dashboard');
 })();
-
-window.addEventListener('hashchange', () => {
-  if (__suppressHashRouting) return;
-  const targetPage = getValidPageFromHash();
-  if (targetPage === CURRENT_PAGE) return;
-  showPage(targetPage);
-});
 
 function toggleSidebarCollapsed() {
   const next = !document.body.classList.contains('sidebar-hidden');
@@ -496,14 +416,16 @@ const PAGE_TITLES = {
   dashboard: 'Dashboard',
   cases: 'Cases',
   documents: 'Documents',
-  stream: 'Stream Messaging',
+  inbox: 'Inbox',
   workflow: 'Workflow Board',
   attorney: 'Attorney Workspace',
-  docworkflow: 'Document Request',
+  docworkflow: 'Document Workflow',
   finance: 'Finance',
   messages: 'Threads',
   notifications: 'Notification Center',
   tasks: 'Task System',
+  timeline: 'Activity Timeline',
+  search: 'Smart Search',
   approvals: 'Approval Workflow',
   dailyaudit: 'Daily Audit',
   expenses: 'Expense Claims',
@@ -513,32 +435,8 @@ const PAGE_TITLES = {
   contact: 'Contact',
 };
 
-let __suppressHashRouting = false;
-
-function getValidPageFromHash() {
-  const raw = String(window.location.hash || '').replace(/^#/, '').trim().toLowerCase();
-  if (!raw) return 'dashboard';
-  return Object.prototype.hasOwnProperty.call(PAGE_TITLES, raw) ? raw : 'dashboard';
-}
-
-function syncHashToPage(page, replace) {
-  const targetHash = `#${page}`;
-  if (window.location.hash === targetHash) return;
-  __suppressHashRouting = true;
-  if (replace) {
-    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${targetHash}`);
-  } else {
-    window.location.hash = targetHash;
-  }
-  setTimeout(() => { __suppressHashRouting = false; }, 0);
-}
-
 function showPage(page) {
-  if (!Object.prototype.hasOwnProperty.call(PAGE_TITLES, page)) {
-    page = 'dashboard';
-  }
   CURRENT_PAGE = page;
-  syncHashToPage(page, false);
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
   });
@@ -554,7 +452,7 @@ function showPage(page) {
     dashboard: loadDashboard,
     cases: loadCases,
     documents: loadDocuments,
-    stream: loadStreamMessaging,
+    inbox: loadInbox,
     workflow: loadWorkflowBoard,
     attorney: loadAttorneyWorkspace,
     docworkflow: loadDocumentWorkflow,
@@ -562,6 +460,8 @@ function showPage(page) {
     messages: loadMessages,
     notifications: loadNotifications,
     tasks: loadTasks,
+    timeline: loadTimeline,
+    search: loadSmartSearch,
     approvals: loadApprovals,
     dailyaudit: loadDailyAudit,
     expenses: loadExpenses,
@@ -571,43 +471,6 @@ function showPage(page) {
     contact: loadContact,
   };
   if (loaders[page]) loaders[page]();
-}
-
-async function startImpersonation(userId) {
-  if (!canImpersonateUsers() || !userId) return;
-  if (!confirm('Impersonate this user for testing?')) return;
-  try {
-    const currentSession = Auth.getGasSession();
-    if (currentSession && !currentSession.impersonatedByUserId) {
-      sessionStorage.setItem('mg_original_session', JSON.stringify(currentSession));
-    }
-    const result = await API.impersonateUser(userId);
-    const nextSession = Object.assign({}, result.session || {}, { token: result.token });
-    Auth.setGasSession(nextSession);
-    const effectiveRoles = (window.Auth && typeof window.Auth.getEffectiveSessionRoles === 'function')
-      ? window.Auth.getEffectiveSessionRoles(nextSession)
-      : [nextSession.role].filter(Boolean);
-    const isInternal = effectiveRoles.some((role) => ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'].includes(role));
-    window.location.href = isInternal ? 'dashboard.html' : 'client-portal.html';
-  } catch (e) {
-    alert(e.message || 'Unable to impersonate user.');
-  }
-}
-
-function stopImpersonation() {
-  try {
-    const raw = sessionStorage.getItem('mg_original_session');
-    if (!raw) {
-      alert('Original session not found.');
-      return;
-    }
-    const originalSession = JSON.parse(raw);
-    Auth.setGasSession(originalSession);
-    sessionStorage.removeItem('mg_original_session');
-    location.reload();
-  } catch (e) {
-    alert('Unable to restore original session.');
-  }
 }
 
 // ── Sign out ──────────────────────────────────────────────────────────────────
@@ -681,197 +544,10 @@ let CIRCLE_LOOKUP_CACHE = [];
 let ORG_LOOKUP_CACHE = [];
 let DASHBOARD_FILTER_OPEN = false;
 let DAILY_AUDIT_FILTER_OPEN = false;
-let TABLE_PAGERS = {};
-let CASES_ALL = [];
-let MGMT_USERS_CACHE = [];
-let MGMT_CLIENTS_CACHE = [];
-let MGMT_ORGS_CACHE = [];
-let MGMT_ORG_CLIENTS_CACHE = [];
-let EXPENSES_CACHE = [];
-let TASKS_CACHE = [];
-let APPROVALS_CACHE = [];
-let ATTORNEY_WORKSPACE_CACHE = { cases: [], tasks: [], pendingReview: [], activeReview: [] };
-let WORKFLOW_BOARD_CACHE = {};
-let GALVANIZER_CASE_ID_OPTIONS = [];
-let ACTIVE_CUSTOM_DROPDOWN = '';
-let STREAM_STATE = {
-  client: null,
-  auth: null,
-  channels: [],
-  activeChannel: null,
-  unsubscribe: null,
-  pendingFile: null,
-  pendingPoll: null,
-  typingTimeout: null,
-  draftText: '',
-  contextMenu: { messageId: '', mode: '' },
-};
-
-function deriveWorkflowStageFromStatus(status, currentStage) {
-  const normalized = String(status || '').trim();
-  const stageMap = {
-    'Drafted': 'Drafting',
-    'Filed': 'Filed',
-    'Published': 'Under Examination',
-    'Under Examination': 'Under Examination',
-    'Granted': 'Granted',
-    'Abandoned': 'Closed',
-    'Lapsed': 'Closed',
-    'Refused': 'Closed',
-    'Deleted': 'Closed',
-    'Closed': 'Closed',
-  };
-  if (stageMap[normalized]) return stageMap[normalized];
-  return currentStage || 'Drafting';
-}
-
-function getPagerState(key, defaultSize = 10) {
-  if (!TABLE_PAGERS[key]) {
-    TABLE_PAGERS[key] = { page: 1, size: defaultSize };
-  }
-  return TABLE_PAGERS[key];
-}
-
-function paginateItems(items, key, defaultSize = 10) {
-  const list = Array.isArray(items) ? items : [];
-  const state = getPagerState(key, defaultSize);
-  const total = list.length;
-  const totalPages = Math.max(1, Math.ceil(total / state.size));
-  if (state.page > totalPages) state.page = totalPages;
-  const start = (state.page - 1) * state.size;
-  const end = start + state.size;
-  return {
-    items: list.slice(start, end),
-    total,
-    start: total ? start + 1 : 0,
-    end: Math.min(end, total),
-    page: state.page,
-    size: state.size,
-    totalPages
-  };
-}
-
-function setPagerSize(key, size, renderFnName) {
-  const state = getPagerState(key, Number(size) || 10);
-  state.size = Number(size) || 10;
-  state.page = 1;
-  if (typeof window[renderFnName] === 'function') window[renderFnName]();
-}
-
-function setPagerPage(key, page, renderFnName) {
-  const state = getPagerState(key);
-  state.page = Math.max(1, Number(page) || 1);
-  if (typeof window[renderFnName] === 'function') window[renderFnName]();
-}
-
-function buildPagerControls(key, paged, renderFnName, label) {
-  const totalPages = paged.totalPages || 1;
-  const pageButtons = [];
-  for (let page = 1; page <= totalPages; page++) {
-    pageButtons.push(`<button class="btn ${page === paged.page ? 'btn-primary' : 'btn-ghost'} btn-sm" onclick="setPagerPage('${key}', ${page}, '${renderFnName}')">${page}</button>`);
-  }
-  return `
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px">
-      <div class="text-muted" style="font-size:12px">Showing ${paged.start} to ${paged.end} of ${paged.total} ${label}</div>
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <label class="text-muted" style="font-size:12px">Show:
-          <select class="form-control" style="display:inline-flex;width:auto;min-width:120px;margin-left:6px;max-height:240px;overflow-y:auto" onchange="setPagerSize('${key}', this.value, '${renderFnName}')">
-            ${[3,5,10,20,50].map(size => `<option value="${size}"${paged.size === size ? ' selected' : ''}>${size} rows per page</option>`).join('')}
-          </select>
-        </label>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${pageButtons.join('')}</div>
-      </div>
-    </div>`;
-}
-
-function normalizeAlphaValue(value) {
-  return String(value == null ? '' : value).trim().toLowerCase();
-}
-
-function normalizeSearchText(value) {
-  return String(value == null ? '' : value)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function fuzzyIncludesText(haystack, needle) {
-  const source = normalizeSearchText(haystack);
-  const target = normalizeSearchText(needle);
-  if (!target) return true;
-  if (!source) return false;
-  if (source.includes(target)) return true;
-  let position = 0;
-  for (let i = 0; i < target.length; i++) {
-    const ch = target[i];
-    if (ch === ' ') continue;
-    position = source.indexOf(ch, position);
-    if (position === -1) return false;
-    position += 1;
-  }
-  return true;
-}
-
-function matchesBroadSearch(values, query) {
-  const terms = normalizeSearchText(query).split(' ').filter(Boolean);
-  if (!terms.length) return true;
-  const fields = (values || []).map((value) => normalizeSearchText(value)).filter(Boolean);
-  const allText = fields.join(' ');
-  return terms.every((term) => {
-    if (allText.includes(term)) return true;
-    return fields.some((field) => fuzzyIncludesText(field, term));
-  });
-}
-
-function sortItemsBy(items, getter, direction = 'az') {
-  const factor = direction === 'za' ? -1 : 1;
-  return [...(items || [])].sort((a, b) => {
-    const left = normalizeAlphaValue(getter(a));
-    const right = normalizeAlphaValue(getter(b));
-    return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }) * factor;
-  });
-}
-
-function renderFilterToggleButton(filterKey) {
-  return `<button class="btn btn-ghost btn-sm" onclick="toggleFilterPanel('${filterKey}')">${FILTER_PANEL_STATE[filterKey] ? 'Close Filter' : 'Filter'}</button>`;
-}
-
-function toggleFilterPanel(filterKey) {
-  FILTER_PANEL_STATE[filterKey] = !FILTER_PANEL_STATE[filterKey];
-  const reloadMap = {
-    cases: loadCases,
-    finance: renderFinance,
-    galvanizer: loadGalvanizerQueue,
-    tasks: loadTasks,
-    approvals: loadApprovals,
-    mgmtUsers: renderMgmtUsers,
-    mgmtClients: renderMgmtClients,
-    mgmtOrganizations: renderMgmtOrganizations,
-    expenses: loadExpenses,
-  };
-  const fn = reloadMap[filterKey];
-  if (typeof fn === 'function') fn();
-}
-
-function closeCustomDropdowns() {
-  ACTIVE_CUSTOM_DROPDOWN = '';
-  document.querySelectorAll('.search-dropdown-menu').forEach(menu => menu.classList.remove('open'));
-}
-
-document.addEventListener('click', (event) => {
-  if (!event.target.closest('.search-dropdown')) closeCustomDropdowns();
-});
 
 async function ensureClientLookupLoaded() {
   if (CLIENT_LOOKUP_CACHE.length) return CLIENT_LOOKUP_CACHE;
-  let clients = [];
-  try {
-    clients = await API.getClients();
-  } catch (e) {
-    if (!String(e && e.message || '').toLowerCase().includes('access denied')) throw e;
-    clients = await API.getAccessibleClients();
-  }
+  const clients = await API.getClients();
   CLIENT_LOOKUP_CACHE = (Array.isArray(clients) ? clients : []).sort((a, b) =>
     String(a.CLIENT_CODE || a.CLIENT_ID || '').localeCompare(String(b.CLIENT_CODE || b.CLIENT_ID || ''))
   );
@@ -889,14 +565,7 @@ function getEffectiveRoleList(user) {
 
 async function ensureUserLookupLoaded(force = false) {
   if (!force && USER_LOOKUP_CACHE.length) return USER_LOOKUP_CACHE;
-  let users = [];
-  try {
-    users = await API.getUsers({});
-  } catch (e) {
-    if (!String(e && e.message || '').toLowerCase().includes('access denied')) throw e;
-    USER_LOOKUP_CACHE = [];
-    return USER_LOOKUP_CACHE;
-  }
+  const users = await API.getUsers({});
   USER_LOOKUP_CACHE = (Array.isArray(users) ? users : []).sort((a, b) =>
     String(a.FULL_NAME || '').localeCompare(String(b.FULL_NAME || ''))
   );
@@ -1210,30 +879,7 @@ function setTopbarActions(extraHtml = '') {
   window.__lastTopbarExtra = extraHtml || '';
   const right = document.getElementById('topbar-right');
   if (!right) return;
-  const roles = getAvailableViewRoles();
-  const activeViewRole = getActiveViewRole();
-  const roleViewHtml = roles.length > 1
-    ? `<span class="topbar-actions-extra"><select class="form-control" style="min-width:170px" onchange="changeRoleView(this.value)">${roles.map((role) => `<option value="${escapeAttr(role)}"${role === activeViewRole ? ' selected' : ''}>Viewing as ${escapeHtml(role)}</option>`).join('')}</select></span>`
-    : '';
-  const impersonationHtml = SESSION?.impersonatedByUserId
-    ? `<span class="topbar-actions-extra"><span class="stream-chip">Impersonating ${escapeAttr(SESSION.name || SESSION.email || '')}</span><button class="btn btn-ghost btn-sm" onclick="stopImpersonation()">Stop Impersonation</button></span>`
-    : '';
-  right.innerHTML = `${getThemeToggleHtml()}${roleViewHtml}${impersonationHtml}${extraHtml ? `<span class="topbar-actions-extra">${extraHtml}</span>` : ''}`;
-}
-
-function changeRoleView(role) {
-  const nextSession = window.Auth?.setActiveViewRole ? window.Auth.setActiveViewRole(role) : null;
-  if (!nextSession) return;
-  SESSION = nextSession;
-  const activeRole = getActiveViewRole();
-  const isInternal = ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'].includes(activeRole);
-  const targetBase = isInternal ? 'dashboard.html' : 'client-portal.html';
-  const targetHash = isInternal ? (window.location.hash || '#dashboard') : '#dashboard';
-  window.location.href = `${targetBase}${targetHash}`;
-}
-
-function financeActionIconButton(label, icon, className, onClick) {
-  return `<button class="btn ${className || 'btn-ghost'} btn-sm icon-btn" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}" onclick="${onClick}"><span class="material-symbols-outlined">${icon}</span></button>`;
+  right.innerHTML = `${getThemeToggleHtml()}${extraHtml ? `<span class="topbar-actions-extra">${extraHtml}</span>` : ''}`;
 }
 
 function toggleTheme() {
@@ -1248,54 +894,12 @@ function buildCaseIdOptions(list) {
   return (list || []).map(c => `<option value="${c}">${c}</option>`).join('');
 }
 
-function renderGalvanizerCaseIdDropdown(forceOpen = false) {
-  const input = document.getElementById('galvanizer-filter-caseid');
-  const menu = document.getElementById('galvanizer-caseid-menu');
-  if (!input || !menu) return;
-  const query = String(input.value || '').trim().toUpperCase();
-  const options = (GALVANIZER_CASE_ID_OPTIONS || []).filter(value => !query || String(value || '').toUpperCase().includes(query)).slice(0, 50);
-  menu.innerHTML = options.length
-    ? options.map(value => `<button type="button" class="search-dropdown-option" onclick="selectGalvanizerCaseId('${String(value).replace(/'/g, "\\'")}')">${value}</button>`).join('')
-    : '<div class="search-dropdown-empty">No matching case IDs.</div>';
-  if (forceOpen || query) {
-    ACTIVE_CUSTOM_DROPDOWN = 'galvanizer-caseid';
-    menu.classList.add('open');
-  }
-}
-
-function toggleGalvanizerCaseIdDropdown(event) {
-  if (event) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
-  const menu = document.getElementById('galvanizer-caseid-menu');
-  if (!menu) return;
-  const shouldOpen = ACTIVE_CUSTOM_DROPDOWN !== 'galvanizer-caseid' || !menu.classList.contains('open');
-  closeCustomDropdowns();
-  if (shouldOpen) renderGalvanizerCaseIdDropdown(true);
-}
-
-function selectGalvanizerCaseId(value) {
-  const input = document.getElementById('galvanizer-filter-caseid');
-  if (input) input.value = value || '';
-  closeCustomDropdowns();
-}
-
 function buildCircleOptions(list) {
   return (list || []).map(circle => `<option value="${circle.CIRCLE_ID}">${circle.CIRCLE_NAME}</option>`).join('');
 }
 
-function getOrganizationDisplayName(org) {
-  return String(org?.ORG_NAME || org?.ORG_ID || '').trim();
-}
-
-function getOrganizationInputValue(value) {
-  const org = resolveOrganization(value);
-  return org ? getOrganizationDisplayName(org) : String(value || '').trim();
-}
-
 function buildOrgOptions(list) {
-  return (list || []).map(org => `<option value="${escapeAttr(getOrganizationDisplayName(org))}"></option>`).join('');
+  return (list || []).map(org => `<option value="${org.ORG_ID}">${org.ORG_ID} | ${org.ORG_NAME || ''}</option>`).join('');
 }
 
 function resolveClientByCode(code) {
@@ -1426,6 +1030,8 @@ function renderDashboardSummary(d) {
       <div class="stat-card accent-sky"><div class="stat-label">Pending</div><div class="stat-value">${d.totalPending || 0}</div><div class="stat-sub">active cases</div></div>
       <div class="stat-card accent-amber"><div class="stat-label">Deadlines</div><div class="stat-value">${d.upcomingDeadlineCount || 0}</div><div class="stat-sub">upcoming 30d</div></div>
       <div class="stat-card accent-rose"><div class="stat-label">Unpaid</div><div class="stat-value">${d.pendingInvoicesCount || 0}</div><div class="stat-sub">invoices</div></div>
+      <div class="stat-card accent-sky"><div class="stat-label">Unread Alerts</div><div class="stat-value">${d.unreadNotifications || 0}</div><div class="stat-sub">notifications</div></div>
+      <div class="stat-card accent-primary"><div class="stat-label">Open Threads</div><div class="stat-value">${d.openThreads || 0}</div><div class="stat-sub">messages</div></div>
       <div class="stat-card accent-emerald"><div class="stat-label">My Clients</div><div class="stat-value">${d.myClientCount || 0}</div><div class="stat-sub">in scope</div></div>
     </div>
     <div id="dashboard-detail-loading" class="card" style="margin-top:20px">
@@ -1537,6 +1143,16 @@ function renderDashboard(d) {
         <div class="stat-label">Unpaid</div>
         <div class="stat-value">${(d.pendingInvoicesList||[]).length}</div>
         <div class="stat-sub">invoices</div>
+      </div>
+      <div class="stat-card accent-sky">
+        <div class="stat-label">Unread Alerts</div>
+        <div class="stat-value">${d.unreadNotifications || 0}</div>
+        <div class="stat-sub">notifications</div>
+      </div>
+      <div class="stat-card accent-primary">
+        <div class="stat-label">Open Threads</div>
+        <div class="stat-value">${d.openThreads || 0}</div>
+        <div class="stat-sub">messages</div>
       </div>
       <div class="stat-card accent-emerald">
         <div class="stat-label">My Clients</div>
@@ -1673,32 +1289,34 @@ function toggleDashboardFilters() {
 // ═══════════════════════════════════════════════════════════════════════════════
 async function loadCases() {
   destroyCharts();
-  CASE_FILTER_TARGET = 'cases';
   const canEdit = sessionHasRoleAtLeast('Staff');
-  const canBulk = sessionHasRoleAtLeast('Galvanizer');
+  const canBulk = sessionHasRoleAtLeast('Admin');
   if (canEdit) {
-    setTopbarActions(`${renderFilterToggleButton('cases')}${canBulk ? `<button class="btn btn-ghost btn-sm" onclick="openBulkCaseUpdate()">Bulk Update</button>` : ''}<button class="btn btn-ghost btn-sm" onclick="openBulkDocketTrakImport()">Bulk Import</button><button class="btn btn-primary btn-sm" onclick="openCaseModal()">+ New Case</button>`);
+    setTopbarActions(`${canBulk ? `<button class="btn btn-ghost btn-sm" onclick="openBulkCaseUpdate()">Bulk Update</button>` : ''}<button class="btn btn-ghost btn-sm" onclick="openBulkDocketTrakImport()">Bulk Import</button><button class="btn btn-primary btn-sm" onclick="openCaseModal()">+ New Case</button>`);
   } else {
-    setTopbarActions(renderFilterToggleButton('cases'));
+    setTopbarActions('');
   }
   try {
     await ensureClientLookupLoaded();
     await ensureUserLookupLoaded();
-    TABLE_PAGERS.cases = TABLE_PAGERS.cases || { page: 1, size: 10 };
-    CASES_ALL = sortItemsBy(await API.getCases(CASE_FILTERS), item => item.PATENT_TITLE || item.CASE_ID, CASE_FILTERS.sortDir);
-    renderCases(canEdit, canBulk);
+    CASES_PAGE_OFFSET = 0;
+    CASES_ITEMS = [];
+    const page = await API.getCasesPage(CASE_FILTERS, CASES_PAGE_LIMIT, CASES_PAGE_OFFSET);
+    CASES_ITEMS = Array.isArray(page.items) ? page.items : [];
+    CASES_TOTAL = page.total || CASES_ITEMS.length;
+    CASES_HAS_MORE = !!page.hasMore;
+    CASES_PAGE_OFFSET = page.nextOffset || CASES_ITEMS.length;
+    renderCases(CASES_ITEMS, canEdit, canBulk);
   } catch(e) {
     showPageError('loadCases', e);
   }
 }
 
-function renderCases(canEdit = sessionHasRoleAtLeast('Staff'), canBulk = sessionHasRoleAtLeast('Galvanizer')) {
-  const paged = paginateItems(CASES_ALL, 'cases', 10);
-  const cases = paged.items;
+function renderCases(cases, canEdit, canBulk) {
   if (!cases.length) {
     document.getElementById('page-content').innerHTML = `
     <div class="page">
-      ${renderCaseFilters('cases')}
+      ${renderCaseFilters()}
       <div class="empty-state"><p>No cases found.</p></div>
     </div>`;
     return;
@@ -1712,7 +1330,6 @@ function renderCases(canEdit = sessionHasRoleAtLeast('Staff'), canBulk = session
       <td>${c.COUNTRY||'—'}</td>
       <td>${fmt(c.FILING_DATE)}</td>
       <td>${statusBadge(c.CURRENT_STATUS)}</td>
-      <td>${statusBadge(c.WORKFLOW_STAGE || deriveWorkflowStageFromStatus(c.CURRENT_STATUS, c.WORKFLOW_STAGE))}</td>
       <td style="color:${c.NEXT_DEADLINE?'var(--amber)':'var(--text-3)'}">${fmt(c.NEXT_DEADLINE)}</td>
       <td style="font-size:12px;color:var(--text-2)">${c.ATTORNEY||'—'}</td>
       ${canEdit ? `<td><div class="action-row">
@@ -1723,12 +1340,15 @@ function renderCases(canEdit = sessionHasRoleAtLeast('Staff'), canBulk = session
 
   document.getElementById('page-content').innerHTML = `
   <div class="page">
-    ${renderCaseFilters('cases')}
+    ${renderCaseFilters()}
     <div class="card"><div class="table-wrap"><table>
-      <thead><tr>${canBulk?'<th></th>':''}<th>Case ID</th><th>Patent Title</th><th>Country</th><th>Filed</th><th>Status</th><th>Workflow Stage</th><th>Deadline</th><th>Attorney</th>${canEdit?'<th>Actions</th>':''}</tr></thead>
+      <thead><tr>${canBulk?'<th></th>':''}<th>Case ID</th><th>Patent Title</th><th>Country</th><th>Filed</th><th>Status</th><th>Deadline</th><th>Attorney</th>${canEdit?'<th>Actions</th>':''}</tr></thead>
       <tbody>${rows}</tbody>
     </table></div></div>
-    ${buildPagerControls('cases', paged, 'renderCases', 'cases')}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+      <div class="text-muted" style="font-size:12px">${cases.length} of ${CASES_TOTAL} cases loaded</div>
+      ${CASES_HAS_MORE ? `<button class="btn btn-ghost btn-sm" id="cases-load-more" onclick="loadMoreCases()">Load More</button>` : ''}
+    </div>
   </div>`;
 }
 
@@ -1745,7 +1365,7 @@ async function loadMoreCases() {
     CASES_TOTAL = page.total || CASES_ITEMS.length;
     CASES_HAS_MORE = !!page.hasMore;
     CASES_PAGE_OFFSET = page.nextOffset || CASES_ITEMS.length;
-    renderCases(CASES_ITEMS, sessionHasRoleAtLeast('Staff'), sessionHasRoleAtLeast('Galvanizer'));
+    renderCases(CASES_ITEMS, sessionHasRoleAtLeast('Staff'), sessionHasRoleAtLeast('Admin'));
   } catch (e) {
     if (btn) {
       btn.disabled = false;
@@ -1755,85 +1375,49 @@ async function loadMoreCases() {
   }
 }
 
-function renderCaseFilters(mode = 'cases') {
-  const state = mode === 'galvanizer' ? GALVANIZER_FILTERS : CASE_FILTERS;
-  const filterKey = mode === 'galvanizer' ? 'galvanizer' : 'cases';
+function renderCaseFilters() {
   const statuses = ['','Drafted','Filed','Published','Under Examination','Granted','Abandoned','Lapsed','Refused'];
   const countries = ['','India','USA','EPO','PCT','China','Japan','Other'];
-  const stages = ['','Drafting','Ready for Attorney','Under Attorney Review','Filed','Under Examination','Granted','Closed'];
-  const caseIdField = mode === 'galvanizer'
-    ? `<div class="form-group search-dropdown">
-         <label class="form-label">Case ID</label>
-         <div class="search-dropdown-shell">
-           <input class="form-control" id="galvanizer-filter-caseid" value="${state.caseId || ''}" placeholder="Search case ID" autocomplete="off" onfocus="renderGalvanizerCaseIdDropdown(true)" oninput="renderGalvanizerCaseIdDropdown(true)" />
-           <div class="search-dropdown-menu" id="galvanizer-caseid-menu"></div>
-         </div>
-       </div>`
-    : `<div class="form-group"><label class="form-label">Case ID</label><input class="form-control" id="case-filter-caseid" value="${state.caseId || ''}" placeholder="A61M002" /></div>`;
+  const stages = ['','Drafting','Ready for Attorney','Under Attorney Review','Filed'];
   return `
-  <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE[filterKey] ? 'open' : ''}">
+  <div class="card filter-panel">
     <div class="filter-head">
-      <div class="card-title">${mode === 'galvanizer' ? 'Galvanizer Filters' : 'Case Filters'}</div>
+      <div class="card-title">Case Filters</div>
       <div class="filter-actions">
-        <button class="btn btn-primary btn-sm" onclick="applyCaseFilters('${mode}')">Apply</button>
-        <button class="btn btn-ghost btn-sm" onclick="resetCaseFilters('${mode}')">Reset</button>
+        <button class="btn btn-primary btn-sm" onclick="applyCaseFilters()">Apply</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetCaseFilters()">Reset</button>
       </div>
     </div>
     <div class="filter-grid">
       <div class="form-group">
         <label class="form-label">Client Code</label>
-        <input class="form-control" id="${mode === 'galvanizer' ? 'galvanizer-filter-client' : 'case-filter-client'}" list="case-filter-clients" value="${state.clientCode || ''}" placeholder="A61M" />
+        <input class="form-control" id="case-filter-client" list="case-filter-clients" value="${CASE_FILTERS.clientCode || ''}" placeholder="A61M" />
         <datalist id="case-filter-clients">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist>
       </div>
-      ${caseIdField}
-      <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="${mode === 'galvanizer' ? 'galvanizer-filter-query' : 'case-filter-query'}" value="${state.query || ''}" placeholder="Title, app no, attorney" /></div>
-      ${mode === 'cases' ? `<div class="form-group"><label class="form-label">Status</label><select class="form-control" id="case-filter-status">${statuses.map(v=>`<option value="${v}"${state.status===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>` : ''}
-      ${mode === 'cases' ? `<div class="form-group"><label class="form-label">Country</label><select class="form-control" id="case-filter-country">${countries.map(v=>`<option value="${v}"${state.country===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>` : ''}
-      <div class="form-group"><label class="form-label">Workflow Stage</label><select class="form-control" id="${mode === 'galvanizer' ? 'galvanizer-filter-stage' : 'case-filter-stage'}">${stages.map(v=>`<option value="${v}"${state.workflowStage===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
-      <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="${mode === 'galvanizer' ? 'galvanizer-filter-sort' : 'case-filter-sort'}"><option value="az"${state.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${state.sortDir==='za'?' selected':''}>Z-A</option></select></div>
+      <div class="form-group"><label class="form-label">Case ID</label><input class="form-control" id="case-filter-caseid" value="${CASE_FILTERS.caseId || ''}" placeholder="A61M002" /></div>
+      <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="case-filter-query" value="${CASE_FILTERS.query || ''}" placeholder="Title, app no, attorney" /></div>
+      <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="case-filter-status">${statuses.map(v=>`<option value="${v}"${CASE_FILTERS.status===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Country</label><select class="form-control" id="case-filter-country">${countries.map(v=>`<option value="${v}"${CASE_FILTERS.country===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Workflow Stage</label><select class="form-control" id="case-filter-stage">${stages.map(v=>`<option value="${v}"${CASE_FILTERS.workflowStage===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
     </div>
   </div>`;
 }
 
-function applyCaseFilters(mode = 'cases') {
-  if (mode === 'galvanizer') {
-    GALVANIZER_FILTERS = {
-      clientCode: document.getElementById('galvanizer-filter-client')?.value.trim().toUpperCase() || '',
-      caseId: document.getElementById('galvanizer-filter-caseid')?.value.trim().toUpperCase() || '',
-      query: document.getElementById('galvanizer-filter-query')?.value.trim() || '',
-      workflowStage: document.getElementById('galvanizer-filter-stage')?.value || '',
-      sortDir: document.getElementById('galvanizer-filter-sort')?.value || 'az',
-    };
-    FILTER_PANEL_STATE.galvanizer = false;
-  } else {
-    CASE_FILTERS = {
-      clientCode: document.getElementById('case-filter-client')?.value.trim().toUpperCase() || '',
-      caseId: document.getElementById('case-filter-caseid')?.value.trim().toUpperCase() || '',
-      query: document.getElementById('case-filter-query')?.value.trim() || '',
-      status: document.getElementById('case-filter-status')?.value || '',
-      country: document.getElementById('case-filter-country')?.value || '',
-      workflowStage: document.getElementById('case-filter-stage')?.value || '',
-      sortDir: document.getElementById('case-filter-sort')?.value || 'az',
-    };
-    FILTER_PANEL_STATE.cases = false;
-  }
-  reloadCaseFilterTarget();
+function applyCaseFilters() {
+  CASE_FILTERS = {
+    clientCode: document.getElementById('case-filter-client')?.value.trim().toUpperCase() || '',
+    caseId: document.getElementById('case-filter-caseid')?.value.trim().toUpperCase() || '',
+    query: document.getElementById('case-filter-query')?.value.trim() || '',
+    status: document.getElementById('case-filter-status')?.value || '',
+    country: document.getElementById('case-filter-country')?.value || '',
+    workflowStage: document.getElementById('case-filter-stage')?.value || '',
+  };
+  loadCases();
 }
 
-function resetCaseFilters(mode = 'cases') {
-  if (mode === 'galvanizer') {
-    GALVANIZER_FILTERS = { clientCode: '', caseId: '', workflowStage: '', query: '', sortDir: 'az' };
-    FILTER_PANEL_STATE.galvanizer = false;
-  } else {
-    CASE_FILTERS = { clientCode: '', caseId: '', status: '', country: '', workflowStage: '', query: '', sortDir: 'az' };
-    FILTER_PANEL_STATE.cases = false;
-  }
-  reloadCaseFilterTarget();
-}
-
-function reloadCaseFilterTarget() {
-  if (CASE_FILTER_TARGET === 'galvanizer') return loadGalvanizerQueue();
-  return loadCases();
+function resetCaseFilters() {
+  CASE_FILTERS = { clientCode: '', caseId: '', status: '', country: '', workflowStage: '', query: '' };
+  loadCases();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1877,26 +1461,15 @@ async function submitDocumentUpload() {
 async function loadWorkflowBoard() {
   destroyCharts();
   try {
-    WORKFLOW_BOARD_CACHE = await API.getWorkflowBoard({});
-    renderWorkflowBoard();
-  } catch (e) {
-    showPageError('loadWorkflowBoard', e);
-  }
-}
-
-function renderWorkflowBoard() {
-  const board = WORKFLOW_BOARD_CACHE || {};
-  const stages = ['Drafting', 'Ready for Attorney', 'Under Attorney Review', 'Filed', 'Under Examination', 'Granted', 'Closed'];
-  document.getElementById('page-content').innerHTML = `
-    <div class="page">
-      <div class="grid-3">
-        ${stages.map(stage => {
-          const items = Array.isArray(board[stage]) ? board[stage] : [];
-          const preview = items.slice(0, 3);
-          return `
+    const board = await API.getWorkflowBoard({});
+    const stages = Object.keys(board || {});
+    document.getElementById('page-content').innerHTML = `
+      <div class="page">
+        <div class="grid-3">
+          ${stages.map(stage => `
             <div class="card">
               <div class="card-title">${stage}</div>
-              ${preview.map(item => `
+              ${(board[stage] || []).slice(0, 12).map(item => `
                 <div class="card" style="padding:12px;margin-bottom:10px">
                   <div class="text-em">${item.CASE_ID}</div>
                   <div style="font-weight:600">${item.PATENT_TITLE || 'Untitled case'}</div>
@@ -1904,47 +1477,21 @@ function renderWorkflowBoard() {
                   <div class="text-muted" style="font-size:12px">${item.ASSIGNED_STAFF_EMAIL || 'Unassigned'} | ${item.ATTORNEY || 'No attorney'}</div>
                 </div>
               `).join('') || '<div class="text-muted">No cases in this stage.</div>'}
-              ${items.length > 3 ? `<div style="margin-top:10px"><button class="btn btn-ghost btn-sm" onclick="openWorkflowStageModal('${stage.replace(/'/g, "\\'")}')">See more</button></div>` : ''}
-            </div>`;
-        }).join('')}
-      </div>
-    </div>`;
-}
-
-function openWorkflowStageModal(stage) {
-  const items = Array.isArray(WORKFLOW_BOARD_CACHE?.[stage]) ? WORKFLOW_BOARD_CACHE[stage] : [];
-  const key = `workflow-${stage}`;
-  const paged = paginateItems(items, key, 5);
-  openGenericModal(`${stage} Cases`, `
-    <div class="card">
-      <div class="table-wrap"><table>
-        <thead><tr><th>Case ID</th><th>Title</th><th>Client</th><th>Status</th><th>Attorney</th></tr></thead>
-        <tbody>${paged.items.map(item => `<tr><td class="font-mono">${item.CASE_ID}</td><td>${item.PATENT_TITLE || ''}</td><td>${item.CLIENT_NAME || item.CLIENT_ID || ''}</td><td>${statusBadge(item.CURRENT_STATUS || '')}</td><td>${item.ATTORNEY || '—'}</td></tr>`).join('') || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No cases in this stage.</td></tr>'}</tbody>
-      </table></div>
-      ${buildPagerControls(key, paged, 'rerenderWorkflowStageModal', 'cases')}
-    </div>`);
-  window.__ACTIVE_WORKFLOW_STAGE__ = stage;
-}
-
-function rerenderWorkflowStageModal() {
-  if (window.__ACTIVE_WORKFLOW_STAGE__) openWorkflowStageModal(window.__ACTIVE_WORKFLOW_STAGE__);
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+  } catch (e) {
+    showPageError('loadWorkflowBoard', e);
+  }
 }
 
 async function loadAttorneyWorkspace() {
   destroyCharts();
   try {
     const data = await API.getAttorneyWorkspace({});
-    ATTORNEY_WORKSPACE_CACHE = data || { cases: [], tasks: [], pendingReview: [], activeReview: [] };
-    renderAttorneyWorkspace();
-  } catch (e) {
-    showPageError('loadAttorneyWorkspace', e);
-  }
-}
-
-function renderAttorneyWorkspace() {
-  const data = ATTORNEY_WORKSPACE_CACHE || { cases: [], tasks: [], pendingReview: [], activeReview: [] };
-  const pagedCases = paginateItems(data.cases || [], 'attorney-cases', 10);
-  const tasks = data.tasks || [];
+    const cases = data.cases || [];
+    const tasks = data.tasks || [];
     document.getElementById('page-content').innerHTML = `
       <div class="page">
         <div class="stats-grid">
@@ -1957,9 +1504,8 @@ function renderAttorneyWorkspace() {
             <div class="card-title">Cases</div>
             <div class="table-wrap"><table>
               <thead><tr><th>Case</th><th>Title</th><th>Stage</th><th>Status</th></tr></thead>
-              <tbody>${pagedCases.items.map(item => `<tr><td class="text-em">${item.CASE_ID}</td><td>${item.PATENT_TITLE || ''}</td><td>${item.WORKFLOW_STAGE || ''}</td><td>${statusBadge(item.CURRENT_STATUS || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="text-muted" style="padding:20px;text-align:center">No attorney cases.</td></tr>'}</tbody>
+              <tbody>${cases.map(item => `<tr><td class="text-em">${item.CASE_ID}</td><td>${item.PATENT_TITLE || ''}</td><td>${item.WORKFLOW_STAGE || ''}</td><td>${statusBadge(item.CURRENT_STATUS || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="text-muted" style="padding:20px;text-align:center">No attorney cases.</td></tr>'}</tbody>
             </table></div>
-            ${buildPagerControls('attorney-cases', pagedCases, 'renderAttorneyWorkspace', 'cases')}
           </div>
           <div class="card">
             <div class="card-title">Assigned Tasks</div>
@@ -1970,78 +1516,38 @@ function renderAttorneyWorkspace() {
           </div>
         </div>
       </div>`;
+  } catch (e) {
+    showPageError('loadAttorneyWorkspace', e);
+  }
 }
 
 async function loadTasks() {
   destroyCharts();
-  setTopbarActions(`${renderFilterToggleButton('tasks')}<button class="btn btn-primary btn-sm" onclick="openTaskModal()">+ New Task</button>`);
+  setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openTaskModal()">+ New Task</button>`);
   try {
-    TASKS_CACHE = await API.getTasks({});
-    renderTasks();
+    const tasks = await API.getTasks({});
+    document.getElementById('page-content').innerHTML = `
+      <div class="page">
+        <div class="card">
+          <div class="table-wrap"><table>
+            <thead><tr><th>ID</th><th>Title</th><th>Assignee</th><th>Priority</th><th>Due</th><th>Status</th><th></th></tr></thead>
+            <tbody>${(tasks || []).map(item => `
+              <tr>
+                <td class="text-em">${item.TASK_ID}</td>
+                <td>${item.TITLE || ''}</td>
+                <td>${item.ASSIGNED_TO_NAME || item.ASSIGNED_TO_EMAIL || ''}</td>
+                <td>${item.PRIORITY || ''}</td>
+                <td>${fmt(item.DUE_DATE)}</td>
+                <td>${statusBadge(item.STATUS || 'Open')}</td>
+                <td><button class="btn btn-ghost btn-sm" onclick="advanceTaskStatus('${item.TASK_ID}','${item.STATUS || 'Open'}')">Next</button></td>
+              </tr>`).join('') || '<tr><td colspan="7" class="text-muted" style="padding:20px;text-align:center">No tasks found.</td></tr>'}
+            </tbody>
+          </table></div>
+        </div>
+      </div>`;
   } catch (e) {
     showPageError('loadTasks', e);
   }
-}
-
-function renderTasks() {
-  const filtered = sortItemsBy((TASKS_CACHE || []).filter(item => {
-    const query = normalizeAlphaValue(TASK_FILTERS.query);
-    const haystack = normalizeAlphaValue([item.TASK_ID, item.TITLE, item.ASSIGNED_TO_NAME, item.ASSIGNED_TO_EMAIL].join(' '));
-    if (query && !haystack.includes(query)) return false;
-    if (TASK_FILTERS.status && String(item.STATUS || '') !== TASK_FILTERS.status) return false;
-    return true;
-  }), item => item.TITLE || item.TASK_ID, TASK_FILTERS.sortDir);
-  const paged = paginateItems(filtered, 'tasks', 10);
-  document.getElementById('page-content').innerHTML = `
-    <div class="page">
-      <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.tasks ? 'open' : ''}" style="margin-bottom:16px">
-        <div class="filter-head">
-          <div class="card-title">Task Filters</div>
-          <div class="filter-actions">
-            <button class="btn btn-primary btn-sm" onclick="applyTaskFilters()">Apply</button>
-            <button class="btn btn-ghost btn-sm" onclick="resetTaskFilters()">Reset</button>
-          </div>
-        </div>
-        <div class="filter-grid compact-2">
-          <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="task-filter-query" value="${TASK_FILTERS.query || ''}" placeholder="Task, assignee, ID" /></div>
-          <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="task-filter-status">${['','Open','In Progress','Completed'].map(v => `<option value="${v}"${TASK_FILTERS.status===v?' selected':''}>${v || 'All'}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="task-filter-sort"><option value="az"${TASK_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${TASK_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="table-wrap"><table>
-          <thead><tr><th>ID</th><th>Title</th><th>Assignee</th><th>Priority</th><th>Due</th><th>Status</th><th></th></tr></thead>
-          <tbody>${paged.items.map(item => `
-            <tr>
-              <td class="text-em">${item.TASK_ID}</td>
-              <td>${item.TITLE || ''}</td>
-              <td>${item.ASSIGNED_TO_NAME || item.ASSIGNED_TO_EMAIL || ''}</td>
-              <td>${item.PRIORITY || ''}</td>
-              <td>${fmt(item.DUE_DATE)}</td>
-              <td>${statusBadge(item.STATUS || 'Open')}</td>
-              <td><button class="btn btn-ghost btn-sm" onclick="advanceTaskStatus('${item.TASK_ID}','${item.STATUS || 'Open'}')">Next</button></td>
-            </tr>`).join('') || '<tr><td colspan="7" class="text-muted" style="padding:20px;text-align:center">No tasks found.</td></tr>'}
-          </tbody>
-        </table></div>
-      </div>
-      ${buildPagerControls('tasks', paged, 'renderTasks', 'tasks')}
-    </div>`;
-}
-
-function applyTaskFilters() {
-  TASK_FILTERS = {
-    query: document.getElementById('task-filter-query')?.value.trim() || '',
-    status: document.getElementById('task-filter-status')?.value || '',
-    sortDir: document.getElementById('task-filter-sort')?.value || 'az',
-  };
-  FILTER_PANEL_STATE.tasks = false;
-  renderTasks();
-}
-
-function resetTaskFilters() {
-  TASK_FILTERS = { query: '', status: '', sortDir: 'az' };
-  FILTER_PANEL_STATE.tasks = false;
-  renderTasks();
 }
 
 async function quickCreateTask() {
@@ -2093,73 +1599,85 @@ async function advanceTaskStatus(taskId, currentStatus) {
   loadTasks();
 }
 
-async function loadApprovals() {
+async function loadTimeline() {
   destroyCharts();
-  setTopbarActions(`${renderFilterToggleButton('approvals')}<button class="btn btn-primary btn-sm" onclick="openApprovalModal()">+ New Approval</button>`);
   try {
-    APPROVALS_CACHE = await API.getApprovalRequests({});
-    renderApprovals();
+    const items = await API.getActivityTimeline({});
+    document.getElementById('page-content').innerHTML = `
+      <div class="page">
+        <div class="card">
+          ${(items || []).map(item => `
+            <div style="padding:14px 0;border-bottom:1px solid var(--border)">
+              <div style="display:flex;justify-content:space-between;gap:12px">
+                <div>
+                  <div style="font-weight:600">${item.TITLE || item.EVENT_TYPE}</div>
+                  <div class="text-muted" style="font-size:13px">${item.DESCRIPTION || ''}</div>
+                  <div class="text-muted" style="font-size:11px">${item.ENTITY_TYPE || ''} ${item.ENTITY_ID || ''}</div>
+                </div>
+                <div class="text-muted" style="font-size:11px;white-space:nowrap">${fmt(item.CREATED_AT)}</div>
+              </div>
+            </div>`).join('') || '<div class="text-muted">No activity yet.</div>'}
+        </div>
+      </div>`;
   } catch (e) {
-    showPageError('loadApprovals', e);
+    showPageError('loadTimeline', e);
   }
 }
 
-function renderApprovals() {
-  const canManageAll = sessionHasRoleAtLeast('Galvanizer');
-  const filtered = sortItemsBy((APPROVALS_CACHE || []).filter(item => {
-    const query = normalizeAlphaValue(APPROVAL_FILTERS.query);
-    const haystack = normalizeAlphaValue([item.APPROVAL_ID, item.TITLE, item.APPROVER_EMAIL, item.APPROVAL_TYPE].join(' '));
-    if (query && !haystack.includes(query)) return false;
-    if (APPROVAL_FILTERS.status && String(item.STATUS || '') !== APPROVAL_FILTERS.status) return false;
-    if (APPROVAL_FILTERS.type && String(item.APPROVAL_TYPE || '') !== APPROVAL_FILTERS.type) return false;
-    return true;
-  }), item => item.TITLE || item.APPROVAL_ID, APPROVAL_FILTERS.sortDir);
-  const paged = paginateItems(filtered, 'approvals', 10);
+async function loadSmartSearch() {
+  destroyCharts();
   document.getElementById('page-content').innerHTML = `
     <div class="page">
-      <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.approvals ? 'open' : ''}" style="margin-bottom:16px">
-        <div class="filter-head">
-          <div class="card-title">Approval Filters</div>
-          <div class="filter-actions">
-            <button class="btn btn-primary btn-sm" onclick="applyApprovalFilters()">Apply</button>
-            <button class="btn btn-ghost btn-sm" onclick="resetApprovalFilters()">Reset</button>
-          </div>
-        </div>
-        <div class="filter-grid compact-2">
-          <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="approval-filter-query" value="${APPROVAL_FILTERS.query || ''}" placeholder="Approval, approver, type" /></div>
-          <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="approval-filter-status">${['','Pending','Approved','Rejected'].map(v => `<option value="${v}"${APPROVAL_FILTERS.status===v?' selected':''}>${v || 'All'}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">Type</label><select class="form-control" id="approval-filter-type">${['','General','Case','Finance','Document'].map(v => `<option value="${v}"${APPROVAL_FILTERS.type===v?' selected':''}>${v || 'All'}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="approval-filter-sort"><option value="az"${APPROVAL_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${APPROVAL_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
-        </div>
-      </div>
       <div class="card">
-        <div class="table-wrap"><table>
-          <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Approver</th><th>Status</th><th></th></tr></thead>
-          <tbody>${paged.items.map(item => {
-            const canReview = item.STATUS === 'Pending' && (canManageAll || String(item.APPROVER_EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase());
-            return `<tr><td class="text-em">${item.APPROVAL_ID}</td><td>${item.TITLE || ''}</td><td>${item.APPROVAL_TYPE || ''}</td><td>${item.APPROVER_EMAIL || ''}</td><td>${statusBadge(item.STATUS || 'Pending')}</td><td>${canReview ? `<div class="action-row"><button class="btn btn-success btn-sm" onclick="reviewApproval('${item.APPROVAL_ID}','Approved')">Approve</button><button class="btn btn-danger btn-sm" onclick="reviewApproval('${item.APPROVAL_ID}','Rejected')">Reject</button></div>` : ''}</td></tr>`;
-          }).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No approvals.</td></tr>'}</tbody>
-        </table></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="smart-search-query" placeholder="Case ID, client code, name, thread, task" /></div>
+          <div class="form-group"><label class="form-label">Scope</label><select class="form-control" id="smart-search-scope"><option value="all">All</option><option value="cases">Cases</option><option value="clients">Clients</option><option value="users">Users</option><option value="tasks">Tasks</option><option value="messages">Messages</option></select></div>
+        </div>
+        <div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm" onclick="runSmartSearch()">Search</button></div>
       </div>
-      ${buildPagerControls('approvals', paged, 'renderApprovals', 'approvals')}
+      <div id="smart-search-results" style="margin-top:16px"></div>
     </div>`;
 }
 
-function applyApprovalFilters() {
-  APPROVAL_FILTERS = {
-    query: document.getElementById('approval-filter-query')?.value.trim() || '',
-    status: document.getElementById('approval-filter-status')?.value || '',
-    type: document.getElementById('approval-filter-type')?.value || '',
-    sortDir: document.getElementById('approval-filter-sort')?.value || 'az',
-  };
-  FILTER_PANEL_STATE.approvals = false;
-  renderApprovals();
+async function runSmartSearch() {
+  const query = document.getElementById('smart-search-query').value.trim();
+  const scope = document.getElementById('smart-search-scope').value;
+  const target = document.getElementById('smart-search-results');
+  if (!query) {
+    target.innerHTML = '<div class="alert alert-error">Enter a search term.</div>';
+    return;
+  }
+  const data = await API.getSmartSearch(query, scope);
+  target.innerHTML = `
+    <div class="grid-2">
+      <div class="card"><div class="card-title">Cases</div>${(data.cases||[]).map(item => `<div style="margin-bottom:10px"><div class="text-em">${item.CASE_ID}</div><div>${item.PATENT_TITLE || ''}</div></div>`).join('') || '<div class="text-muted">No case results.</div>'}</div>
+      <div class="card"><div class="card-title">Clients</div>${(data.clients||[]).map(item => `<div style="margin-bottom:10px"><div class="text-em">${item.CLIENT_CODE || item.CLIENT_ID}</div><div>${item.CLIENT_NAME || ''}</div></div>`).join('') || '<div class="text-muted">No client results.</div>'}</div>
+      <div class="card"><div class="card-title">Tasks</div>${(data.tasks||[]).map(item => `<div style="margin-bottom:10px"><div>${item.TITLE || item.TASK_ID}</div><div class="text-muted">${item.STATUS || ''}</div></div>`).join('') || '<div class="text-muted">No task results.</div>'}</div>
+      <div class="card"><div class="card-title">Messages</div>${(data.threads||[]).map(item => `<div style="margin-bottom:10px"><div>${item.TITLE || item.THREAD_ID}</div><div class="text-muted">${item.THREAD_TYPE || ''}</div></div>`).join('') || '<div class="text-muted">No message results.</div>'}</div>
+    </div>`;
 }
 
-function resetApprovalFilters() {
-  APPROVAL_FILTERS = { query: '', status: '', type: '', sortDir: 'az' };
-  FILTER_PANEL_STATE.approvals = false;
-  renderApprovals();
+async function loadApprovals() {
+  destroyCharts();
+  setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openApprovalModal()">+ New Approval</button>`);
+  try {
+    const items = await API.getApprovalRequests({});
+    const canManageAll = sessionHasRoleAtLeast('Admin');
+    document.getElementById('page-content').innerHTML = `
+      <div class="page">
+        <div class="card">
+          <div class="table-wrap"><table>
+            <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Approver</th><th>Status</th><th></th></tr></thead>
+            <tbody>${(items || []).map(item => {
+              const canReview = item.STATUS === 'Pending' && (canManageAll || String(item.APPROVER_EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase());
+              return `<tr><td class="text-em">${item.APPROVAL_ID}</td><td>${item.TITLE || ''}</td><td>${item.APPROVAL_TYPE || ''}</td><td>${item.APPROVER_EMAIL || ''}</td><td>${statusBadge(item.STATUS || 'Pending')}</td><td>${canReview ? `<div class="action-row"><button class="btn btn-success btn-sm" onclick="reviewApproval('${item.APPROVAL_ID}','Approved')">Approve</button><button class="btn btn-danger btn-sm" onclick="reviewApproval('${item.APPROVAL_ID}','Rejected')">Reject</button></div>` : ''}</td></tr>`;
+            }).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No approvals.</td></tr>'}</tbody>
+          </table></div>
+        </div>
+      </div>`;
+  } catch (e) {
+    showPageError('loadApprovals', e);
+  }
 }
 
 async function quickCreateApproval() {
@@ -2329,176 +1847,51 @@ async function loadFinance() {
     document.getElementById('page-content').innerHTML = err('Finance access is restricted for your role.');
     return;
   }
-    const canEdit = sessionHasRoleAtLeast('Galvanizer');
+  const canEdit = sessionHasRoleAtLeast('Admin');
   if (canEdit) {
-    setTopbarActions(`${renderFilterToggleButton('finance')}<button class="btn btn-primary btn-sm" onclick="openInvoiceModal()">+ New Invoice</button>`);
+    setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openInvoiceModal()">+ New Invoice</button>`);
   } else {
-    setTopbarActions(renderFilterToggleButton('finance'));
+    setTopbarActions('');
   }
   try {
-    FINANCE_INVOICES_CACHE = await API.getInvoices();
-    renderFinance(FINANCE_INVOICES_CACHE, canEdit);
+    const invoices = await API.getInvoices();
+    renderFinance(invoices, canEdit);
   } catch(e) {
     showPageError('loadFinance', e);
   }
 }
 
-function getInvoiceUiId(inv) {
-  return String(inv?.['Docket# [Invoice UIN]'] || inv?.['Tax Invoice Number'] || inv?.INVOICE_ID || '');
-}
-
-function getInvoiceUiTotal(inv) {
-  return parseFloat(inv?.InvAmount || inv?.TOTAL || 0) || 0;
-}
-
-function getInvoiceUiDue(inv) {
-  if (inv?.['Amount due'] != null && String(inv['Amount due']) !== '') return parseFloat(inv['Amount due']) || 0;
-  if (inv?.PAYMENT_STATUS === 'Partially Paid') {
-    return Math.max(getInvoiceUiTotal(inv) - (parseFloat(inv?.PAYMENT_AMOUNT || 0) || 0), 0);
-  }
-  return inv?.PAYMENT_STATUS === 'Paid' ? 0 : getInvoiceUiTotal(inv);
-}
-
-function invoiceFieldValue(inv, key) {
-  return inv && inv[key] != null ? String(inv[key]) : '';
-}
-
-function encodeInlinePayload(value) {
-  return encodeURIComponent(JSON.stringify(value || {}));
-}
-
-function decodeInlinePayload(encoded) {
-  try {
-    return JSON.parse(decodeURIComponent(encoded || ''));
-  } catch (e) {
-    return null;
-  }
-}
-
-function openInvoiceModalFromEncoded(encoded) {
-  const inv = decodeInlinePayload(encoded);
-  return openInvoiceModal(inv ? JSON.stringify(inv) : '');
-}
-
-function openInvoicePaymentModalFromEncoded(encoded) {
-  const inv = decodeInlinePayload(encoded);
-  return openInvoicePaymentModal(inv ? JSON.stringify(inv) : '');
-}
-
-function previewInvoiceByLink(link) {
-  const target = String(link || '').trim();
-  if (!target) {
-    alert('PDF link not found for this invoice.');
-    return;
-  }
-  window.open(target, '_blank');
-}
-
-function getFinanceSearchFields(inv) {
-  return [
-    getInvoiceUiId(inv),
-    inv?.ClientCode,
-    inv?.CLIENT_ID,
-    inv?.['Name of Client'],
-    inv?.CLIENT_NAME,
-    inv?.['Docket Number'],
-    inv?.CASE_ID,
-    inv?.['Invention#'],
-    inv?.['Main ServiceCode'],
-    inv?.['Service Code 2'],
-    inv?.['Service Code 3'],
-    inv?.['First Inventor'],
-    inv?.['Title Identfication (Only key words, Enter in lower case}'],
-    inv?.['Patent Office'],
-    inv?.PAYMENT_STATUS,
-    inv?.TAX_TYPE,
-    inv?.NOTES
-  ];
-}
-
-function getFilteredFinanceInvoices() {
-  const clientCode = String(FINANCE_FILTERS.clientCode || '').trim().toUpperCase();
-  const query = String(FINANCE_FILTERS.query || '').trim();
-  const sorted = sortItemsBy((FINANCE_INVOICES_CACHE || []).filter((inv) => {
-    const invoiceClientCode = String(inv?.ClientCode || inv?.CLIENT_ID || '').trim().toUpperCase();
-    if (clientCode && !invoiceClientCode.includes(clientCode)) return false;
-    if (query && !matchesBroadSearch(getFinanceSearchFields(inv), query)) return false;
-    return true;
-  }), (inv) => inv?.['Name of Client'] || inv?.ClientCode || getInvoiceUiId(inv), FINANCE_FILTERS.sortDir);
-  return sorted;
-}
-
-function renderFinanceFilters() {
-  return `
-    <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.finance ? 'open' : ''}" style="margin-bottom:16px">
-      <div class="filter-head">
-        <div class="card-title">Finance Filters</div>
-        <div class="filter-actions">
-          <button class="btn btn-primary btn-sm" onclick="applyFinanceFilters()">Apply</button>
-          <button class="btn btn-ghost btn-sm" onclick="resetFinanceFilters()">Reset</button>
-        </div>
-      </div>
-      <div class="filter-grid compact-2">
-        <div class="form-group">
-          <label class="form-label">Client Code</label>
-          <input class="form-control" id="finance-filter-client" value="${escapeAttr(FINANCE_FILTERS.clientCode || '')}" placeholder="999M" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Search</label>
-          <input class="form-control" id="finance-filter-query" value="${escapeAttr(FINANCE_FILTERS.query || '')}" placeholder="Client, inventor, docket, service code, title" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Sort</label>
-          <select class="form-control" id="finance-filter-sort">
-            <option value="az"${FINANCE_FILTERS.sortDir === 'az' ? ' selected' : ''}>A-Z</option>
-            <option value="za"${FINANCE_FILTERS.sortDir === 'za' ? ' selected' : ''}>Z-A</option>
-          </select>
-        </div>
-      </div>
-    </div>`;
-}
-
-function renderFinance(invoices = FINANCE_INVOICES_CACHE, canEdit = sessionHasRoleAtLeast('Galvanizer')) {
-  if (Array.isArray(invoices)) FINANCE_INVOICES_CACHE = invoices;
-  const filteredInvoices = getFilteredFinanceInvoices();
-  const paged = paginateItems(filteredInvoices, 'finance-invoices', 10);
+function renderFinance(invoices, canEdit) {
   let paid=0, unpaid=0, paidSum=0, unpaidSum=0;
-  filteredInvoices.forEach(inv => {
-    const total = getInvoiceUiTotal(inv);
-    const due = getInvoiceUiDue(inv);
-    if (inv.PAYMENT_STATUS === 'Paid') { paid++; paidSum += total; }
-    else { unpaid++; unpaidSum += due; }
+  invoices.forEach(inv => {
+    const a = parseFloat(inv.TOTAL)||0;
+    if (inv.PAYMENT_STATUS === 'Paid') { paid++; paidSum += a; }
+    else { unpaid++; unpaidSum += a; }
   });
 
-  const rows = paged.items.map(inv => {
+  const rows = invoices.map(inv => {
     const isPaid = inv.PAYMENT_STATUS === 'Paid';
-    const encoded = encodeInlinePayload(inv);
     return `<tr>
-      <td class="text-em" style="font-family:'Syne',sans-serif;font-size:12px">${escapeHtml(getInvoiceUiId(inv))}</td>
-      <td>${fmt(inv['Invoice Date'])}</td>
-      <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(inv.ClientCode || inv.CLIENT_ID || '')}</td>
-      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(inv['Name of Client'] || inv.CLIENT_NAME || '')}</td>
-      <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(inv['Docket Number'] || '')}</td>
-      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(inv['Main ServiceCode'] || '')}</td>
-      <td>${money(getInvoiceUiTotal(inv))}</td>
-      <td style="font-weight:600">${money(getInvoiceUiDue(inv))}</td>
+      <td class="text-em" style="font-family:'Syne',sans-serif;font-size:12px">${inv.INVOICE_ID}</td>
+      <td>${fmt(inv.INVOICE_DATE)}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${inv.SERVICE_TYPE}</td>
+      <td>${money(inv.AMOUNT)}</td>
+      <td>${money(inv.GST_AMOUNT)}</td>
+      <td style="font-weight:600">${money(inv.TOTAL)}</td>
       <td>${statusBadge(inv.PAYMENT_STATUS)}</td>
+      <td>${inv.INVOICE_PDF_LINK ? `<a href="${inv.INVOICE_PDF_LINK}" target="_blank" style="font-size:12px">View PDF</a>` : '—'}</td>
       ${canEdit ? `<td><div class="action-row">
-        ${!isPaid ? financeActionIconButton('Mark Paid', 'payments', 'btn-success', `markPaid('${escapeAttr(getInvoiceUiId(inv))}', this)`) : ''}
-        ${financeActionIconButton('Preview', 'visibility', 'btn-ghost', `previewInvoiceByLink('${escapeAttr(inv.INVOICE_PDF_LINK || '')}')`)}
-        ${financeActionIconButton('Send Invoice', 'rocket_launch', 'btn-ghost', `sendInvoiceNow('${escapeAttr(getInvoiceUiId(inv))}', this)`)}
-        ${financeActionIconButton('Payment', 'currency_rupee', 'btn-ghost', `openInvoicePaymentModalFromEncoded('${encoded}')`)}
-        ${financeActionIconButton('Edit Invoice', 'edit', 'btn-ghost', `openInvoiceModalFromEncoded('${encoded}')`)}
-        <button class="btn btn-danger btn-sm" onclick="deleteItem('Invoice','${escapeAttr(getInvoiceUiId(inv))}')">Del</button>
+        ${!isPaid ? `<button class="btn btn-success btn-sm" onclick="markPaid('${inv.INVOICE_ID}',this)">Paid</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick='openInvoiceModal(${JSON.stringify(JSON.stringify(inv))})'>Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteItem('Invoice','${inv.INVOICE_ID}')">Del</button>
       </div></td>` : ''}
     </tr>`;
   }).join('');
 
   document.getElementById('page-content').innerHTML = `
   <div class="page">
-    ${renderFinanceFilters()}
     <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
-      <div class="stat-card"><div class="stat-label">Total Invoices</div><div class="stat-value">${filteredInvoices.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Invoices</div><div class="stat-value">${invoices.length}</div></div>
       <div class="stat-card accent-rose"><div class="stat-label">Pending Count</div><div class="stat-value">${unpaid}</div></div>
       <div class="stat-card accent-emerald"><div class="stat-label">Paid Count</div><div class="stat-value">${paid}</div></div>
       <div class="stat-card accent-amber"><div class="stat-label">Pending Amount</div><div class="stat-value" style="font-size:18px">${money(unpaidSum)}</div></div>
@@ -2507,32 +1900,11 @@ function renderFinance(invoices = FINANCE_INVOICES_CACHE, canEdit = sessionHasRo
     <div class="card">
       <div class="card-title">Invoice Ledger</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Invoice UIN</th><th>Date</th><th>Client Code</th><th>Client</th><th>Docket</th><th>Service Code</th><th>Invoice Amount</th><th>Amount Due</th><th>Status</th>${canEdit?'<th>Actions</th>':''}</tr></thead>
-        <tbody>${rows || `<tr><td colspan="${canEdit ? 10 : 9}" class="text-muted" style="padding:20px;text-align:center">No invoices found.</td></tr>`}</tbody>
+        <thead><tr><th>Invoice #</th><th>Date</th><th>Service</th><th>Amount</th><th>GST</th><th>Total</th><th>Status</th><th>PDF</th>${canEdit?'<th>Actions</th>':''}</tr></thead>
+        <tbody>${rows}</tbody>
       </table></div>
     </div>
-    ${buildPagerControls('finance-invoices', paged, 'renderFinance', 'invoices')}
   </div>`;
-}
-
-function applyFinanceFilters() {
-  FINANCE_FILTERS = {
-    clientCode: document.getElementById('finance-filter-client')?.value.trim().toUpperCase() || '',
-    query: document.getElementById('finance-filter-query')?.value.trim() || '',
-    sortDir: document.getElementById('finance-filter-sort')?.value || 'az',
-  };
-  FILTER_PANEL_STATE.finance = false;
-  const pager = getPagerState('finance-invoices', 10);
-  pager.page = 1;
-  renderFinance();
-}
-
-function resetFinanceFilters() {
-  FINANCE_FILTERS = { clientCode: '', query: '', sortDir: 'az' };
-  FILTER_PANEL_STATE.finance = false;
-  const pager = getPagerState('finance-invoices', 10);
-  pager.page = 1;
-  renderFinance();
 }
 
 async function markPaid(invoiceId, btn) {
@@ -2544,86 +1916,6 @@ async function markPaid(invoiceId, btn) {
   } catch(e) {
     btn.disabled = false; btn.textContent = 'Paid';
     alert('Error: ' + e.message);
-  }
-}
-
-function openInvoicePaymentModal(jsonStr) {
-  const inv = jsonStr ? JSON.parse(jsonStr) : null;
-  if (!inv) return;
-  const invoiceId = getInvoiceUiId(inv);
-  const total = getInvoiceUiTotal(inv);
-  const paidAmount = parseFloat(inv.PAYMENT_AMOUNT || 0) || 0;
-  openGenericModal(`Update Payment — ${escapeHtml(invoiceId)}`, `
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Invoice Amount</label><input class="form-control" id="qp-total" value="${total.toFixed(2)}" readonly /></div>
-      <div class="form-group"><label class="form-label">Amount Paid</label><input type="number" step="0.01" class="form-control" id="qp-paid-amount" value="${paidAmount ? paidAmount.toFixed(2) : ''}" /></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Payment Date</label><input type="date" class="form-control" id="qp-payment-date" value="${inv.PAYMENT_DATE ? new Date(inv.PAYMENT_DATE).toISOString().split('T')[0] : ''}" /></div>
-      <div class="form-group"><label class="form-label">Payment Mode</label><input class="form-control" id="qp-payment-mode" value="${escapeAttr(inv.PAYMENT_MODE || '')}" placeholder="UPI, Bank Transfer, Cash" /></div>
-    </div>
-    <div class="text-muted" style="margin-bottom:12px;font-size:12px">
-      Status will be set automatically:
-      0 = Unpaid, between 0 and invoice amount = Partially Paid, full amount = Paid.
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
-      <button class="btn btn-primary" id="qp-save-btn" onclick="submitQuickInvoicePayment('${escapeAttr(invoiceId)}', ${total})">Save Payment</button>
-    </div>`);
-}
-
-async function submitQuickInvoicePayment(invoiceId, total) {
-  const btn = document.getElementById('qp-save-btn');
-  const paidAmount = parseFloat(document.getElementById('qp-paid-amount')?.value || 0) || 0;
-  if (paidAmount < 0) {
-    alert('Paid amount cannot be negative.');
-    return;
-  }
-  if (paidAmount > total) {
-    alert('Paid amount cannot exceed invoice amount.');
-    return;
-  }
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
-  try {
-    await API.updateInvoicePayment(invoiceId, {
-      PAYMENT_AMOUNT: paidAmount,
-      PAYMENT_DATE: document.getElementById('qp-payment-date')?.value || '',
-      PAYMENT_MODE: document.getElementById('qp-payment-mode')?.value.trim() || '',
-    });
-    closeModal('modal-generic');
-    loadFinance();
-  } catch (e) {
-    alert('Error: ' + e.message);
-    btn.disabled = false;
-    btn.textContent = 'Save Payment';
-  }
-}
-
-async function sendInvoiceNow(invoiceId, btn) {
-  if (!confirm(`Send invoice ${invoiceId} to the client now?`)) return;
-  const oldText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Sending…';
-  try {
-    let result;
-    try {
-      result = await API.sendInvoice(invoiceId);
-    } catch (e) {
-      if (String(e.message || '').toLowerCase().includes('client email not found')) {
-        const manualEmail = prompt('Client email not found. Enter email to send this invoice manually:');
-        if (!manualEmail) throw new Error('Invoice send cancelled.');
-        result = await API.sendInvoice(invoiceId, manualEmail.trim());
-      } else {
-        throw e;
-      }
-    }
-    alert(result.message || 'Invoice sent.');
-  } catch (e) {
-    alert('Error: ' + e.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = oldText;
   }
 }
 
@@ -2671,16 +1963,8 @@ async function loadMgmtUsers() {
   try {
     await ensureClientLookupLoaded();
     await ensureCircleLookupLoaded();
-    MGMT_USERS_CACHE = await API.getUsers(USER_FILTERS);
-    renderMgmtUsers();
-  } catch(e) { mc.innerHTML = err(e.message); }
-}
-
-function renderMgmtUsers() {
-  const mc = document.getElementById('mgmt-content');
-  const sortedUsers = sortItemsBy(MGMT_USERS_CACHE, user => user.FULL_NAME || user.EMAIL || user.USER_ID, USER_FILTERS.sortDir);
-  const paged = paginateItems(sortedUsers, 'mgmt-users', 10);
-  const rows = paged.items.map(u => `<tr>
+    const users = await API.getUsers(USER_FILTERS);
+    const rows = users.map(u => `<tr>
       <td class="font-mono">${u.USER_ID}</td>
       <td>${u.FULL_NAME}</td>
       <td>${u.EMAIL}</td>
@@ -2688,57 +1972,49 @@ function renderMgmtUsers() {
       <td>${statusBadge(u.STATUS)}</td>
       <td><div class="action-row">
         ${String(u.EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase() ? '' : `<button class="btn btn-ghost btn-sm" onclick="openDirectMessageForUser('${escapeAttr(u.EMAIL)}','${escapeAttr(u.FULL_NAME)}')">Message</button>`}
-        ${canImpersonateUsers() && String(u.USER_ID || '') !== String(SESSION.userId || '') ? `<button class="btn btn-ghost btn-sm" onclick="startImpersonation('${u.USER_ID}')">Impersonate</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick='openUserModal(${JSON.stringify(JSON.stringify(u))})'>Edit</button>
         <button class="btn btn-danger btn-sm" onclick="deleteItem('User','${u.USER_ID}')">Del</button>
       </div></td>
     </tr>`).join('');
     mc.innerHTML = `
-    <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.mgmtUsers ? 'open' : ''}" style="margin-bottom:12px">
+    <div class="card" style="margin-bottom:12px">
       <div class="form-row">
         <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="user-search" value="${USER_FILTERS.query || ''}" placeholder="Name, email, ID" /></div>
         <div class="form-group"><label class="form-label">Role</label><select class="form-control" id="user-role-filter">${['','Super Admin','Admin','Galvanizer','Staff','Attorney','Client Admin','Client Employee','Individual Client'].map(v=>`<option value="${v}"${USER_FILTERS.role===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
-        <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="user-sort-filter"><option value="az"${USER_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${USER_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-primary btn-sm" onclick="applyUserFilters()">Apply</button>
         <button class="btn btn-ghost btn-sm" onclick="resetUserFilters()">Reset</button>
       </div>
     </div>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
-      ${renderFilterToggleButton('mgmtUsers')}
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
       <button class="btn btn-primary btn-sm" onclick="openUserModal()">+ New User</button>
     </div>
     <div class="card"><div class="table-wrap"><table>
       <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No users found.</td></tr>'}</tbody>
-    </table></div></div>
-    ${buildPagerControls('mgmt-users', paged, 'renderMgmtUsers', 'users')}`;
+      <tbody>${rows}</tbody>
+    </table></div></div>`;
+  } catch(e) { mc.innerHTML = err(e.message); }
 }
 
 function applyUserFilters() {
   USER_FILTERS = {
     query: document.getElementById('user-search')?.value.trim() || '',
     role: document.getElementById('user-role-filter')?.value || '',
-    sortDir: document.getElementById('user-sort-filter')?.value || 'az',
   };
-  FILTER_PANEL_STATE.mgmtUsers = false;
   loadMgmtUsers();
 }
 
 function resetUserFilters() {
-  USER_FILTERS = { query: '', role: '', sortDir: 'az' };
-  FILTER_PANEL_STATE.mgmtUsers = false;
+  USER_FILTERS = { query: '', role: '' };
   loadMgmtUsers();
 }
 
 async function loadMgmtClients() {
   const mc = document.getElementById('mgmt-content');
   try {
-    MGMT_CLIENTS_CACHE = await API.getClients();
-    return renderMgmtClients();
-    const paged = paginateItems(MGMT_CLIENTS_CACHE, 'mgmt-clients', 10);
-    const rows = paged.items.map(c => `<tr>
+    const clients = await API.getClients();
+    const rows = clients.map(c => `<tr>
       <td class="font-mono">${c.CLIENT_ID}</td>
       <td>${c.CLIENT_NAME}</td>
       <td style="font-size:12px">${c.EMAIL||'—'}</td>
@@ -2754,70 +2030,9 @@ async function loadMgmtClients() {
     </div>
     <div class="card"><div class="table-wrap"><table>
       <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No clients found.</td></tr>'}</tbody>
-    </table></div></div>
-    ${buildPagerControls('mgmt-clients', paged, 'loadMgmtClients', 'clients')}`;
+      <tbody>${rows}</tbody>
+    </table></div></div>`;
   } catch(e) { mc.innerHTML = err(e.message); }
-}
-
-function renderMgmtClients() {
-  const mc = document.getElementById('mgmt-content');
-  const filtered = sortItemsBy((MGMT_CLIENTS_CACHE || []).filter(client => {
-    const query = normalizeAlphaValue(MGMT_CLIENT_FILTERS.query);
-    const haystack = normalizeAlphaValue([client.CLIENT_ID, client.CLIENT_CODE, client.CLIENT_NAME, client.EMAIL].join(' '));
-    if (query && !haystack.includes(query)) return false;
-    if (MGMT_CLIENT_FILTERS.orgId && String(client.ORG_ID || '').toUpperCase() !== String(MGMT_CLIENT_FILTERS.orgId || '').toUpperCase()) return false;
-    return true;
-  }), client => client.CLIENT_NAME || client.CLIENT_ID, MGMT_CLIENT_FILTERS.sortDir);
-  const paged = paginateItems(filtered, 'mgmt-clients', 10);
-  const rows = paged.items.map(c => `<tr>
-    <td class="font-mono">${c.CLIENT_ID}</td>
-    <td>${c.CLIENT_NAME}</td>
-    <td style="font-size:12px">${c.EMAIL||'â€”'}</td>
-    <td>${statusBadge(c.STATUS)}</td>
-    <td><div class="action-row">
-      <button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(c))})'>Edit</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteItem('Client','${c.CLIENT_ID}')">Del</button>
-    </div></td>
-  </tr>`).join('');
-  mc.innerHTML = `
-  <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.mgmtClients ? 'open' : ''}" style="margin-bottom:12px">
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="mgmt-client-query" value="${MGMT_CLIENT_FILTERS.query || ''}" placeholder="Client code, name, email" /></div>
-      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="mgmt-client-org" list="mgmt-client-org-list" value="${escapeAttr(getOrganizationInputValue(MGMT_CLIENT_FILTERS.orgId || ''))}" placeholder="Search organization" /><datalist id="mgmt-client-org-list">${buildOrgOptions(ORG_LOOKUP_CACHE)}</datalist></div>
-      <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="mgmt-client-sort"><option value="az"${MGMT_CLIENT_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${MGMT_CLIENT_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
-    </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-primary btn-sm" onclick="applyMgmtClientFilters()">Apply</button>
-      <button class="btn btn-ghost btn-sm" onclick="resetMgmtClientFilters()">Reset</button>
-    </div>
-  </div>
-  <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
-    ${renderFilterToggleButton('mgmtClients')}
-    <button class="btn btn-primary btn-sm" onclick="openClientModal()">+ New Client</button>
-  </div>
-  <div class="card"><div class="table-wrap"><table>
-    <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No clients found.</td></tr>'}</tbody>
-  </table></div></div>
-  ${buildPagerControls('mgmt-clients', paged, 'renderMgmtClients', 'clients')}`;
-}
-
-function applyMgmtClientFilters() {
-  const org = resolveOrganization(document.getElementById('mgmt-client-org')?.value.trim() || '');
-  MGMT_CLIENT_FILTERS = {
-    query: document.getElementById('mgmt-client-query')?.value.trim() || '',
-    orgId: org?.ORG_ID || '',
-    sortDir: document.getElementById('mgmt-client-sort')?.value || 'az',
-  };
-  FILTER_PANEL_STATE.mgmtClients = false;
-  renderMgmtClients();
-}
-
-function resetMgmtClientFilters() {
-  MGMT_CLIENT_FILTERS = { query: '', orgId: '', sortDir: 'az' };
-  FILTER_PANEL_STATE.mgmtClients = false;
-  renderMgmtClients();
 }
 
 async function loadMgmtCases() {
@@ -2873,7 +2088,8 @@ async function loadMgmtOrganizations(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
     const activeOrg = (orgs || []).find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || null;
     const orgUsers = activeOrg ? await API.getOrganizationUsers(activeOrg.ORG_ID) : [];
     const rows = orgs.map(o => `<tr>
-      <td>${o.ORG_NAME || o.ORG_ID}</td>
+      <td class="font-mono">${o.ORG_ID}</td>
+      <td>${o.ORG_NAME}</td>
       <td>${o.ASSIGNED_STAFF_EMAIL || '—'}</td>
       <td>${statusBadge(o.STATUS || 'Active')}</td>
     </tr>`).join('');
@@ -2882,8 +2098,8 @@ async function loadMgmtOrganizations(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
       <button class="btn btn-primary btn-sm" onclick="openOrganizationPrompt()">+ New Organization</button>
     </div>
     <div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>Organization</th><th>Assigned Staff</th><th>Status</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="3" class="text-muted" style="padding:20px;text-align:center">No organizations found.</td></tr>'}</tbody>
+      <thead><tr><th>ID</th><th>Organization</th><th>Assigned Staff</th><th>Status</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4" class="text-muted" style="padding:20px;text-align:center">No organizations found.</td></tr>'}</tbody>
     </table></div></div>`;
   } catch (e) {
     mc.innerHTML = err(e.message);
@@ -2908,13 +2124,11 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
   try {
     await ensureOrgLookupLoaded(true);
     await ensureClientLookupLoaded();
-    MGMT_ORGS_CACHE = await API.getOrganizations();
+    const orgs = await API.getOrganizations();
     ACTIVE_ORG_VIEW_ID = selectedOrgId || ACTIVE_ORG_VIEW_ID || '';
-    return renderMgmtOrganizations();
-    const activeOrg = (MGMT_ORGS_CACHE || []).find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || null;
+    const activeOrg = (orgs || []).find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || null;
     const orgClients = activeOrg ? (CLIENT_LOOKUP_CACHE || []).filter(client => String(client.ORG_ID || '') === String(activeOrg.ORG_ID)) : [];
-    const paged = paginateItems(MGMT_ORGS_CACHE, 'mgmt-orgs', 10);
-    const rows = paged.items.map(o => `<tr>
+    const rows = orgs.map(o => `<tr>
       <td class="font-mono">${o.ORG_ID}</td>
       <td>${o.ORG_NAME}</td>
       <td>${o.ASSIGNED_STAFF_EMAIL || '—'}</td>
@@ -2938,7 +2152,7 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
       </div>
       <div class="grid-2">
         <div class="card"><div class="table-wrap"><table>
-          <thead><tr><th>Organization</th><th>Assigned Staff</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>ID</th><th>Organization</th><th>Assigned Staff</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>${rows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No organizations found.</td></tr>'}</tbody>
         </table></div></div>
         <div class="card">
@@ -2947,97 +2161,17 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
             ${activeOrg ? `<button class="btn btn-primary btn-sm" onclick="openOrganizationClientModal('${activeOrg.ORG_ID}','${escapeAttr(activeOrg.ORG_NAME || '')}')">+ Add Client</button>` : ''}
           </div>
           ${activeOrg ? `
-            <div class="text-muted" style="margin:10px 0 14px">${activeOrg.PRIMARY_EMAIL || 'No email'} | Staff: ${activeOrg.ASSIGNED_STAFF_EMAIL || 'Unassigned'}</div>
+            <div class="text-muted" style="margin:10px 0 14px">${activeOrg.ORG_ID} | ${activeOrg.PRIMARY_EMAIL || 'No email'} | Staff: ${activeOrg.ASSIGNED_STAFF_EMAIL || 'Unassigned'}</div>
             <div class="table-wrap"><table>
               <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Type</th><th></th></tr></thead>
               <tbody>${userRows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No organization clients yet.</td></tr>'}</tbody>
             </table></div>
           ` : '<div class="text-muted">Select an organization to view or attach clients.</div>'}
         </div>
-      </div>
-      ${buildPagerControls('mgmt-orgs', paged, 'loadMgmtOrganizationsV2', 'organizations')}`;
+      </div>`;
   } catch (e) {
     mc.innerHTML = err(e.message);
   }
-}
-
-function renderMgmtOrganizations() {
-  const mc = document.getElementById('mgmt-content');
-  const filtered = sortItemsBy((MGMT_ORGS_CACHE || []).filter(org => {
-    const query = normalizeAlphaValue(MGMT_ORG_FILTERS.query);
-    const haystack = normalizeAlphaValue([org.ORG_ID, org.ORG_NAME, org.PRIMARY_EMAIL, org.ASSIGNED_STAFF_EMAIL].join(' '));
-    return !query || haystack.includes(query);
-  }), org => org.ORG_NAME || org.ORG_ID, MGMT_ORG_FILTERS.sortDir);
-  const activeOrg = filtered.find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || (MGMT_ORGS_CACHE || []).find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || null;
-  const orgClients = activeOrg ? (CLIENT_LOOKUP_CACHE || []).filter(client => String(client.ORG_ID || '') === String(activeOrg.ORG_ID)) : [];
-  const paged = paginateItems(filtered, 'mgmt-orgs', 10);
-  const rows = paged.items.map(o => `<tr>
-    <td>${o.ORG_NAME || o.ORG_ID}</td>
-    <td>${o.ASSIGNED_STAFF_EMAIL || 'â€”'}</td>
-    <td>${statusBadge(o.STATUS || 'Active')}</td>
-    <td><div class="action-row">
-      <button class="btn btn-ghost btn-sm" onclick='openOrganizationModal(${JSON.stringify(JSON.stringify(o))})'>Edit</button>
-      <button class="btn btn-ghost btn-sm" onclick="loadMgmtOrganizationsV2('${o.ORG_ID}')">Clients</button>
-      <button class="btn btn-primary btn-sm" onclick="openOrganizationClientModal('${o.ORG_ID}','${escapeAttr(o.ORG_NAME || '')}')">+ Add Client</button>
-    </div></td>
-  </tr>`).join('');
-  const userRows = (orgClients || []).map(client => `<tr>
-    <td>${client.CLIENT_ID}</td>
-    <td>${client.CLIENT_NAME}</td>
-    <td>${client.EMAIL || 'â€”'}</td>
-    <td>${statusBadge(client.CLIENT_TYPE || 'Client')}</td>
-    <td><button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(client))})'>Open</button></td>
-  </tr>`).join('');
-  mc.innerHTML = `
-    <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.mgmtOrganizations ? 'open' : ''}" style="margin-bottom:12px">
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="mgmt-org-query" value="${MGMT_ORG_FILTERS.query || ''}" placeholder="Organization, email, staff" /></div>
-        <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="mgmt-org-sort"><option value="az"${MGMT_ORG_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${MGMT_ORG_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary btn-sm" onclick="applyMgmtOrgFilters()">Apply</button>
-        <button class="btn btn-ghost btn-sm" onclick="resetMgmtOrgFilters()">Reset</button>
-      </div>
-    </div>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
-      ${renderFilterToggleButton('mgmtOrganizations')}
-      <button class="btn btn-primary btn-sm" onclick="openOrganizationModal()">+ New Organization</button>
-    </div>
-    <div class="grid-2">
-      <div class="card"><div class="table-wrap"><table>
-        <thead><tr><th>Organization</th><th>Assigned Staff</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="4" class="text-muted" style="padding:20px;text-align:center">No organizations found.</td></tr>'}</tbody>
-      </table></div></div>
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-          <div class="card-title" style="margin-bottom:0">${activeOrg ? `${activeOrg.ORG_NAME} Clients` : 'Organization Clients'}</div>
-          ${activeOrg ? `<button class="btn btn-primary btn-sm" onclick="openOrganizationClientModal('${activeOrg.ORG_ID}','${escapeAttr(activeOrg.ORG_NAME || '')}')">+ Add Client</button>` : ''}
-        </div>
-        ${activeOrg ? `
-          <div class="text-muted" style="margin:10px 0 14px">${activeOrg.PRIMARY_EMAIL || 'No email'} | Staff: ${activeOrg.ASSIGNED_STAFF_EMAIL || 'Unassigned'}</div>
-          <div class="table-wrap"><table>
-            <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Type</th><th></th></tr></thead>
-            <tbody>${userRows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No organization clients yet.</td></tr>'}</tbody>
-          </table></div>
-        ` : '<div class="text-muted">Select an organization to view or attach clients.</div>'}
-      </div>
-    </div>
-    ${buildPagerControls('mgmt-orgs', paged, 'renderMgmtOrganizations', 'organizations')}`;
-}
-
-function applyMgmtOrgFilters() {
-  MGMT_ORG_FILTERS = {
-    query: document.getElementById('mgmt-org-query')?.value.trim() || '',
-    sortDir: document.getElementById('mgmt-org-sort')?.value || 'az',
-  };
-  FILTER_PANEL_STATE.mgmtOrganizations = false;
-  renderMgmtOrganizations();
-}
-
-function resetMgmtOrgFilters() {
-  MGMT_ORG_FILTERS = { query: '', sortDir: 'az' };
-  FILTER_PANEL_STATE.mgmtOrganizations = false;
-  renderMgmtOrganizations();
 }
 
 async function openOrganizationModal(jsonStr) {
@@ -3143,719 +2277,6 @@ function formatChatTime(value) {
     ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : d.toLocaleDateString([], { day: '2-digit', month: 'short' });
 }
-
-async function loadStreamSdk() {
-  if (window.__STREAM_CHAT_CTOR__) return window.__STREAM_CHAT_CTOR__;
-  if (window.streamChat?.StreamChat) {
-    window.__STREAM_CHAT_CTOR__ = window.streamChat.StreamChat;
-    return window.__STREAM_CHAT_CTOR__;
-  }
-  if (window.StreamChat) {
-    window.__STREAM_CHAT_CTOR__ = window.StreamChat;
-    return window.__STREAM_CHAT_CTOR__;
-  }
-  const mod = await import('https://esm.sh/stream-chat@9?bundle');
-  window.__STREAM_CHAT_CTOR__ = mod.StreamChat || mod.default?.StreamChat || mod.default || null;
-  return window.__STREAM_CHAT_CTOR__;
-}
-
-async function disconnectStreamMessaging() {
-  if (STREAM_STATE.unsubscribe && typeof STREAM_STATE.unsubscribe.unsubscribe === 'function') {
-    try { STREAM_STATE.unsubscribe.unsubscribe(); } catch {}
-  }
-  STREAM_STATE.unsubscribe = null;
-  if (STREAM_STATE.client && typeof STREAM_STATE.client.disconnectUser === 'function') {
-    try { await STREAM_STATE.client.disconnectUser(); } catch {}
-  }
-  STREAM_STATE.client = null;
-  STREAM_STATE.auth = null;
-  STREAM_STATE.channels = [];
-  STREAM_STATE.activeChannel = null;
-  STREAM_STATE.pendingFile = null;
-  STREAM_STATE.pendingPoll = null;
-  STREAM_STATE.typingTimeout = null;
-  STREAM_STATE.draftText = '';
-  STREAM_STATE.contextMenu = { messageId: '', mode: '' };
-}
-
-function canModerateStreamMessages() {
-  return sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer']);
-}
-
-function getStreamChannelMeta(channel) {
-  const state = channel?.state || {};
-  const messages = state.messages || [];
-  const lastMessage = messages[messages.length - 1] || null;
-  const currentUserId = STREAM_STATE.auth?.user?.id;
-  const otherMembers = Object.values(state.members || {}).filter((member) => member.user?.id !== currentUserId);
-  const memberNames = otherMembers.map((member) => member.user?.name || member.user?.email || member.user?.id).filter(Boolean);
-  const title = channel?.data?.name || memberNames.join(', ') || 'Untitled chat';
-  const typingUsers = Object.values(state.typing || {}).filter((entry) => entry?.user?.id && entry.user.id !== currentUserId);
-  return {
-    state,
-    messages,
-    lastMessage,
-    otherMembers,
-    memberNames,
-    title,
-    isGroup: Number(channel?.data?.member_count || Object.keys(state.members || {}).length || 0) > 2,
-    typingUsers,
-  };
-}
-
-function buildStreamUserLookup() {
-  const map = new Map();
-  getInternalStreamCandidates().forEach((user) => {
-    const streamId = buildStreamUserIdForDirectory(user);
-    map.set(streamId, user);
-    map.set(String(user.EMAIL || '').toLowerCase(), user);
-  });
-  return map;
-}
-
-function getStreamMentionTargets(channel) {
-  const lookup = buildStreamUserLookup();
-  const currentUserId = STREAM_STATE.auth?.user?.id;
-  return Object.values(channel?.state?.members || {})
-    .map((member) => member.user)
-    .filter((user) => user?.id && user.id !== currentUserId)
-    .map((user) => {
-      const directory = lookup.get(user.id) || lookup.get(String(user.email || '').toLowerCase()) || {};
-      return {
-        id: user.id,
-        name: user.name || directory.FULL_NAME || user.email || user.id,
-        email: user.email || directory.EMAIL || '',
-      };
-    });
-}
-
-function parseStreamMentionedUsers(text, channel) {
-  const targets = getStreamMentionTargets(channel);
-  const lowerText = String(text || '').toLowerCase();
-  return targets
-    .filter((target) => lowerText.includes(`@${String(target.email || '').toLowerCase()}`))
-    .map((target) => ({ id: target.id, name: target.name }));
-}
-
-function getStreamReadSummary(channel, message) {
-  if (!message?.created_at) return '';
-  const createdAt = new Date(message.created_at).getTime();
-  if (!createdAt) return '';
-  const readers = Object.values(channel?.state?.read || {})
-    .filter((entry) => entry?.user?.id && entry.user.id !== STREAM_STATE.auth?.user?.id)
-    .filter((entry) => new Date(entry.last_read || 0).getTime() >= createdAt)
-    .map((entry) => entry.user?.name || entry.user?.email || entry.user?.id)
-    .filter(Boolean);
-  if (!readers.length) return '';
-  return `Read by ${readers.join(', ')}`;
-}
-
-function getStreamPollAttachment(message) {
-  return (message?.attachments || []).find((attachment) => attachment?.type === 'portal_poll') || null;
-}
-
-function getStreamPollVotes(message, attachment) {
-  const votes = {};
-  (attachment?.options || []).forEach((option) => {
-    votes[option.id] = 0;
-  });
-  (message?.latest_reactions || []).forEach((reaction) => {
-    const match = String(reaction.type || '').match(/^poll_(.+)$/);
-    if (match && Object.prototype.hasOwnProperty.call(votes, match[1])) {
-      votes[match[1]] += 1;
-    }
-  });
-  return votes;
-}
-
-function hasOwnStreamReaction(message, reactionType) {
-  const own = message?.own_reactions || [];
-  return own.some((reaction) => String(reaction.type || '') === String(reactionType || ''));
-}
-
-function renderStreamPoll(message) {
-  const attachment = getStreamPollAttachment(message);
-  if (!attachment) return '';
-  const votes = getStreamPollVotes(message, attachment);
-  const totalVotes = Object.values(votes).reduce((sum, count) => sum + count, 0);
-  const options = (attachment.options || []).map((option) => {
-    const count = votes[option.id] || 0;
-    const active = hasOwnStreamReaction(message, `poll_${option.id}`);
-    return `
-      <button class="stream-poll-option ${active ? 'active' : ''}" onclick="voteStreamPoll('${escapeAttr(message.id)}','${escapeAttr(option.id)}')">
-        <span>${option.label}</span>
-        <span>${count}</span>
-      </button>`;
-  }).join('');
-  return `
-    <div class="stream-poll">
-      <div class="stream-poll-question">${attachment.question || 'Poll'}</div>
-      <div class="stream-poll-options">${options}</div>
-      <div class="stream-poll-total">${totalVotes} vote${totalVotes === 1 ? '' : 's'}</div>
-    </div>`;
-}
-
-function renderStreamAttachments(message) {
-  const attachments = (message?.attachments || []).filter((attachment) => attachment?.type !== 'portal_poll');
-  if (!attachments.length) return '';
-  return `
-    <div class="stream-attachments">
-      ${attachments.map((attachment) => {
-        const url = attachment.asset_url || attachment.image_url || attachment.thumb_url || attachment.title_link || attachment.og_scrape_url || '';
-        const title = attachment.title || attachment.name || attachment.fallback || 'Attachment';
-        if (attachment.type === 'image' && url) {
-          return `<a class="stream-image-attachment" href="${escapeAttr(url)}" target="_blank" rel="noopener"><img src="${escapeAttr(url)}" alt="${escapeAttr(title)}" /></a>`;
-        }
-        return `<a class="stream-file-attachment" href="${escapeAttr(url)}" target="_blank" rel="noopener">${title}</a>`;
-      }).join('')}
-    </div>`;
-}
-
-function renderStreamReactionBar(message) {
-  const options = [
-    { type: 'love', label: '❤️' },
-    { type: 'like', label: '👍' },
-    { type: 'fire', label: '🔥' },
-    { type: 'smile', label: '😄' },
-  ];
-  return `
-    <div class="stream-reaction-row">
-      ${options.map((option) => `<button class="stream-reaction-btn ${hasOwnStreamReaction(message, option.type) ? 'active' : ''}" onclick="toggleStreamReaction('${escapeAttr(message.id)}','${option.type}')">${option.label}</button>`).join('')}
-    </div>`;
-}
-
-function openStreamMessageContext(messageId, mode, event) {
-  if (event) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
-  if (!messageId) return;
-  const sameMessage = STREAM_STATE.contextMenu?.messageId === messageId;
-  const currentMode = sameMessage ? STREAM_STATE.contextMenu?.mode : '';
-  const nextMode = currentMode === mode ? '' : mode;
-  STREAM_STATE.contextMenu = nextMode ? { messageId, mode: nextMode } : { messageId: '', mode: '' };
-  renderStreamActiveChannel();
-}
-
-function handleStreamMessageContext(messageId, event) {
-  openStreamMessageContext(messageId, 'reactions', event);
-}
-
-function handleStreamMessageDeleteContext(messageId, event) {
-  openStreamMessageContext(messageId, 'delete', event);
-}
-
-async function ensureStreamMessagingClient() {
-  if (!canAccessStreamMessaging()) {
-    throw new Error('Stream messaging is available only for internal users.');
-  }
-  const StreamChatCtor = await loadStreamSdk();
-  if (!StreamChatCtor) {
-    throw new Error('Stream Chat SDK failed to load.');
-  }
-  if (STREAM_STATE.client && STREAM_STATE.auth) {
-    return STREAM_STATE.client;
-  }
-
-  const auth = await API.getStreamAuth();
-  const apiKey = auth.apiKey || window.APP_CONFIG?.streamApiKey || '';
-  if (!apiKey) {
-    throw new Error('Stream API key is not configured.');
-  }
-
-  const client = StreamChatCtor.getInstance ? StreamChatCtor.getInstance(apiKey) : new StreamChatCtor(apiKey);
-  await client.connectUser(auth.user, auth.token);
-  STREAM_STATE.client = client;
-  STREAM_STATE.auth = auth;
-  if (STREAM_STATE.unsubscribe && typeof STREAM_STATE.unsubscribe.unsubscribe === 'function') {
-    try { STREAM_STATE.unsubscribe.unsubscribe(); } catch {}
-  }
-  STREAM_STATE.unsubscribe = client.on((event) => {
-    if (CURRENT_PAGE !== 'stream') return;
-    if (['message.new', 'notification.message_new', 'channel.updated', 'channel.deleted', 'notification.added_to_channel', 'message.updated', 'message.deleted', 'reaction.new', 'reaction.deleted', 'message.read', 'channel.truncated'].includes(event.type)) {
-      refreshStreamChannelList(false);
-    }
-    if (STREAM_STATE.activeChannel && event.cid === STREAM_STATE.activeChannel.cid && ['typing.start', 'typing.stop'].includes(event.type)) {
-      const typingLabel = Object.values(STREAM_STATE.activeChannel.state?.typing || {})
-        .filter((entry) => entry?.user?.id && entry.user.id !== STREAM_STATE.auth?.user?.id)
-        .map((entry) => entry.user?.name || entry.user?.email || 'User')
-        .join(', ');
-      const labelNode = document.getElementById('stream-typing-label');
-      if (labelNode) {
-        labelNode.textContent = typingLabel ? `${typingLabel} typing…` : '';
-      }
-    }
-    if (STREAM_STATE.activeChannel && event.cid === STREAM_STATE.activeChannel.cid && !['typing.start', 'typing.stop'].includes(event.type)) {
-      renderStreamActiveChannel();
-    }
-  });
-  return client;
-}
-
-function getInternalStreamCandidates() {
-  const selfEmail = String(SESSION?.email || '').toLowerCase();
-  return (USER_LOOKUP_CACHE || [])
-    .filter((user) => String(user.EMAIL || '').toLowerCase() !== selfEmail)
-    .filter((user) => isInternalUserRole(user.ROLE || '') || getEffectiveRoleList(user).some((role) => ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'].includes(role)))
-    .sort((a, b) => String(a.FULL_NAME || a.EMAIL || '').localeCompare(String(b.FULL_NAME || b.EMAIL || ''), undefined, { sensitivity: 'base' }));
-}
-
-function buildStreamUserIdForDirectory(user) {
-  if (user?.USER_ID) return `user_${String(user.USER_ID).replace(/[^A-Za-z0-9_-]/g, '_')}`;
-  return `email_${String(user?.EMAIL || '').toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`;
-}
-
-async function refreshStreamChannelList(keepSelection = true) {
-  const client = await ensureStreamMessagingClient();
-  const userId = STREAM_STATE.auth?.user?.id;
-  const channels = await client.queryChannels(
-    { type: 'messaging', members: { $in: [userId] } },
-    { last_message_at: -1 },
-    { watch: true, state: true, limit: 30 }
-  );
-  const previousCid = keepSelection ? STREAM_STATE.activeChannel?.cid : '';
-  STREAM_STATE.channels = channels || [];
-  if (previousCid) {
-    STREAM_STATE.activeChannel = STREAM_STATE.channels.find((channel) => channel.cid === previousCid) || STREAM_STATE.activeChannel;
-  }
-  if (!STREAM_STATE.activeChannel && STREAM_STATE.channels.length) {
-    STREAM_STATE.activeChannel = STREAM_STATE.channels[0];
-  }
-  renderStreamChannelList();
-  renderStreamActiveChannel();
-}
-
-function renderStreamChannelList() {
-  const target = document.getElementById('stream-channel-list');
-  if (!target) return;
-  const rows = (STREAM_STATE.channels || []).map((channel) => {
-    const meta = getStreamChannelMeta(channel);
-    const subtitle = meta.typingUsers.length
-      ? `${meta.typingUsers.map((entry) => entry.user?.name || entry.user?.email || 'User').join(', ')} typing…`
-      : (meta.lastMessage?.text || (meta.lastMessage?.attachments?.some((attachment) => attachment?.type === 'portal_poll') ? 'Poll' : 'No messages yet.'));
-    const unreadCount = Number(channel?.countUnread?.() || channel?.state?.unreadCount || 0);
-    return `
-      <button class="chat-list-item ${STREAM_STATE.activeChannel?.cid === channel.cid ? 'active' : ''}" onclick="openStreamChannel('${escapeAttr(channel.cid)}')">
-        <div class="chat-avatar">${String(meta.title || 'U').slice(0, 1).toUpperCase()}</div>
-        <div class="chat-meta">
-          <div class="chat-head">
-            <div class="chat-name">${meta.title}</div>
-            <div class="chat-time">${formatChatTime(meta.lastMessage?.created_at)}</div>
-          </div>
-          <div class="chat-preview-row">
-            <div class="chat-preview">${truncateText(subtitle, 54)}</div>
-            ${unreadCount ? `<span class="chat-unread">${unreadCount}</span>` : ''}
-          </div>
-          <div class="stream-channel-meta">
-            <span class="stream-channel-pill">${meta.isGroup ? 'Group' : 'Direct'}</span>
-            <span class="stream-channel-pill">${Object.keys(meta.state.members || {}).length} member${Object.keys(meta.state.members || {}).length === 1 ? '' : 's'}</span>
-          </div>
-        </div>
-      </button>`;
-  }).join('');
-  target.innerHTML = rows || '<div class="empty-state"><p>No Stream conversations yet.</p></div>';
-}
-
-function renderStreamActiveChannel() {
-  const target = document.getElementById('stream-active-panel');
-  if (!target) return;
-  const channel = STREAM_STATE.activeChannel;
-  if (!channel) {
-    target.innerHTML = '<div class="text-muted" style="padding:24px">Select a Stream conversation to start messaging.</div>';
-    return;
-  }
-  const meta = getStreamChannelMeta(channel);
-  const mentionTargets = getStreamMentionTargets(channel);
-  const typingLabel = meta.typingUsers.length
-    ? `${meta.typingUsers.map((entry) => entry.user?.name || entry.user?.email || 'User').join(', ')} typing…`
-    : (meta.isGroup ? `${Object.keys(meta.state.members || {}).length} members` : (meta.otherMembers[0]?.user?.email || 'Direct stream conversation'));
-  const items = meta.messages.map((message) => {
-    const mine = message.user?.id === STREAM_STATE.auth?.user?.id;
-    const canDelete = mine || canModerateStreamMessages();
-    const readSummary = mine ? getStreamReadSummary(channel, message) : '';
-    const isReactionMenuOpen = STREAM_STATE.contextMenu?.messageId === message.id && STREAM_STATE.contextMenu?.mode === 'reactions';
-    const isDeleteMenuOpen = STREAM_STATE.contextMenu?.messageId === message.id && STREAM_STATE.contextMenu?.mode === 'delete';
-    return `
-      <div class="stream-message-row ${mine ? 'mine' : ''}">
-        <div class="stream-message-card" oncontextmenu="handleStreamMessageContext('${escapeAttr(message.id)}', event)" ondblclick="handleStreamMessageDeleteContext('${escapeAttr(message.id)}', event)">
-          <div class="stream-message-author">${mine ? 'You' : (message.user?.name || 'User')}</div>
-          ${message.text ? `<div class="stream-message-text">${message.text}</div>` : ''}
-          ${renderStreamAttachments(message)}
-          ${renderStreamPoll(message)}
-          ${isReactionMenuOpen ? renderStreamReactionBar(message) : ''}
-          <div class="stream-message-foot">
-            <span>${formatChatTime(message.created_at)}</span>
-            ${readSummary ? `<span>${readSummary}</span>` : ''}
-          </div>
-          ${isDeleteMenuOpen && canDelete ? `<div class="stream-message-actions"><button class="btn btn-ghost btn-sm" onclick="deleteStreamMessageAction('${escapeAttr(message.id)}', ${mine ? 'true' : 'false'})">Delete</button></div>` : ''}
-        </div>
-      </div>`;
-  }).join('');
-  const pendingFileName = STREAM_STATE.pendingFile?.name ? `<span class="stream-chip">File: ${STREAM_STATE.pendingFile.name}</span>` : '';
-  const pendingPollName = STREAM_STATE.pendingPoll?.question ? `<span class="stream-chip">Poll: ${STREAM_STATE.pendingPoll.question}</span>` : '';
-  target.innerHTML = `
-    <div class="stream-panel-inner">
-      <div class="inbox-chat-head">
-        <div>
-          <div class="card-title" style="margin-bottom:2px">${meta.title}</div>
-          <div class="text-muted" id="stream-typing-label" style="font-size:12px">${typingLabel}</div>
-        </div>
-        <div class="stream-header-actions">
-          <button class="btn btn-ghost btn-sm" onclick="openStreamPollModal()">Poll</button>
-          <button class="btn btn-ghost btn-sm" onclick="openStreamMentionMenu()">Mention</button>
-          <button class="btn btn-ghost btn-sm" onclick="triggerStreamAttachment()">Attach</button>
-          ${canModerateStreamMessages() ? `<button class="btn btn-ghost btn-sm" onclick="clearActiveStreamChat()">Clear Chat</button>` : ''}
-        </div>
-      </div>
-      <div class="stream-mention-strip">
-        ${mentionTargets.map((target) => `<button class="stream-mention-btn" onclick="insertStreamMention('${escapeAttr(target.email)}')">@${target.name}</button>`).join('')}
-      </div>
-      <div class="stream-thread" id="stream-message-thread">${items || '<div class="text-muted" style="padding:12px">No messages yet.</div>'}</div>
-      <div class="stream-pending-bar">${pendingFileName}${pendingPollName}</div>
-      <div class="stream-composer">
-        <textarea class="form-control" id="stream-message-input" rows="3" placeholder="Type a message. Use @email for mentions" oninput="handleStreamComposerInput()" onkeydown="handleStreamComposerKeydown(event)">${escapeAttr(STREAM_STATE.draftText || '')}</textarea>
-        <input type="file" id="stream-file-input" style="display:none" onchange="handleStreamAttachmentSelected(event)" />
-        <button class="btn btn-primary" style="align-self:flex-end" onclick="sendStreamMessage()">Send</button>
-      </div>
-    </div>`;
-  const thread = document.getElementById('stream-message-thread');
-  if (thread) thread.scrollTop = thread.scrollHeight;
-}
-
-async function openStreamChannel(cid) {
-  const channel = (STREAM_STATE.channels || []).find((item) => item.cid === cid);
-  if (!channel) return;
-  STREAM_STATE.activeChannel = channel;
-  STREAM_STATE.draftText = '';
-  await channel.watch();
-  renderStreamChannelList();
-  renderStreamActiveChannel();
-}
-
-async function sendStreamMessage() {
-  const channel = STREAM_STATE.activeChannel;
-  const input = document.getElementById('stream-message-input');
-  const text = String(input?.value || STREAM_STATE.draftText || '').trim();
-  if (!channel) return;
-  const attachments = [];
-  if (STREAM_STATE.pendingFile) {
-    const uploaded = await channel.sendFile(STREAM_STATE.pendingFile, STREAM_STATE.pendingFile.name, STREAM_STATE.pendingFile.type);
-    attachments.push({
-      type: String(STREAM_STATE.pendingFile.type || '').startsWith('image/') ? 'image' : 'file',
-      asset_url: uploaded.file || uploaded.file_url || uploaded.url || '',
-      title: STREAM_STATE.pendingFile.name,
-      mime_type: STREAM_STATE.pendingFile.type || '',
-      file_size: STREAM_STATE.pendingFile.size || 0,
-    });
-  }
-  if (STREAM_STATE.pendingPoll) {
-    attachments.push({
-      type: 'portal_poll',
-      question: STREAM_STATE.pendingPoll.question,
-      options: STREAM_STATE.pendingPoll.options,
-    });
-  }
-  const mentionedUsers = parseStreamMentionedUsers(text, channel);
-  if (!text && !attachments.length) return;
-  await channel.sendMessage({
-    text,
-    attachments,
-    mentioned_users: mentionedUsers.map((item) => item.id),
-  });
-  if (input) input.value = '';
-  STREAM_STATE.draftText = '';
-  STREAM_STATE.pendingFile = null;
-  STREAM_STATE.pendingPoll = null;
-  renderStreamActiveChannel();
-}
-
-function filterStreamChannels() {
-  const query = String(document.getElementById('stream-channel-search')?.value || '').trim().toLowerCase();
-  document.querySelectorAll('#stream-channel-list .chat-list-item').forEach((item) => {
-    item.style.display = !query || item.textContent.toLowerCase().includes(query) ? '' : 'none';
-  });
-}
-
-async function openStreamNewChatModal() {
-  await ensureUserLookupLoaded();
-  const options = getInternalStreamCandidates().map((user) => {
-    const label = [user.FULL_NAME || user.EMAIL, user.EMAIL].filter(Boolean).join(' | ');
-    return `<option value="${escapeAttr(user.EMAIL || '')}">${label}</option>`;
-  }).join('');
-  openGenericModal('New Stream Conversation', `
-    <div class="form-group">
-      <label class="form-label">Recipient</label>
-      <input class="form-control" id="stream-recipient" list="stream-recipient-list" placeholder="Search internal user email" />
-      <datalist id="stream-recipient-list">${options}</datalist>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
-      <button class="btn btn-primary" onclick="createStreamConversation()">Open Conversation</button>
-    </div>`);
-}
-
-function buildStreamDirectoryCheckboxes() {
-  return getInternalStreamCandidates().map((user) => {
-    const label = `${user.FULL_NAME || user.EMAIL} (${user.EMAIL})`;
-    return `<label class="stream-picker-option"><input type="checkbox" value="${escapeAttr(user.EMAIL || '')}" /> <span>${label}</span></label>`;
-  }).join('');
-}
-
-async function openStreamNewGroupModal() {
-  await ensureUserLookupLoaded();
-  openGenericModal('New Stream Group', `
-    <div class="form-group">
-      <label class="form-label">Group Name</label>
-      <input class="form-control" id="stream-group-name" placeholder="Product Team / Filing Desk" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Members</label>
-      <div class="stream-picker-list" id="stream-group-member-list">${buildStreamDirectoryCheckboxes()}</div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
-      <button class="btn btn-primary" onclick="createStreamGroupConversation()">Create Group</button>
-    </div>`);
-}
-
-async function createStreamConversation() {
-  const recipientEmail = String(document.getElementById('stream-recipient')?.value || '').trim().toLowerCase();
-  return createStreamConversationForEmail(recipientEmail);
-}
-
-async function createStreamConversationForEmail(recipientEmail) {
-  const recipient = getInternalStreamCandidates().find((user) => String(user.EMAIL || '').toLowerCase() === recipientEmail);
-  if (!recipient) {
-    alert('Select a valid internal user.');
-    return;
-  }
-  const client = await ensureStreamMessagingClient();
-  const selfId = STREAM_STATE.auth.user.id;
-  const recipientId = buildStreamUserIdForDirectory(recipient);
-  await API.ensureStreamUsers([{
-    id: recipientId,
-    name: recipient.FULL_NAME || recipient.EMAIL || recipientId,
-    email: recipient.EMAIL || '',
-    role: recipient.ROLE || '',
-    additionalRoles: recipient.ADDITIONAL_ROLES || '',
-    userId: recipient.USER_ID || '',
-  }]);
-  const memberIds = [selfId, recipientId].sort();
-  const channelId = `dm_${memberIds.join('__')}`;
-  const channel = client.channel('messaging', channelId, {
-    members: [selfId, recipientId],
-    name: recipient.FULL_NAME || recipient.EMAIL || 'Direct Message',
-  });
-  await channel.watch();
-  closeModal('modal-generic');
-  await refreshStreamChannelList(false);
-  await openStreamChannel(channel.cid);
-}
-
-async function createStreamGroupConversation() {
-  const name = String(document.getElementById('stream-group-name')?.value || '').trim();
-  const selected = Array.from(document.querySelectorAll('#stream-group-member-list input[type="checkbox"]:checked')).map((input) => String(input.value || '').trim().toLowerCase());
-  if (!name) {
-    alert('Enter a group name.');
-    return;
-  }
-  if (!selected.length) {
-    alert('Select at least one member.');
-    return;
-  }
-  const recipients = getInternalStreamCandidates().filter((user) => selected.includes(String(user.EMAIL || '').toLowerCase()));
-  if (!recipients.length) {
-    alert('Select valid internal users.');
-    return;
-  }
-  const client = await ensureStreamMessagingClient();
-  const selfId = STREAM_STATE.auth.user.id;
-  const payloadUsers = recipients.map((recipient) => ({
-    id: buildStreamUserIdForDirectory(recipient),
-    name: recipient.FULL_NAME || recipient.EMAIL || recipient.USER_ID || '',
-    email: recipient.EMAIL || '',
-    role: recipient.ROLE || '',
-    additionalRoles: recipient.ADDITIONAL_ROLES || '',
-    userId: recipient.USER_ID || '',
-  }));
-  await API.ensureStreamUsers(payloadUsers);
-  const memberIds = [selfId].concat(payloadUsers.map((item) => item.id));
-  const channelId = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const channel = client.channel('messaging', channelId, {
-    members: Array.from(new Set(memberIds)),
-    name,
-  });
-  await channel.watch();
-  closeModal('modal-generic');
-  await refreshStreamChannelList(false);
-  await openStreamChannel(channel.cid);
-}
-
-function handleStreamComposerInput() {
-  const input = document.getElementById('stream-message-input');
-  STREAM_STATE.draftText = String(input?.value || '');
-  const channel = STREAM_STATE.activeChannel;
-  if (!channel || typeof channel.keystroke !== 'function') return;
-  channel.keystroke();
-  if (STREAM_STATE.typingTimeout) {
-    clearTimeout(STREAM_STATE.typingTimeout);
-  }
-  STREAM_STATE.typingTimeout = setTimeout(() => {
-    try { channel.stopTyping?.(); } catch {}
-  }, 1600);
-}
-
-function handleStreamComposerKeydown(event) {
-  if (event && event.ctrlKey && event.key === 'Enter') {
-    event.preventDefault();
-    sendStreamMessage();
-  }
-}
-
-function triggerStreamAttachment() {
-  document.getElementById('stream-file-input')?.click();
-}
-
-function handleStreamAttachmentSelected(event) {
-  STREAM_STATE.pendingFile = event?.target?.files?.[0] || null;
-  renderStreamActiveChannel();
-}
-
-function insertStreamMention(email) {
-  const input = document.getElementById('stream-message-input');
-  if (!input) return;
-  input.value = `${String(input.value || '').trim()} @${email} `.trimStart();
-  STREAM_STATE.draftText = input.value;
-  input.focus();
-}
-
-function openStreamMentionMenu() {
-  const channel = STREAM_STATE.activeChannel;
-  if (!channel) return;
-  const options = getStreamMentionTargets(channel).map((target) => `<button class="chat-list-item" style="margin-bottom:8px" onclick="insertStreamMention('${escapeAttr(target.email)}');closeModal('modal-generic')"><div class="chat-avatar">${String(target.name || 'U').slice(0,1).toUpperCase()}</div><div class="chat-meta"><div class="chat-name">${target.name}</div><div class="chat-preview">@${target.email}</div></div></button>`).join('');
-  openGenericModal('Mention User', `<div>${options || '<div class="text-muted">No other members in this conversation.</div>'}</div>`);
-}
-
-function openStreamPollModal() {
-  if (!STREAM_STATE.activeChannel) return;
-  openGenericModal('Create Poll', `
-    <div class="form-group"><label class="form-label">Question</label><input class="form-control" id="stream-poll-question" placeholder="What should we prioritize next?" /></div>
-    <div class="form-group"><label class="form-label">Options</label><textarea class="form-control" id="stream-poll-options" rows="5" placeholder="One option per line"></textarea></div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
-      <button class="btn btn-primary" onclick="savePendingStreamPoll()">Add Poll</button>
-    </div>`);
-}
-
-function savePendingStreamPoll() {
-  const question = String(document.getElementById('stream-poll-question')?.value || '').trim();
-  const options = String(document.getElementById('stream-poll-options')?.value || '')
-    .split(/\r?\n/)
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .slice(0, 6)
-    .map((label, index) => ({ id: `${Date.now()}_${index + 1}`, label }));
-  if (!question || options.length < 2) {
-    alert('Enter a question and at least two options.');
-    return;
-  }
-  STREAM_STATE.pendingPoll = { question, options };
-  closeModal('modal-generic');
-  renderStreamActiveChannel();
-}
-
-async function voteStreamPoll(messageId, optionId) {
-  const channel = STREAM_STATE.activeChannel;
-  if (!channel) return;
-  const reactionType = `poll_${optionId}`;
-  const activeMessage = (channel.state.messages || []).find((message) => message.id === messageId);
-  const existing = activeMessage?.own_reactions?.find((reaction) => String(reaction.type || '').startsWith('poll_'));
-  if (existing && existing.type === reactionType) {
-    await channel.deleteReaction(messageId, reactionType);
-  } else {
-    if (existing) {
-      await channel.deleteReaction(messageId, existing.type);
-    }
-    await channel.sendReaction(messageId, { type: reactionType });
-  }
-  await openStreamChannel(channel.cid);
-}
-
-async function toggleStreamReaction(messageId, reactionType) {
-  const channel = STREAM_STATE.activeChannel;
-  if (!channel) return;
-  const activeMessage = (channel.state.messages || []).find((message) => message.id === messageId);
-  const hasOwn = activeMessage?.own_reactions?.some((reaction) => String(reaction.type || '') === reactionType);
-  if (hasOwn) {
-    await channel.deleteReaction(messageId, reactionType);
-  } else {
-    await channel.sendReaction(messageId, { type: reactionType });
-  }
-  await openStreamChannel(channel.cid);
-}
-
-async function deleteStreamMessageAction(messageId, mine) {
-  const channel = STREAM_STATE.activeChannel;
-  if (!channel || !messageId) return;
-  if (!confirm('Delete this message?')) return;
-  if (mine) {
-    await STREAM_STATE.client.deleteMessage(messageId);
-  } else {
-    await API.deleteStreamMessage(messageId);
-  }
-  STREAM_STATE.contextMenu = { messageId: '', mode: '' };
-  await openStreamChannel(channel.cid);
-}
-
-async function clearActiveStreamChat() {
-  const channel = STREAM_STATE.activeChannel;
-  if (!channel) return;
-  if (!canModerateStreamMessages()) {
-    alert('Only Admin or Super Admin can clear chats.');
-    return;
-  }
-  if (!confirm('Clear this chat for all members? This will remove message history from the channel.')) return;
-  await API.clearStreamChannel(channel.cid);
-  await refreshStreamChannelList(false);
-}
-
-async function loadStreamMessaging() {
-  destroyCharts();
-  try {
-    if (!canAccessStreamMessaging()) {
-      document.getElementById('page-content').innerHTML = `<div class="page"><div class="card"><div class="text-muted">Stream messaging is available only for internal staff.</div></div></div>`;
-      return;
-    }
-    await ensureUserLookupLoaded();
-    setTopbarActions(`<button class="btn btn-ghost btn-sm" onclick="refreshStreamChannelList(false)">Refresh</button><button class="btn btn-ghost btn-sm" onclick="openStreamNewGroupModal()">+ New Group</button><button class="btn btn-primary btn-sm" onclick="openStreamNewChatModal()">+ New Stream Chat</button>`);
-    document.getElementById('page-content').innerHTML = `
-      <div class="page">
-        <div class="stream-layout">
-          <div class="card stream-sidebar">
-            <div class="inbox-sidebar-head">
-              <div class="card-title">Stream Channels</div>
-              <div class="stream-header-actions">
-                <button class="btn btn-ghost btn-sm" onclick="openStreamNewGroupModal()">Group</button>
-                <button class="btn btn-ghost btn-sm" onclick="openStreamNewChatModal()">Direct</button>
-              </div>
-            </div>
-            <div class="form-group" style="margin-bottom:12px">
-              <input class="form-control" id="stream-channel-search" placeholder="Search channels or people" oninput="filterStreamChannels()" />
-            </div>
-            <div class="stream-channel-list" id="stream-channel-list"><div class="loading-wrap"><div class="spinner"></div><span>Loading…</span></div></div>
-          </div>
-          <div class="card stream-panel" id="stream-active-panel"><div class="text-muted" style="padding:24px">Loading Stream conversations…</div></div>
-        </div>
-      </div>`;
-    await refreshStreamChannelList(false);
-  } catch (e) {
-    document.getElementById('page-content').innerHTML = err(e.message);
-  }
-}
-
-window.StreamMessaging = {
-  disconnect: disconnectStreamMessaging,
-};
 
 async function loadInbox() {
   destroyCharts();
@@ -4182,12 +2603,13 @@ async function createDirectMessage() {
 
 async function openDirectMessageForUser(email, name = '') {
   await ensureUserLookupLoaded();
-  showPage('stream');
-  setTimeout(() => {
-    createStreamConversationForEmail(String(email || '').trim().toLowerCase()).catch((error) => {
-      alert(error?.message || 'Unable to open Stream conversation.');
-    });
-  }, 50);
+  openGenericModal(`Message ${name || email}`, `
+    <div class="form-group"><label class="form-label">Recipient</label><input class="form-control" id="direct-recipient" value="${escapeAttr(email)}" readonly /></div>
+    <div class="form-group"><label class="form-label">Conversation Title</label><input class="form-control" id="direct-title" value="${escapeAttr(name ? `Direct: ${name}` : 'Direct conversation')}" /></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitDirectMessageModal()">Open Chat</button>
+    </div>`);
 }
 
 async function submitDirectMessageModal() {
@@ -4195,7 +2617,7 @@ async function submitDirectMessageModal() {
   const title = document.getElementById('direct-title').value.trim() || 'Direct conversation';
   const result = await API.createDirectThread({ recipientEmail, title });
   closeModal('modal-generic');
-  showPage('stream');
+  showPage('inbox');
   setTimeout(() => openInboxChat(result.threadId), 50);
 }
 
@@ -4235,8 +2657,7 @@ async function loadNotifications() {
   destroyCharts();
   try {
     const items = await API.getNotifications();
-    const canAnnounce = sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer']);
-    setTopbarActions(`${canAnnounce ? `<button class="btn btn-primary btn-sm" onclick="openAnnouncementModal()">+ Announcement</button>` : ''}<button class="btn btn-ghost btn-sm" onclick="clearAllNotifications()">Clear All</button>`);
+    setTopbarActions(`<button class="btn btn-ghost btn-sm" onclick="clearAllNotifications()">Clear All</button>`);
     const rows = items.map(n => `
       <div class="card" style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;gap:12px">
@@ -4270,51 +2691,6 @@ async function deleteNotice(notificationId) {
 async function clearAllNotifications() {
   if (!confirm('Clear all notifications?')) return;
   await API.clearNotifications();
-  loadNotifications();
-}
-
-async function openAnnouncementModal() {
-  await ensureOrgLookupLoaded();
-  openGenericModal('Send Announcement', `
-    <div class="form-group"><label class="form-label">Audience</label>
-      <select class="form-control" id="announcement-audience">
-        <option value="all">All Users</option>
-        <option value="internal">Internal Staff</option>
-        <option value="clients">Clients</option>
-      </select>
-    </div>
-    <div class="form-group"><label class="form-label">Organization (optional)</label><input class="form-control" id="announcement-org" list="announcement-org-list" placeholder="Search organization" /><datalist id="announcement-org-list">${buildOrgOptions(ORG_LOOKUP_CACHE)}</datalist></div>
-    <div class="form-group"><label class="form-label">Role filter (optional)</label>
-      <select class="form-control" id="announcement-role">
-        <option value="">All roles</option>
-        <option value="Super Admin">Super Admin</option>
-        <option value="Admin">Admin</option>
-        <option value="Galvanizer">Galvanizer</option>
-        <option value="Staff">Staff</option>
-        <option value="Attorney">Attorney</option>
-        <option value="Client Admin">Client Admin</option>
-        <option value="Client Employee">Client Employee</option>
-        <option value="Individual Client">Individual Client</option>
-      </select>
-    </div>
-    <div class="form-group"><label class="form-label">Title</label><input class="form-control" id="announcement-title" placeholder="Announcement title" /></div>
-    <div class="form-group"><label class="form-label">Message</label><textarea class="form-control" id="announcement-body" rows="5" placeholder="Type the announcement message"></textarea></div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitAnnouncementModal()">Send Announcement</button>
-    </div>`);
-}
-
-async function submitAnnouncementModal() {
-  const org = resolveOrganization(document.getElementById('announcement-org').value.trim());
-  await API.sendAnnouncement({
-    audience: document.getElementById('announcement-audience').value,
-    orgId: org?.ORG_ID || '',
-    role: document.getElementById('announcement-role').value,
-    title: document.getElementById('announcement-title').value.trim(),
-    body: document.getElementById('announcement-body').value.trim()
-  });
-  closeModal('modal-generic');
   loadNotifications();
 }
 
@@ -4431,14 +2807,11 @@ async function loadExpenses() {
     return;
   }
   try {
-    setTopbarActions(renderFilterToggleButton('expenses'));
-    const period = EXPENSE_FILTERS.period || 'month';
-    const fromDate = EXPENSE_FILTERS.fromDate || '';
-    const toDate = EXPENSE_FILTERS.toDate || '';
-    EXPENSES_CACHE = await API.getExpenseClaims({ period, fromDate, toDate });
-    const filteredClaims = sortItemsBy(EXPENSES_CACHE, claim => claim.CATEGORY || claim.CLAIM_ID, EXPENSE_FILTERS.sortDir);
-    const paged = paginateItems(filteredClaims, 'expenses-history', 10);
-    const rows = paged.items.map(c => `
+    const period = document.getElementById('expense-period')?.value || 'month';
+    const fromDate = document.getElementById('expense-from-date')?.value || '';
+    const toDate = document.getElementById('expense-to-date')?.value || '';
+    const claims = await API.getExpenseClaims({ period, fromDate, toDate });
+    const rows = claims.map(c => `
       <tr>
         <td>${c.CLAIM_ID}</td>
         <td>${c.CLAIM_DATE}</td>
@@ -4450,8 +2823,8 @@ async function loadExpenses() {
       </tr>`).join('');
     document.getElementById('page-content').innerHTML = `
     <div class="page">
-        <div class="grid-2">
-          <div class="card">
+      <div class="grid-2">
+        <div class="card">
           <div class="card-title">New Expense Claim</div>
           <div class="form-group"><label class="form-label">Claim Date</label><input type="date" class="form-control" id="ex-date" /></div>
           <div class="form-group"><label class="form-label">Category</label><input class="form-control" id="ex-cat" placeholder="Travel, filing fee, courier, office expense" /></div>
@@ -4460,34 +2833,23 @@ async function loadExpenses() {
           <div class="form-group"><label class="form-label">Bill link</label><input class="form-control" id="ex-bill" placeholder="Drive link" /></div>
           <div class="form-group"><label class="form-label">Description</label><textarea class="form-control" id="ex-desc"></textarea></div>
           <button class="btn btn-primary" onclick="saveExpenseClaim()">Submit Claim</button>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px">
+            <div class="card-title" style="margin-bottom:0">Claim History</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;justify-content:flex-end;overflow:auto">
+              <select class="form-control" id="expense-period" style="max-width:140px" onchange="loadExpenses()">
+                <option value="month" ${period === 'month' ? 'selected' : ''}>This Month</option>
+                <option value="all" ${period === 'all' ? 'selected' : ''}>All Time</option>
+              </select>
+              <input type="date" class="form-control" id="expense-from-date" style="max-width:150px" value="${fromDate}" onchange="loadExpenses()" />
+              <input type="date" class="form-control" id="expense-to-date" style="max-width:150px" value="${toDate}" onchange="loadExpenses()" />
+            </div>
           </div>
-          <div class="card">
-            <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.expenses ? 'open' : ''}" style="margin-bottom:16px">
-              <div class="filter-head">
-                <div class="card-title">Expense Filters</div>
-                <div class="filter-actions">
-                  <button class="btn btn-primary btn-sm" onclick="applyExpenseFilters()">Apply</button>
-                  <button class="btn btn-ghost btn-sm" onclick="resetExpenseFilters()">Reset</button>
-                </div>
-              </div>
-              <div class="filter-grid compact-2">
-                <div class="form-group"><label class="form-label">Period</label><select class="form-control" id="expense-period" style="max-width:140px">
-                  <option value="month" ${period === 'month' ? 'selected' : ''}>This Month</option>
-                  <option value="all" ${period === 'all' ? 'selected' : ''}>All Time</option>
-                </select></div>
-                <div class="form-group"><label class="form-label">From Date</label><input type="date" class="form-control" id="expense-from-date" style="max-width:150px" value="${fromDate}" /></div>
-                <div class="form-group"><label class="form-label">To Date</label><input type="date" class="form-control" id="expense-to-date" style="max-width:150px" value="${toDate}" /></div>
-                <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="expense-sort"><option value="az"${EXPENSE_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${EXPENSE_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
-              </div>
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px">
-              <div class="card-title" style="margin-bottom:0">Claim History</div>
-            </div>
-            <div class="table-wrap"><table>
+          <div class="table-wrap"><table>
             <thead><tr><th>ID</th><th>Date</th><th>Category</th><th>Amount</th><th>Status</th><th>User</th><th>Bill</th></tr></thead>
             <tbody>${rows || '<tr><td colspan="7" class="text-muted" style="padding:20px;text-align:center">No expense claims yet.</td></tr>'}</tbody>
           </table></div>
-          ${buildPagerControls('expenses-history', paged, 'loadExpenses', 'claims')}
         </div>
       </div>
     </div>`;
@@ -4498,43 +2860,22 @@ async function loadExpenses() {
 
 async function loadGalvanizerQueue() {
   destroyCharts();
-  CASE_FILTER_TARGET = 'galvanizer';
   if (!sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer'])) {
     document.getElementById('page-content').innerHTML = err('Galvanizer queue is restricted.');
     return;
   }
-
-function applyExpenseFilters() {
-  EXPENSE_FILTERS = {
-    period: document.getElementById('expense-period')?.value || 'month',
-    fromDate: document.getElementById('expense-from-date')?.value || '',
-    toDate: document.getElementById('expense-to-date')?.value || '',
-    sortDir: document.getElementById('expense-sort')?.value || 'az',
-  };
-  FILTER_PANEL_STATE.expenses = false;
-  loadExpenses();
-}
-
-function resetExpenseFilters() {
-  EXPENSE_FILTERS = { period: 'month', fromDate: '', toDate: '', sortDir: 'az' };
-  FILTER_PANEL_STATE.expenses = false;
-  loadExpenses();
-}
   try {
-    setTopbarActions(renderFilterToggleButton('galvanizer'));
     const filters = {
-      clientCode: GALVANIZER_FILTERS.clientCode || '',
-      caseId: GALVANIZER_FILTERS.caseId || '',
-      workflowStage: GALVANIZER_FILTERS.workflowStage || '',
-      query: GALVANIZER_FILTERS.query || '',
+      clientCode: CASE_FILTERS.clientCode || '',
+      caseId: CASE_FILTERS.caseId || '',
+      workflowStage: CASE_FILTERS.workflowStage || '',
+      query: CASE_FILTERS.query || '',
     };
     const [cases, commandCenter] = await Promise.all([
       API.getGalvanizerQueue(filters),
       API.getGalvanizerCommandCenter(filters)
     ]);
-    const sortedCases = sortItemsBy(cases, item => item.PATENT_TITLE || item.CASE_ID, GALVANIZER_FILTERS.sortDir);
-    GALVANIZER_CASE_ID_OPTIONS = Array.from(new Set(sortedCases.map(item => item.CASE_ID).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
-    const rows = sortedCases.map(c => `
+    const rows = cases.map(c => `
       <tr>
         <td>${c.CASE_ID}</td>
         <td>${c.CLIENT_ID}</td>
@@ -4553,7 +2894,7 @@ function resetExpenseFilters() {
         <div class="stat-card accent-amber"><div class="stat-label">Under Review</div><div class="stat-value">${(commandCenter.underReview || []).length}</div></div>
         <div class="stat-card accent-rose"><div class="stat-label">Pending Approvals</div><div class="stat-value">${(commandCenter.pendingApprovals || []).length}</div></div>
       </div>
-      ${renderCaseFilters('galvanizer')}
+      ${renderCaseFilters()}
       <div class="card">
         <div class="card-title">Galvanizer Work Queue</div>
         <div class="table-wrap"><table>
@@ -4646,29 +2987,16 @@ function syncClientCodeSelection() {
   }
 }
 
-function normalizeCaseWorkflowStageForSave(status, stage) {
-  const derived = deriveWorkflowStageFromStatus(status, stage);
-  if (!stage || stage === 'Drafting' || stage === 'Filed' || stage === 'Under Examination' || stage === 'Granted' || stage === 'Closed') {
-    return derived;
-  }
-  return stage;
-}
-
 async function openCaseModal(jsonStr) {
   await ensureOrgLookupLoaded();
-  CASE_MODAL_RETURN_PAGE = CURRENT_PAGE || 'cases';
   const c = jsonStr ? JSON.parse(jsonStr) : null;
   const staffOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Staff');
   const galvanizerOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Galvanizer');
   const attorneyOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Attorney');
   const orgOptions = buildOrgOptions(ORG_LOOKUP_CACHE);
-  const canEditCaseId = canAccessManagement();
   document.getElementById('modal-case-title').textContent = c ? 'Edit Case' : 'New Case';
   document.getElementById('modal-case-body').innerHTML = `
     ${clientSearchBlock(c?.CLIENT_ID || '')}
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Case ID</label><input class="form-control" id="mc-case-id" value="${c?.CASE_ID||''}" ${canEditCaseId ? '' : 'readonly'} placeholder="${canEditCaseId ? 'Editable for management only' : ''}" /></div>
-    </div>
     <div class="form-group"><label class="form-label">Patent Title *</label><input class="form-control" id="mc-title" value="${c?.PATENT_TITLE||''}" /></div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Application Number</label><input class="form-control" id="mc-appno" value="${c?.APPLICATION_NUMBER||''}" /></div>
@@ -4679,7 +3007,7 @@ async function openCaseModal(jsonStr) {
       <div class="form-group"><label class="form-label">Next Deadline</label><input type="date" class="form-control" id="mc-deadline" value="${toInputDate(c?.NEXT_DEADLINE)}" /></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="mc-status" onchange="document.getElementById('mc-stage').value = normalizeCaseWorkflowStageForSave(this.value, document.getElementById('mc-stage').value)">${['Drafted','Filed','Published','Under Examination','Granted','Abandoned','Lapsed','Refused'].map(x=>`<option${c?.CURRENT_STATUS===x?' selected':''}>${x}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="mc-status">${['Drafted','Filed','Published','Under Examination','Granted','Abandoned','Lapsed','Refused'].map(x=>`<option${c?.CURRENT_STATUS===x?' selected':''}>${x}</option>`).join('')}</select></div>
       <div class="form-group"><label class="form-label">Patent Type</label><select class="form-control" id="mc-type">${['Utility','Design','PCT','Provisional'].map(x=>`<option${c?.PATENT_TYPE===x?' selected':''}>${x}</option>`).join('')}</select></div>
     </div>
     <div class="form-row">
@@ -4688,11 +3016,14 @@ async function openCaseModal(jsonStr) {
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Attorney</label><input class="form-control" id="mc-atty" list="mc-atty-list" value="${c?.ATTORNEY||''}" placeholder="Search attorney" /><datalist id="mc-atty-list">${attorneyOptions}</datalist></div>
-      <div class="form-group"><label class="form-label">Workflow Stage</label><select class="form-control" id="mc-stage">${['Drafting','Ready for Attorney','Under Attorney Review','Filed','Under Examination','Granted','Closed'].map(x=>`<option${(deriveWorkflowStageFromStatus(c?.CURRENT_STATUS, c?.WORKFLOW_STAGE||'Drafting'))===x?' selected':''}>${x}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Workflow Stage</label><select class="form-control" id="mc-stage">${['Drafting','Ready for Attorney','Under Attorney Review','Filed'].map(x=>`<option${(c?.WORKFLOW_STAGE||'Drafting')===x?' selected':''}>${x}</option>`).join('')}</select></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="mc-org" list="mc-org-list" value="${escapeAttr(getOrganizationInputValue(c?.ORG_ID || ''))}" placeholder="Search organization" /><datalist id="mc-org-list">${orgOptions}</datalist></div>
+      <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="mc-org" list="mc-org-list" value="${c?.ORG_ID || ''}" placeholder="Search organization" /><datalist id="mc-org-list">${orgOptions}</datalist></div>
       <div class="form-group"><label class="form-label">Priority</label><select class="form-control" id="mc-priority">${['Normal','High','Urgent'].map(x=>`<option${(c?.PRIORITY||'Normal')===x?' selected':''}>${x}</option>`).join('')}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Case ID Preview</label><input class="form-control" id="mc-preview" value="${c?.CASE_ID||''}" readonly /></div>
     </div>
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="mc-notes">${c?.NOTES||''}</textarea></div>
     <div class="modal-footer">
@@ -4701,21 +3032,6 @@ async function openCaseModal(jsonStr) {
     </div>`;
   openModal('modal-case');
   syncClientCodeSelection();
-}
-
-async function refreshAfterCaseSave() {
-  const targetPage = CASE_MODAL_RETURN_PAGE || CURRENT_PAGE || 'cases';
-  if (targetPage === 'management' && _mgmtTab === 'cases') {
-    await loadMgmtCases();
-  } else if (targetPage === 'galvanizer') {
-    await loadGalvanizerQueue();
-  } else if (targetPage === 'workflow') {
-    await loadWorkflowBoard();
-  } else if (targetPage === 'attorney') {
-    await loadAttorneyWorkspace();
-  } else {
-    await loadCases();
-  }
 }
 
 async function saveCase(existingId) {
@@ -4729,8 +3045,7 @@ async function saveCase(existingId) {
     return;
   }
   const data = {
-    CASE_ID: document.getElementById('mc-case-id')?.value.trim() || existingId || undefined,
-    ORIGINAL_CASE_ID: existingId || '',
+    CASE_ID: existingId || undefined,
     CLIENT_ID: client.CLIENT_ID || clientCode,
     PATENT_TITLE: document.getElementById('mc-title').value.trim(),
     APPLICATION_NUMBER: document.getElementById('mc-appno').value.trim(),
@@ -4742,18 +3057,15 @@ async function saveCase(existingId) {
     ASSIGNED_STAFF_EMAIL: document.getElementById('mc-staff').value.trim(),
     GALVANIZER_EMAIL: document.getElementById('mc-galvanizer').value.trim(),
     ATTORNEY: document.getElementById('mc-atty').value.trim(),
-    WORKFLOW_STAGE: normalizeCaseWorkflowStageForSave(document.getElementById('mc-status').value, document.getElementById('mc-stage').value),
+    WORKFLOW_STAGE: document.getElementById('mc-stage').value,
     PRIORITY: document.getElementById('mc-priority').value,
     ORG_ID: client.ORG_ID || '',
     NOTES: document.getElementById('mc-notes').value.trim(),
   };
-  if (!existingId) {
-    delete data.CASE_ID;
-    delete data.ORIGINAL_CASE_ID;
-  }
+  if (!existingId) delete data.CASE_ID;
   try {
     const r = await API.saveCase(data);
-    if (r.success) { closeModal('modal-case'); await refreshAfterCaseSave(); }
+    if (r.success) { closeModal('modal-case'); loadCases(); loadDashboard(); }
     else throw new Error(r.error || r.message);
   } catch(e) {
     showPageError('saveCase', e);
@@ -4773,8 +3085,7 @@ async function saveCaseV2(existingId) {
     return;
   }
   const data = {
-    CASE_ID: document.getElementById('mc-case-id')?.value.trim() || existingId || undefined,
-    ORIGINAL_CASE_ID: existingId || '',
+    CASE_ID: existingId || undefined,
     CLIENT_ID: client.CLIENT_ID || clientCode,
     PATENT_TITLE: document.getElementById('mc-title').value.trim(),
     APPLICATION_NUMBER: document.getElementById('mc-appno').value.trim(),
@@ -4786,18 +3097,15 @@ async function saveCaseV2(existingId) {
     ASSIGNED_STAFF_EMAIL: document.getElementById('mc-staff').value.trim(),
     GALVANIZER_EMAIL: document.getElementById('mc-galvanizer').value.trim(),
     ATTORNEY: document.getElementById('mc-atty').value.trim(),
-    WORKFLOW_STAGE: normalizeCaseWorkflowStageForSave(document.getElementById('mc-status').value, document.getElementById('mc-stage').value),
+    WORKFLOW_STAGE: document.getElementById('mc-stage').value,
     PRIORITY: document.getElementById('mc-priority').value,
     ORG_ID: org?.ORG_ID || client.ORG_ID || '',
     NOTES: document.getElementById('mc-notes').value.trim(),
   };
-  if (!existingId) {
-    delete data.CASE_ID;
-    delete data.ORIGINAL_CASE_ID;
-  }
+  if (!existingId) delete data.CASE_ID;
   try {
     const r = await API.saveCase(data);
-    if (r.success) { closeModal('modal-case'); await refreshAfterCaseSave(); }
+    if (r.success) { closeModal('modal-case'); loadCases(); loadDashboard(); }
     else throw new Error(r.error || r.message);
   } catch (e) {
     showPageError('saveCaseV2', e);
@@ -4825,14 +3133,14 @@ async function openClientModal(jsonStr) {
       <div class="form-group"><label class="form-label">Final Client Code</label><input class="form-control" id="cl-code" value="${c?.CLIENT_CODE||''}" readonly /></div>
     </div>
     <div class="form-row client-org-fields">
-      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="cl-org-id" list="cl-org-list" value="${escapeAttr(getOrganizationInputValue(c?.ORG_ID || ''))}" placeholder="Search organization" /><datalist id="cl-org-list">${orgOptions}</datalist></div>
+      <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="cl-org-id" list="cl-org-list" value="${c?.ORG_ID||''}" placeholder="Search organization" /><datalist id="cl-org-list">${orgOptions}</datalist></div>
       <div class="form-group"><label class="form-label">Assigned Staff Email</label><input class="form-control" id="cl-staff" list="cl-staff-list" value="${c?.ASSIGNED_STAFF_EMAIL||''}" placeholder="Search staff email" /><datalist id="cl-staff-list">${assignedStaffOptions}</datalist></div>
     </div>
     <div class="form-group"><label class="form-label">Client Name *</label><input class="form-control" id="cl-name" value="${c?.CLIENT_NAME||''}" /></div>
     <div class="form-group"><label class="form-label">Contact Person</label><input class="form-control" id="cl-contact" value="${c?.CONTACT_PERSON||''}" /></div>
     <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-control" id="cl-email" value="${c?.EMAIL||''}" /></div>
     <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="cl-phone" value="${c?.PHONE||''}" /></div>
-    <div class="form-group client-org-fields"><label class="form-label">Client Admin User</label><input class="form-control" id="cl-admin-user" list="cl-admin-list" value="${c?.CLIENT_ADMIN_USER_ID||''}" placeholder="Search user id" /><datalist id="cl-admin-list">${clientAdminOptions}</datalist></div>
+    <div class="form-group client-org-fields"><label class="form-label">Client Admin User ID</label><input class="form-control" id="cl-admin-user" list="cl-admin-list" value="${c?.CLIENT_ADMIN_USER_ID||''}" placeholder="Search user id" /><datalist id="cl-admin-list">${clientAdminOptions}</datalist></div>
     <div class="form-group"><label class="form-label">Address</label><textarea class="form-control" id="cl-addr">${c?.ADDRESS||''}</textarea></div>
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="cl-notes">${c?.NOTES||''}</textarea></div>
     <div class="modal-footer">
@@ -4872,7 +3180,7 @@ async function saveClient(existingId) {
     CLIENT_TYPE: document.getElementById('cl-client-type').value,
     CLIENT_REGION: document.getElementById('cl-region').value,
     CLIENT_CODE: document.getElementById('cl-code').value.trim().toUpperCase(),
-    ORG_ID: resolveOrganization(document.getElementById('cl-org-id').value.trim())?.ORG_ID || '',
+    ORG_ID: document.getElementById('cl-org-id').value.trim(),
     CLIENT_ADMIN_USER_ID: document.getElementById('cl-admin-user').value.trim(),
     ASSIGNED_STAFF_EMAIL: document.getElementById('cl-staff').value.trim(),
     ADDRESS: document.getElementById('cl-addr').value.trim(),
@@ -5014,7 +3322,7 @@ function openUserModal(jsonStr, options = {}) {
       <div class="form-group"><label class="form-label">Client Code</label><input class="form-control" id="mu-cid" list="mu-client-list" value="${u?.CLIENT_ID||''}" /><datalist id="mu-client-list">${clientOptions}</datalist></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="mu-org" list="mu-org-list" value="${escapeAttr(getOrganizationInputValue(u?.ORG_ID || prefilledOrg?.ORG_ID || ''))}" placeholder="Search organization" onchange="syncUserOrgSelection()" /><datalist id="mu-org-list">${orgOptions}</datalist></div>
+      <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="mu-org" list="mu-org-list" value="${u?.ORG_ID || prefilledOrg?.ORG_ID || ''}" placeholder="Search organization" onchange="syncUserOrgSelection()" /><datalist id="mu-org-list">${orgOptions}</datalist></div>
       <div class="form-group"><label class="form-label">Can View Finance</label>
         <select class="form-control" id="mu-finance">${['No','Yes'].map(x=>`<option${(u?.CAN_VIEW_FINANCE||'No')===x?' selected':''}>${x}</option>`).join('')}</select>
       </div>
@@ -5055,7 +3363,7 @@ async function saveUser(existingId) {
     PASSWORD: document.getElementById('mu-pwd').value,
     ROLE: document.getElementById('mu-role').value,
     CLIENT_ID: document.getElementById('mu-cid').value.trim(),
-    ORG_ID: resolveOrganization(document.getElementById('mu-org').value.trim())?.ORG_ID || '',
+    ORG_ID: document.getElementById('mu-org').value.trim(),
     DEPARTMENT: document.getElementById('mu-dept').value.trim(),
     CAN_VIEW_FINANCE: document.getElementById('mu-finance').value,
     REPORTS_TO: document.getElementById('mu-reports').value.trim(),
@@ -5119,222 +3427,41 @@ async function saveUserV2(existingId) {
 }
 
 // ── Invoice Modal ─────────────────────────────────────────────────────────────
-async function openInvoiceModal(jsonStr) {
+function openInvoiceModal(jsonStr) {
   const inv = jsonStr ? JSON.parse(jsonStr) : null;
-  await ensureClientLookupLoaded();
   document.getElementById('modal-invoice-title').textContent = inv ? 'Edit Invoice' : 'New Invoice';
   document.getElementById('modal-invoice-body').innerHTML = `
-    <div class="card" style="margin-bottom:12px">
-      <div class="card-title">Invoice Identity</div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Client Manager</label><input class="form-control" id="mi-client-manager" value="${escapeAttr(invoiceFieldValue(inv,'Client Manager'))}" /></div>
-        <div class="form-group"><label class="form-label">Docket# [Invoice UIN]</label><input class="form-control" id="mi-uin" value="${escapeAttr(getInvoiceUiId(inv))}" placeholder="Auto if blank" /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Invoice Date</label><input type="date" class="form-control" id="mi-invoice-date" value="${inv?.['Invoice Date'] ? new Date(inv['Invoice Date']).toISOString().split('T')[0] : ''}" /></div>
-        <div class="form-group"><label class="form-label">Tax Invoice Date</label><input type="date" class="form-control" id="mi-tax-date" value="${inv?.['Tax Invoice Date'] ? new Date(inv['Tax Invoice Date']).toISOString().split('T')[0] : ''}" /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Tax Serial Number</label><input class="form-control" id="mi-tax-serial" value="${escapeAttr(invoiceFieldValue(inv,'Tax Serial Number'))}" /></div>
-        <div class="form-group"><label class="form-label">Tax Invoice Number</label><input class="form-control" id="mi-tax-number" value="${escapeAttr(invoiceFieldValue(inv,'Tax Invoice Number'))}" /></div>
-      </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Client ID *</label><input class="form-control" id="mi-cid" value="${inv?.CLIENT_ID||''}" /></div>
+      <div class="form-group"><label class="form-label">Case ID</label><input class="form-control" id="mi-case" value="${inv?.CASE_ID||''}" /></div>
     </div>
-    <div class="card" style="margin-bottom:12px">
-      <div class="card-title">Client & Matter</div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Client Code *</label><input class="form-control" id="mi-client-code" list="mi-client-list" value="${escapeAttr(inv?.ClientCode || inv?.CLIENT_ID || '')}" placeholder="Search client code" onchange="syncInvoiceClientSelection()" /><datalist id="mi-client-list">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist></div>
-        <div class="form-group"><label class="form-label">Name of Client</label><input class="form-control" id="mi-client-name" value="${escapeAttr(inv?.['Name of Client'] || inv?.CLIENT_NAME || '')}" /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Invention#</label><input class="form-control" id="mi-case-id" value="${escapeAttr(inv?.['Invention#'] || inv?.CASE_ID || '')}" /></div>
-        <div class="form-group"><label class="form-label">Docket Number</label><input class="form-control" id="mi-docket-number" value="${escapeAttr(invoiceFieldValue(inv,'Docket Number'))}" /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Client Reference</label><input class="form-control" id="mi-client-reference" value="${escapeAttr(invoiceFieldValue(inv,'Client Reference'))}" /></div>
-        <div class="form-group"><label class="form-label">Patent Office</label><input class="form-control" id="mi-patent-office" value="${escapeAttr(invoiceFieldValue(inv,'Patent Office'))}" /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">First Inventor</label><input class="form-control" id="mi-first-inventor" value="${escapeAttr(invoiceFieldValue(inv,'First Inventor'))}" /></div>
-        <div class="form-group"><label class="form-label">PO Application #</label><input class="form-control" id="mi-po-application" value="${escapeAttr(invoiceFieldValue(inv,'PO Application # e.g., US 15339876'))}" /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Entity Status</label><input class="form-control" id="mi-entity-status" value="${escapeAttr(invoiceFieldValue(inv,'Entity Status'))}" /></div>
-        <div class="form-group"><label class="form-label">State of Supply</label><input class="form-control" id="mi-state-supply" value="${escapeAttr(invoiceFieldValue(inv,'State of Supply'))}" /></div>
-      </div>
-      <div class="form-group"><label class="form-label">Title Identification</label><input class="form-control" id="mi-title-keywords" value="${escapeAttr(invoiceFieldValue(inv,'Title Identfication (Only key words, Enter in lower case}'))}" /></div>
+    <div class="form-group"><label class="form-label">Service Type</label>
+      <select class="form-control" id="mi-svc">${['Patent Filing','Patent Prosecution','Patent Search','Legal Opinion','Drafting Fees','Government Fees','Consultation','Annual Maintenance','Other'].map(x=>`<option${inv?.SERVICE_TYPE===x?' selected':''}>${x}</option>`).join('')}</select>
     </div>
-    <div class="card" style="margin-bottom:12px">
-      <div class="card-title">Service Codes</div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Main ServiceCode</label><input class="form-control" id="mi-main-service" value="${escapeAttr(invoiceFieldValue(inv,'Main ServiceCode'))}" /></div>
-        <div class="form-group"><label class="form-label">Service Code 2</label><input class="form-control" id="mi-service-2" value="${escapeAttr(invoiceFieldValue(inv,'Service Code 2'))}" /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Service Code 3</label><input class="form-control" id="mi-service-3" value="${escapeAttr(invoiceFieldValue(inv,'Service Code 3'))}" /></div>
-        <div class="form-group"><label class="form-label">POFeeAck</label><input class="form-control" id="mi-pofee-ack" value="${escapeAttr(invoiceFieldValue(inv,'POFeeAck'))}" /></div>
-      </div>
-      <div class="form-group"><label class="form-label">Additional information on service</label><textarea class="form-control" id="mi-service-info">${escapeHtml(invoiceFieldValue(inv,'Additional information on service (Do not repeat what is in code description)'))}</textarea></div>
+    <div class="form-group"><label class="form-label">Description</label><textarea class="form-control" id="mi-desc">${inv?.DESCRIPTION||''}</textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Amount (₹) *</label><input type="number" class="form-control" id="mi-amt" value="${inv?.AMOUNT||''}" /></div>
+      <div class="form-group"><label class="form-label">GST Rate (%)</label><input type="number" class="form-control" id="mi-gst" value="${inv?.GST_RATE||18}" /></div>
     </div>
-    <div class="card" style="margin-bottom:12px">
-      <div class="card-title">Fees & Revenue</div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">POFee</label><input type="number" step="0.01" class="form-control" id="mi-pofee" value="${invoiceFieldValue(inv,'POFee')}" oninput="refreshInvoiceCalculatedFields()" /></div>
-        <div class="form-group"><label class="form-label">ServFee</label><input type="number" step="0.01" class="form-control" id="mi-servfee" value="${invoiceFieldValue(inv,'ServFee')}" oninput="refreshInvoiceCalculatedFields()" /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Tax Type</label><select class="form-control" id="mi-tax-type" onchange="refreshInvoiceCalculatedFields()">${['CGST_SGST','IGST'].map(x=>`<option value="${x}"${(inv?.TAX_TYPE||'CGST_SGST')===x?' selected':''}>${x === 'IGST' ? 'IGST' : 'CGST + SGST'}</option>`).join('')}</select></div>
-        <div class="form-group"><label class="form-label">IGST (Auto 18%)</label><input type="number" step="0.01" class="form-control" id="mi-igst" value="${invoiceFieldValue(inv,'IGST')}" readonly /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">SGST (Auto 9%)</label><input type="number" step="0.01" class="form-control" id="mi-sgst" value="${invoiceFieldValue(inv,'SGST')}" readonly /></div>
-        <div class="form-group"><label class="form-label">CGST (Auto 9%)</label><input type="number" step="0.01" class="form-control" id="mi-cgst" value="${invoiceFieldValue(inv,'CGST')}" readonly /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Expenses</label><input type="number" step="0.01" class="form-control" id="mi-expenses" value="${invoiceFieldValue(inv,'Expenses')}" oninput="refreshInvoiceCalculatedFields()" /></div>
-        <div class="form-group"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Attorney Fee</label><input type="number" step="0.01" class="form-control" id="mi-attorney-fee" value="${invoiceFieldValue(inv,'Attorney Fee')}" oninput="refreshInvoiceCalculatedFields()" /></div>
-        <div class="form-group"><label class="form-label">Consultant fee</label><input type="number" step="0.01" class="form-control" id="mi-consultant-fee" value="${invoiceFieldValue(inv,'Consultant fee')}" oninput="refreshInvoiceCalculatedFields()" /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Referral fee</label><input type="number" step="0.01" class="form-control" id="mi-referral-fee" value="${invoiceFieldValue(inv,'Referral fee')}" oninput="refreshInvoiceCalculatedFields()" /></div>
-        <div class="form-group"><label class="form-label">Payment Status</label><select class="form-control" id="mi-payment-status" onchange="refreshInvoiceCalculatedFields()">${['Unpaid','Paid','Partially Paid','Cancelled'].map(x=>`<option value="${x}"${(inv?.PAYMENT_STATUS||'Unpaid')===x?' selected':''}>${x}</option>`).join('')}</select></div>
-      </div>
-      <div class="form-row" id="mi-payment-amount-row" style="display:none">
-        <div class="form-group"><label class="form-label">Amount Paid</label><input type="number" step="0.01" class="form-control" id="mi-payment-amount" value="${invoiceFieldValue(inv,'PAYMENT_AMOUNT')}" oninput="refreshInvoiceCalculatedFields()" /></div>
-        <div class="form-group"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">InvAmount</label><input class="form-control" id="mi-inv-amount" value="${money(getInvoiceUiTotal(inv)).replace('₹','')}" readonly /></div>
-        <div class="form-group"><label class="form-label">Amount due</label><input class="form-control" id="mi-amount-due" value="${money(getInvoiceUiDue(inv)).replace('₹','')}" readonly /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Net Revenue</label><input class="form-control" id="mi-net-revenue" value="${money(parseFloat(inv?.['Net Revenue'] || 0) || 0).replace('₹','')}" readonly /></div>
-        <div class="form-group"><label class="form-label">Payment Mode</label><input class="form-control" id="mi-payment-mode" value="${escapeAttr(inv?.PAYMENT_MODE || '')}" /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Payment Date</label><input type="date" class="form-control" id="mi-payment-date" value="${inv?.PAYMENT_DATE ? new Date(inv.PAYMENT_DATE).toISOString().split('T')[0] : ''}" /></div>
-        <div class="form-group"><label class="form-label">Notes</label><input class="form-control" id="mi-notes" value="${escapeAttr(inv?.NOTES || '')}" /></div>
-      </div>
-    </div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="mi-notes">${inv?.NOTES||''}</textarea></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-invoice')">Cancel</button>
-      <button class="btn btn-primary" id="mi-save" onclick="saveInvoice('${escapeAttr(getInvoiceUiId(inv))}')">Save Invoice</button>
+      <button class="btn btn-primary" id="mi-save" onclick="saveInvoice('${inv?.INVOICE_ID||''}')">Save Invoice</button>
     </div>`;
-  refreshInvoiceCalculatedFields();
-  syncInvoiceClientSelection();
   openModal('modal-invoice');
-}
-
-function syncInvoiceClientSelection() {
-  const client = resolveClientByCode(document.getElementById('mi-client-code')?.value.trim() || '');
-  if (client && document.getElementById('mi-client-name')) {
-    document.getElementById('mi-client-name').value = client.CLIENT_NAME || '';
-  }
-}
-
-function getInvoiceNumberInputValue(id) {
-  return parseFloat(document.getElementById(id)?.value || 0) || 0;
-}
-
-function roundInvoiceAmount(value) {
-  return Math.round((parseFloat(value || 0) || 0) * 100) / 100;
-}
-
-function refreshInvoiceCalculatedFields() {
-  const taxType = document.getElementById('mi-tax-type')?.value || 'CGST_SGST';
-  const poFee = getInvoiceNumberInputValue('mi-pofee');
-  const servFee = getInvoiceNumberInputValue('mi-servfee');
-  const taxableBase = roundInvoiceAmount(servFee);
-  const igst = taxType === 'IGST' ? roundInvoiceAmount(taxableBase * 0.18) : 0;
-  const sgst = taxType === 'IGST' ? 0 : roundInvoiceAmount(taxableBase * 0.09);
-  const cgst = taxType === 'IGST' ? 0 : roundInvoiceAmount(taxableBase * 0.09);
-  const igstField = document.getElementById('mi-igst');
-  const sgstField = document.getElementById('mi-sgst');
-  const cgstField = document.getElementById('mi-cgst');
-  if (igstField) igstField.value = igst.toFixed(2);
-  if (sgstField) sgstField.value = sgst.toFixed(2);
-  if (cgstField) cgstField.value = cgst.toFixed(2);
-  const invAmount = roundInvoiceAmount(
-    poFee +
-    servFee +
-    igst +
-    sgst +
-    cgst +
-    getInvoiceNumberInputValue('mi-expenses')
-  );
-  const netRevenue = getInvoiceNumberInputValue('mi-servfee') -
-    getInvoiceNumberInputValue('mi-attorney-fee') -
-    getInvoiceNumberInputValue('mi-consultant-fee') -
-    getInvoiceNumberInputValue('mi-referral-fee');
-  const paymentStatus = document.getElementById('mi-payment-status')?.value || 'Unpaid';
-  const paymentAmountRow = document.getElementById('mi-payment-amount-row');
-  const paymentAmount = getInvoiceNumberInputValue('mi-payment-amount');
-  if (paymentAmountRow) paymentAmountRow.style.display = paymentStatus === 'Partially Paid' ? 'flex' : 'none';
-  const amountDue = paymentStatus === 'Paid'
-    ? 0
-    : (paymentStatus === 'Partially Paid' ? Math.max(invAmount - paymentAmount, 0) : invAmount);
-  const amountField = document.getElementById('mi-inv-amount');
-  const dueField = document.getElementById('mi-amount-due');
-  const revenueField = document.getElementById('mi-net-revenue');
-  if (amountField) amountField.value = invAmount.toFixed(2);
-  if (dueField) dueField.value = amountDue.toFixed(2);
-  if (revenueField) revenueField.value = netRevenue.toFixed(2);
 }
 
 async function saveInvoice(existingId) {
   const btn = document.getElementById('mi-save');
   btn.disabled = true; btn.textContent = 'Saving…';
-  const selectedClient = resolveClientByCode(document.getElementById('mi-client-code').value.trim());
-  if (!selectedClient) {
-    alert('Select a valid client code.');
-    btn.disabled = false; btn.textContent = 'Save Invoice';
-    return;
-  }
-  refreshInvoiceCalculatedFields();
   const data = {
     INVOICE_ID: existingId || undefined,
-    "Client Manager": document.getElementById('mi-client-manager').value.trim(),
-    "Docket# [Invoice UIN]": document.getElementById('mi-uin').value.trim(),
-    "Invoice Date": document.getElementById('mi-invoice-date').value,
-    "Tax Invoice Date": document.getElementById('mi-tax-date').value,
-    "Tax Serial Number": document.getElementById('mi-tax-serial').value.trim(),
-    "Tax Invoice Number": document.getElementById('mi-tax-number').value.trim(),
-    ClientCode: document.getElementById('mi-client-code').value.trim(),
-    "Name of Client": document.getElementById('mi-client-name').value.trim(),
-    "Invention#": document.getElementById('mi-case-id').value.trim(),
-    "Docket Number": document.getElementById('mi-docket-number').value.trim(),
-    "Client Reference": document.getElementById('mi-client-reference').value.trim(),
-    "Patent Office": document.getElementById('mi-patent-office').value.trim(),
-    "First Inventor": document.getElementById('mi-first-inventor').value.trim(),
-    "PO Application # e.g., US 15339876": document.getElementById('mi-po-application').value.trim(),
-    "Entity Status": document.getElementById('mi-entity-status').value.trim(),
-    "State of Supply": document.getElementById('mi-state-supply').value.trim(),
-    "Title Identfication (Only key words, Enter in lower case}": document.getElementById('mi-title-keywords').value.trim(),
-    "Main ServiceCode": document.getElementById('mi-main-service').value.trim(),
-    "Service Code 2": document.getElementById('mi-service-2').value.trim(),
-    "Service Code 3": document.getElementById('mi-service-3').value.trim(),
-    "Additional information on service (Do not repeat what is in code description)": document.getElementById('mi-service-info').value.trim(),
-    POFeeAck: document.getElementById('mi-pofee-ack').value.trim(),
-    POFee: document.getElementById('mi-pofee').value,
-    ServFee: document.getElementById('mi-servfee').value,
-    TAX_TYPE: document.getElementById('mi-tax-type').value,
-    IGST: document.getElementById('mi-igst').value,
-    SGST: document.getElementById('mi-sgst').value,
-    CGST: document.getElementById('mi-cgst').value,
-    Expenses: document.getElementById('mi-expenses').value,
-    "Attorney Fee": document.getElementById('mi-attorney-fee').value,
-    "Consultant fee": document.getElementById('mi-consultant-fee').value,
-    "Referral fee": document.getElementById('mi-referral-fee').value,
-    PAYMENT_STATUS: document.getElementById('mi-payment-status').value,
-    PAYMENT_MODE: document.getElementById('mi-payment-mode').value.trim(),
-    PAYMENT_DATE: document.getElementById('mi-payment-date').value,
-    PAYMENT_AMOUNT: document.getElementById('mi-payment-amount')?.value || '',
-    CLIENT_ID: selectedClient.CLIENT_ID || '',
-    CLIENT_NAME: selectedClient.CLIENT_NAME || '',
-    CASE_ID: document.getElementById('mi-case-id').value.trim(),
-    ORG_ID: selectedClient.ORG_ID || '',
+    CLIENT_ID: document.getElementById('mi-cid').value.trim(),
+    CASE_ID: document.getElementById('mi-case').value.trim(),
+    SERVICE_TYPE: document.getElementById('mi-svc').value,
+    DESCRIPTION: document.getElementById('mi-desc').value.trim(),
+    AMOUNT: document.getElementById('mi-amt').value,
+    GST_RATE: document.getElementById('mi-gst').value,
     NOTES: document.getElementById('mi-notes').value.trim(),
   };
   if (!existingId) delete data.INVOICE_ID;
@@ -5530,14 +3657,14 @@ function openClientModalLegacyV0(jsonStr) {
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Client Code</label><input class="form-control" id="cl-code" value="${c?.CLIENT_CODE||''}" placeholder="A61M or 970Y" /></div>
-      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="cl-org-id" value="${escapeAttr(getOrganizationInputValue(c?.ORG_ID || ''))}" /></div>
+      <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="cl-org-id" value="${c?.ORG_ID||''}" /></div>
     </div>
     <div class="form-group"><label class="form-label">Client Name *</label><input class="form-control" id="cl-name" value="${c?.CLIENT_NAME||''}" /></div>
     <div class="form-group"><label class="form-label">Contact Person</label><input class="form-control" id="cl-contact" value="${c?.CONTACT_PERSON||''}" /></div>
     <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-control" id="cl-email" value="${c?.EMAIL||''}" /></div>
     <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="cl-phone" value="${c?.PHONE||''}" /></div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Client Admin User</label><input class="form-control" id="cl-admin-user" value="${c?.CLIENT_ADMIN_USER_ID||''}" /></div>
+      <div class="form-group"><label class="form-label">Client Admin User ID</label><input class="form-control" id="cl-admin-user" value="${c?.CLIENT_ADMIN_USER_ID||''}" /></div>
       <div class="form-group"><label class="form-label">Assigned Staff Email</label><input class="form-control" id="cl-staff" value="${c?.ASSIGNED_STAFF_EMAIL||''}" /></div>
     </div>
     <div class="form-group"><label class="form-label">Address</label><textarea class="form-control" id="cl-addr">${c?.ADDRESS||''}</textarea></div>
@@ -5609,7 +3736,7 @@ function openCaseModalLegacyV0(jsonStr) {
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Priority</label><select class="form-control" id="mc-priority">${['Normal','High','Urgent'].map(x=>`<option${(c?.PRIORITY||'Normal')===x?' selected':''}>${x}</option>`).join('')}</select></div>
-      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="mc-org" value="${escapeAttr(getOrganizationInputValue(c?.ORG_ID || ''))}" /></div>
+      <div class="form-group"><label class="form-label">Org ID</label><input class="form-control" id="mc-org" value="${c?.ORG_ID||''}" /></div>
     </div>
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="mc-notes">${c?.NOTES||''}</textarea></div>
     <div class="modal-footer">
@@ -5637,13 +3764,13 @@ async function saveCaseLegacyV0(existingId) {
     ATTORNEY: document.getElementById('mc-atty').value.trim(),
     WORKFLOW_STAGE: document.getElementById('mc-stage').value,
     PRIORITY: document.getElementById('mc-priority').value,
-    ORG_ID: resolveOrganization(document.getElementById('mc-org').value.trim())?.ORG_ID || '',
+    ORG_ID: document.getElementById('mc-org').value.trim(),
     NOTES: document.getElementById('mc-notes').value.trim(),
   };
   if (!existingId) delete data.CASE_ID;
   try {
     const r = await API.saveCase(data);
-    if (r.success) { closeModal('modal-case'); await refreshAfterCaseSave(); }
+    if (r.success) { closeModal('modal-case'); loadCases(); loadDashboard(); }
     else throw new Error(r.error || r.message);
   } catch(e) {
     alert('Error: ' + e.message);

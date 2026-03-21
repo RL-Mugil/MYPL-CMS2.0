@@ -6,7 +6,7 @@
  */
 
 const API_BASE = (window.APP_CONFIG && window.APP_CONFIG.apiBase) || '';
-const API_CACHE_PREFIX = 'mg_api_cache_v3';
+const API_CACHE_PREFIX = 'mg_api_cache_v1';
 const API_MEMORY_CACHE = new Map();
 const SAFE_LOOKUP_TTL_MS = 5 * 24 * 60 * 60 * 1000;
 
@@ -49,7 +49,7 @@ function stableStringify(value) {
 
 function getCacheScope() {
   const session = window.Auth?.getGasSession?.();
-  return [session?.email || session?.token || 'public', session?.role || 'default'].join(':');
+  return session?.email || session?.token || 'public';
 }
 
 function buildClientCacheKey(action, params = {}) {
@@ -193,31 +193,9 @@ async function requestJson(payload, context) {
 async function callGAS(action, params = {}) {
   const session = window.Auth.getGasSession();
   const token = session?.token || null;
-  const activeViewRole = session?.activeViewRole || '';
-  const data = await requestJson({ action, params: { ...params, token, activeViewRole } }, `callGAS:${action}`);
+  const data = await requestJson({ action, params: { ...params, token } }, `callGAS:${action}`);
 
   if (data.sessionExpired) {
-    const originalRaw = (() => {
-      try { return sessionStorage.getItem('mg_original_session'); } catch { return null; }
-    })();
-    const originalSession = originalRaw ? JSON.parse(originalRaw) : null;
-    if (
-      session?.impersonatedByUserId &&
-      session?.userId &&
-      originalSession?.token &&
-      typeof restoreImpersonation === 'function'
-    ) {
-      try {
-        const restored = await restoreImpersonation(originalSession.token, session.userId);
-        const nextSession = { ...(restored.session || {}), token: restored.token };
-        window.Auth.setGasSession(nextSession);
-        location.reload();
-        throw new Error('session_restored');
-      } catch (restoreError) {
-        reportError('restoreImpersonation', restoreError, { userId: session.userId });
-      }
-    }
-
     window.Auth.clearGasSession();
     showGlobalError('Session expired. Please sign in again.');
     setTimeout(() => location.reload(), 2000);
@@ -277,98 +255,6 @@ async function callGASPersistentCached(action, params = {}, ttlMs = 15 * 60 * 10
 
 async function clerkLogin(email) {
   return callGASPublic('clerklogin', { email });
-}
-
-async function restoreImpersonation(originalToken, userId) {
-  return callGASPublic('restoreImpersonation', { originalToken, userId });
-}
-
-async function getUserInfo() {
-  return callGAS('getUserInfo', {});
-}
-
-async function getStreamAuth() {
-  ensureApiBase();
-  const session = window.Auth.getGasSession();
-  const token = session?.token || '';
-  if (!token) throw new Error('Session expired. Please sign in again.');
-  const endpoint = `${String(API_BASE).replace(/\/$/, '')}/stream-token`;
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
-    });
-    const data = sanitizePayload(await res.json());
-    if (!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`);
-    return data;
-  } catch (error) {
-    reportError('getStreamAuth', error, { endpoint });
-    throw error;
-  }
-}
-
-async function ensureStreamUsers(users = []) {
-  ensureApiBase();
-  const session = window.Auth.getGasSession();
-  const token = session?.token || '';
-  if (!token) throw new Error('Session expired. Please sign in again.');
-  const endpoint = `${String(API_BASE).replace(/\/$/, '')}/stream-ensure-users`;
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, users }),
-    });
-    const data = sanitizePayload(await res.json());
-    if (!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`);
-    return data;
-  } catch (error) {
-    reportError('ensureStreamUsers', error, { endpoint });
-    throw error;
-  }
-}
-
-async function clearStreamChannel(cid) {
-  ensureApiBase();
-  const session = window.Auth.getGasSession();
-  const token = session?.token || '';
-  if (!token) throw new Error('Session expired. Please sign in again.');
-  const endpoint = `${String(API_BASE).replace(/\/$/, '')}/stream-truncate-channel`;
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, cid }),
-    });
-    const data = sanitizePayload(await res.json());
-    if (!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`);
-    return data;
-  } catch (error) {
-    reportError('clearStreamChannel', error, { endpoint, cid });
-    throw error;
-  }
-}
-
-async function deleteStreamMessage(messageId) {
-  ensureApiBase();
-  const session = window.Auth.getGasSession();
-  const token = session?.token || '';
-  if (!token) throw new Error('Session expired. Please sign in again.');
-  const endpoint = `${String(API_BASE).replace(/\/$/, '')}/stream-delete-message`;
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, messageId }),
-    });
-    const data = sanitizePayload(await res.json());
-    if (!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`);
-    return data;
-  } catch (error) {
-    reportError('deleteStreamMessage', error, { endpoint, messageId });
-    throw error;
-  }
 }
 
 async function getDashboard(filters = {}) { return callGASCached('getDashboard', { filters }, 30000); }
@@ -434,11 +320,6 @@ async function reviewExpenseClaim(claimId, reviewData) {
   return result;
 }
 async function getNotifications() { return callGASCached('getNotifications', {}, 30000); }
-async function sendAnnouncement(announcementData) {
-  const result = await callGAS('sendAnnouncement', { announcementData });
-  clearClientCache(['getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
-  return result;
-}
 async function markNotificationRead(notificationId) {
   const result = await callGAS('markNotificationRead', { notificationId });
   clearClientCache(['getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
@@ -535,13 +416,6 @@ async function markInvoicePaid(invoiceId) {
   return callGAS('markInvoicePaid', { invoiceId });
 }
 
-async function updateInvoicePayment(invoiceId, paymentData) {
-  return callGAS('updateInvoicePayment', { invoiceId, paymentData });
-}
-async function sendInvoice(invoiceId, overrideEmail = '') {
-  return callGAS('sendInvoice', { invoiceId, overrideEmail });
-}
-
 async function getUsers(filters = {}) {
   const hasFilters = filters && Object.keys(filters).some((key) => String(filters[key] || '').trim() !== '');
   return hasFilters
@@ -556,11 +430,6 @@ async function saveUser(userData) {
 async function deleteUser(userId) {
   const result = await callGAS('deleteUser', { userId });
   clearClientCache(['getUsers', 'getOrganizations', 'getCircles', 'getCircleMembers', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage']);
-  return result;
-}
-async function impersonateUser(userId) {
-  const result = await callGAS('impersonateUser', { userId });
-  clearClientCache([]);
   return result;
 }
 
@@ -579,22 +448,22 @@ async function deleteClient(clientId) {
 
 async function saveCase(caseData) {
   const result = await callGAS('saveCase', { caseData });
-  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getAttorneyWorkspace', 'getSmartSearch']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
   return result;
 }
 async function bulkUpdateCases(bulkData) {
   const result = await callGAS('bulkUpdateCases', { bulkData });
-  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getAttorneyWorkspace', 'getSmartSearch']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
   return result;
 }
 async function bulkImportDocketTrakRows(importData) {
   const result = await callGAS('bulkImportDocketTrakRows', { importData });
-  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getAttorneyWorkspace', 'getSmartSearch']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getSmartSearch']);
   return result;
 }
 async function deleteCase(caseId) {
   const result = await callGAS('deleteCase', { caseId });
-  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getAttorneyWorkspace', 'getSmartSearch']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
   return result;
 }
 
@@ -654,11 +523,6 @@ window.API = {
   callGAS,
   callGASPublic,
   clerkLogin,
-  getUserInfo,
-  getStreamAuth,
-  ensureStreamUsers,
-  clearStreamChannel,
-  deleteStreamMessage,
   getDashboard,
   getDashboardSummary,
   getDashboardDetails,
@@ -691,7 +555,6 @@ window.API = {
   getExpenseClaims,
   reviewExpenseClaim,
   getNotifications,
-  sendAnnouncement,
   markNotificationRead,
   deleteNotification,
   clearNotifications,
@@ -721,10 +584,7 @@ window.API = {
   getGalvanizerCommandCenter,
   submitContact,
   markInvoicePaid,
-  updateInvoicePayment,
-  sendInvoice,
   getUsers, saveUser, deleteUser,
-  impersonateUser,
   getClients, getAccessibleClients, saveClient, deleteClient,
   saveCase, deleteCase,
   bulkUpdateCases,

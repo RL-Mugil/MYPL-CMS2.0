@@ -91,99 +91,6 @@ function updateRecordById_(configKey, idField, idValue, updates) {
   return true;
 }
 
-function normalizeWorkflowStageFromStatus_(status, currentStage) {
-  var normalized = String(status || "").trim();
-  var map = {
-    "Drafted": "Drafting",
-    "Filed": "Filed",
-    "Published": "Under Examination",
-    "Under Examination": "Under Examination",
-    "Granted": "Granted",
-    "Abandoned": "Closed",
-    "Lapsed": "Closed",
-    "Refused": "Closed",
-    "Deleted": "Closed",
-    "Closed": "Closed"
-  };
-  return map[normalized] || currentStage || "Drafting";
-}
-
-function getCaseWithNormalizedStage_(caseItem) {
-  var clone = {};
-  Object.keys(caseItem || {}).forEach(function(key) {
-    clone[key] = caseItem[key];
-  });
-  clone.WORKFLOW_STAGE = normalizeWorkflowStageFromStatus_(clone.CURRENT_STATUS, clone.WORKFLOW_STAGE || "");
-  return clone;
-}
-
-function renameCaseId_(session, oldCaseId, newCaseId) {
-  oldCaseId = String(oldCaseId || "").trim();
-  newCaseId = String(newCaseId || "").trim();
-  if (!oldCaseId || !newCaseId) return { error: "Both old and new Case ID are required." };
-  if (oldCaseId === newCaseId) return { success: true, message: "No Case ID change needed." };
-  if ((getAllCases() || []).some(function(item) { return String(item.CASE_ID || "") === newCaseId; })) {
-    return { error: "Case ID already exists: " + newCaseId };
-  }
-
-  var caseUpdated = updateRecordById_("CASE", "CASE_ID", oldCaseId, { CASE_ID: newCaseId, LAST_UPDATED: new Date() });
-  if (!caseUpdated) return { error: "Case not found." };
-
-  function replaceColumnValue_(configKey, columnName, fromValue, toValue, predicate) {
-    var sheet = getSheet_(configKey);
-    var data = sheet.getDataRange().getValues();
-    if (!data.length) return;
-    var headers = data[0];
-    var colIndex = headers.indexOf(columnName);
-    if (colIndex === -1) return;
-    for (var i = 1; i < data.length; i++) {
-      if (String(data[i][0] || "") === "") continue;
-      if (String(data[i][colIndex] || "") !== fromValue) continue;
-      if (predicate && !predicate(headers, data[i])) continue;
-      sheet.getRange(i + 1, colIndex + 1).setValue(toValue);
-    }
-    clearRequestSheetCache_(configKey);
-  }
-
-  replaceColumnValue_("INVOICE", "CASE_ID", oldCaseId, newCaseId);
-  replaceColumnValue_("DOCUMENT_REQUESTS", "CASE_ID", oldCaseId, newCaseId);
-  replaceColumnValue_("ACTIVITY_TIMELINE", "CASE_ID", oldCaseId, newCaseId);
-  replaceColumnValue_("ACTIVITY_TIMELINE", "ENTITY_ID", oldCaseId, newCaseId, function(headers, row) {
-    return String(row[headers.indexOf("ENTITY_TYPE")] || "") === "CASE";
-  });
-  replaceColumnValue_("TASKS", "RELATED_ENTITY_ID", oldCaseId, newCaseId, function(headers, row) {
-    return String(row[headers.indexOf("RELATED_ENTITY_TYPE")] || "") === "CASE";
-  });
-  replaceColumnValue_("APPROVALS", "RELATED_ENTITY_ID", oldCaseId, newCaseId, function(headers, row) {
-    return String(row[headers.indexOf("RELATED_ENTITY_TYPE")] || "") === "CASE";
-  });
-  replaceColumnValue_("MESSAGE_THREADS", "RELATED_ENTITY_ID", oldCaseId, newCaseId, function(headers, row) {
-    return String(row[headers.indexOf("RELATED_ENTITY_TYPE")] || "") === "CASE";
-  });
-  replaceColumnValue_("NOTIFICATIONS", "RELATED_ENTITY_ID", oldCaseId, newCaseId, function(headers, row) {
-    return String(row[headers.indexOf("RELATED_ENTITY_TYPE")] || "") === "CASE";
-  });
-
-  if (session && session.email) {
-    try {
-      createTimelineEvent_({
-        EVENT_TYPE: "CASE_ID_UPDATED",
-        TITLE: "Case ID updated",
-        DESCRIPTION: oldCaseId + " renamed to " + newCaseId,
-        ENTITY_TYPE: "CASE",
-        ENTITY_ID: newCaseId,
-        CASE_ID: newCaseId,
-        USER_EMAIL: session.email,
-        USER_NAME: session.name || session.email,
-        VISIBILITY: "Internal"
-      });
-    } catch (e) {}
-  }
-
-  clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "documents", "galvanizerQueue", "workflowBoard", "attorneyWorkspace", "notifications", "tasks", "messages", "timeline", "approvals", "documentRequests", "smartSearch"]);
-  return { success: true, message: "Case ID updated successfully." };
-}
-
 function getUserRecordByEmail_(email) {
   var users = getRecords_("USERS");
   for (var i = 0; i < users.length; i++) {
@@ -538,7 +445,7 @@ function getGalvanizerQueue_(session, filters) {
   var cacheKey = buildPortalCacheKey_("galvanizerQueue", session, JSON.stringify(filters || {}));
   var cached = readPortalCache_(cacheKey);
   if (cached) return cached;
-  var cases = getAccessibleCasesForUser_(session).map(getCaseWithNormalizedStage_);
+  var cases = getAccessibleCasesForUser_(session);
   cases = filterCases_(cases, filters);
   cases = cases.filter(function(caseItem) {
     return ["Drafting", "Ready for Attorney", "Under Attorney Review"].indexOf(String(caseItem.WORKFLOW_STAGE || "Drafting")) > -1;
@@ -707,7 +614,7 @@ function bulkUpdateCases_(session, payload) {
   });
 
   logActivity_("BULK_UPDATE_CASES", "CASE", caseIds.join(","), JSON.stringify(updates));
-  if (updated) clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "galvanizerQueue", "documents", "workflowBoard", "attorneyWorkspace", "smartSearch"]);
+  if (updated) clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "galvanizerQueue", "documents"]);
   return { success: true, updated: updated, message: updated + " cases updated." };
 }
 
@@ -853,7 +760,7 @@ function bulkImportDocketTrakRows_(session, payload) {
       try {
         logActivity_("BULK_IMPORT_CASES", "CASE", importedCaseIds.join(","), "Imported " + imported + " DocketTrak rows into " + client.CLIENT_ID);
       } catch (e) {}
-      clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "documents", "galvanizerQueue", "workflowBoard", "attorneyWorkspace", "smartSearch"]);
+      clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "documents", "galvanizerQueue", "workflowBoard", "smartSearch"]);
     }
 
     return {
@@ -1280,54 +1187,6 @@ function getNotifications_(session) {
     return new Date(b.CREATED_AT || 0) - new Date(a.CREATED_AT || 0);
   });
   return writePortalCache_(cacheKey, sanitizeDataForFrontend_(notifications.slice(0, 100)), 45);
-}
-
-function sendAnnouncement_(session, announcementData) {
-  if (!hasAnyRole_(session, ["Super Admin", "Admin"])) return { error: "Access denied." };
-  var title = String(announcementData.title || "").trim();
-  var body = String(announcementData.body || "").trim();
-  var audience = String(announcementData.audience || "all").trim().toLowerCase();
-  var orgId = String(announcementData.orgId || "").trim();
-  var roleFilter = String(announcementData.role || "").trim();
-  if (!title || !body) return { error: "Announcement title and message are required." };
-
-  var recipients = getRecords_("USERS").filter(function(user) {
-    if (String(user.STATUS || "") !== "Active") return false;
-    var roles = getEffectiveRoles_(user);
-    var isInternal = isInternalRole_(roles);
-    if (audience === "internal" && !isInternal) return false;
-    if (audience === "clients" && isInternal) return false;
-    if (orgId && String(user.ORG_ID || "") !== orgId) return false;
-    if (roleFilter && roles.indexOf(roleFilter) === -1) return false;
-    return true;
-  });
-
-  recipients.forEach(function(user) {
-    createNotification_(
-      user.EMAIL,
-      "[Announcement] " + title,
-      body + " | Sent by " + (session.name || session.email),
-      "ANNOUNCEMENT",
-      title
-    );
-  });
-
-  try {
-    createTimelineEvent_({
-      EVENT_TYPE: "ANNOUNCEMENT_SENT",
-      TITLE: title,
-      DESCRIPTION: "Announcement sent to " + recipients.length + " users",
-      ENTITY_TYPE: "ANNOUNCEMENT",
-      ENTITY_ID: title,
-      ORG_ID: orgId || "",
-      USER_EMAIL: session.email,
-      USER_NAME: session.name || session.email,
-      VISIBILITY: "Internal"
-    });
-  } catch (e) {}
-
-  clearPortalCaches_(["notifications", "dashboard", "dashboardSummary", "dashboardDetails"]);
-  return { success: true, recipients: recipients.length, message: "Announcement sent to " + recipients.length + " users." };
 }
 
 function markNotificationRead_(session, notificationId) {
@@ -1987,7 +1846,7 @@ function getWorkflowBoard_(session, filters) {
   var cached = readPortalCache_(cacheKey);
   if (cached) return cached;
   var stages = ["Drafting", "Ready for Attorney", "Under Attorney Review", "Filed", "Under Examination", "Granted", "Closed"];
-  var cases = filterAccessibleCases_(session, filters || {}).map(getCaseWithNormalizedStage_);
+  var cases = filterAccessibleCases_(session, filters || {});
   var board = {};
   stages.forEach(function(stage) { board[stage] = []; });
   cases.forEach(function(caseItem) {
@@ -2001,7 +1860,7 @@ function getWorkflowBoard_(session, filters) {
 function getAttorneyWorkspace_(session, filters) {
   if (!hasAnyRole_(session, ["Super Admin", "Admin", "Attorney"])) return { error: "Access denied." };
   filters = filters || {};
-  var cases = getAccessibleCasesForUser_(session).map(getCaseWithNormalizedStage_).filter(function(caseItem) {
+  var cases = getAccessibleCasesForUser_(session).filter(function(caseItem) {
     return String(caseItem.ATTORNEY || "").toLowerCase() === String(session.email || "").toLowerCase() || hasRoleAtLeast_(getEffectiveRoles_(session), "Admin");
   });
   if (filters.status) cases = cases.filter(function(item) { return String(item.CURRENT_STATUS || "") === String(filters.status); });
@@ -2215,30 +2074,16 @@ function reviewDocumentRequest_(session, requestId, reviewData) {
   var request = getRecords_("DOCUMENT_REQUESTS").find(function(item) { return item.REQUEST_ID === requestId; });
   if (!request) return { error: "Document request not found." };
   if (!hasRoleAtLeast_(getEffectiveRoles_(session), "Staff")) return { error: "Access denied." };
-  var nextStatus = reviewData.status || request.STATUS || "Open";
   var ok = updateRecordById_("DOCUMENT_REQUESTS", "REQUEST_ID", requestId, {
-    STATUS: nextStatus,
+    STATUS: reviewData.status || request.STATUS || "Open",
     DRIVE_LINK: reviewData.driveLink || request.DRIVE_LINK || "",
     APPROVAL_STATUS: reviewData.approvalStatus || request.APPROVAL_STATUS || "",
     UPDATED_AT: new Date()
   });
   if (!ok) return { error: "Document request update failed." };
   if (request.REQUESTED_BY_EMAIL) {
-    createNotification_(request.REQUESTED_BY_EMAIL, "Document request updated", request.TITLE + " is now " + nextStatus, "DOCUMENT_REQUEST", requestId);
+    createNotification_(request.REQUESTED_BY_EMAIL, "Document request updated", request.TITLE + " is now " + (reviewData.status || request.STATUS), "DOCUMENT_REQUEST", requestId);
   }
-  createTimelineEvent_({
-    EVENT_TYPE: "DOCUMENT_REQUEST_REVIEWED",
-    TITLE: request.TITLE || "Document request reviewed",
-    DESCRIPTION: "Document request moved to " + nextStatus + " by " + session.name,
-    ENTITY_TYPE: "DOCUMENT_REQUEST",
-    ENTITY_ID: requestId,
-    CASE_ID: request.CASE_ID || "",
-    CLIENT_ID: request.CLIENT_ID || "",
-    ORG_ID: request.ORG_ID || "",
-    USER_EMAIL: session.email,
-    USER_NAME: session.name,
-    VISIBILITY: String(request.CLIENT_VISIBLE || "Yes") === "Yes" ? "Shared" : "Internal"
-  });
   clearPortalCaches_(["documentRequests", "timeline", "notifications"]);
   return { success: true };
 }

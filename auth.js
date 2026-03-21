@@ -40,7 +40,8 @@ async function initClerk() {
   const Clerk = await loadClerk();
   const currentUrl = getCurrentPageUrl();
   await Clerk.load({
-    fallbackRedirectUrl: currentUrl,
+    afterSignInUrl: currentUrl,
+    afterSignUpUrl: currentUrl,
   });
   _clerkInstance = Clerk;
   return Clerk;
@@ -69,35 +70,9 @@ function getGasSession() {
   return null;
 }
 
-function getAllSessionRoles(session) {
-  const roles = [];
-  if (session?.role) roles.push(session.role);
-  String(session?.additionalRoles || '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .forEach((role) => {
-      if (!roles.includes(role)) roles.push(role);
-    });
-  return roles;
-}
-
-function getActiveViewRole(session) {
-  if (session?.role) return session.role;
-  const roles = getAllSessionRoles(session);
-  return roles[0] || '';
-}
-
 function setGasSession(session) {
-  if (!session) {
-    _gasSession = null;
-    sessionStorage.removeItem('mg_session');
-    return;
-  }
-  const next = { ...session };
-  delete next.activeViewRole;
-  _gasSession = next;
-  sessionStorage.setItem('mg_session', JSON.stringify(next));
+  _gasSession = session;
+  sessionStorage.setItem('mg_session', JSON.stringify(session));
 }
 
 function clearGasSession() {
@@ -105,82 +80,31 @@ function clearGasSession() {
   sessionStorage.removeItem('mg_session');
   try {
     Object.keys(sessionStorage).forEach((key) => {
-      if (key.startsWith('mg_api_cache_v')) {
+      if (key.startsWith('mg_api_cache_v1:')) {
         sessionStorage.removeItem(key);
       }
     });
   } catch {}
   try {
     Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith('mg_api_cache_v')) {
+      if (key.startsWith('mg_api_cache_v1:')) {
         localStorage.removeItem(key);
       }
     });
   } catch {}
 }
 
-function getEffectiveSessionRoles(session) {
-  return getAllSessionRoles(session);
-}
-
-function getAvailableViewRoles(session) {
-  const primaryRole = getActiveViewRole(session);
-  return primaryRole ? [primaryRole] : [];
-}
-
-function setActiveViewRole(role) {
-  const session = getGasSession();
-  if (!session) return null;
-  delete session.activeViewRole;
-  setGasSession(session);
-  return session;
-}
-
-function sessionMatchesAllowedRoles(session, allowedRoles) {
-  if (!allowedRoles || !allowedRoles.length) return true;
-  const effectiveRoles = getEffectiveSessionRoles(session);
-  return effectiveRoles.some((role) => allowedRoles.includes(role));
-}
-
 async function requireAuth(allowedRoles) {
-  const existing = getGasSession();
-  if (existing && existing.impersonatedByUserId && sessionMatchesAllowedRoles(existing, allowedRoles)) {
-    return existing;
-  }
-
   const Clerk = await initClerk();
-  if (!Clerk.user) {
-    if (existing && existing.impersonatedByUserId && sessionMatchesAllowedRoles(existing, allowedRoles)) {
-      return existing;
-    }
-    return null;
-  }
+
+  if (!Clerk.user) return null;
 
   const email = getClerkEmail();
-  if (!email) {
-    if (existing && existing.impersonatedByUserId && sessionMatchesAllowedRoles(existing, allowedRoles)) {
-      return existing;
-    }
-    return null;
-  }
+  if (!email) return null;
 
-  const matchesRealUser = existing && existing.email === email;
-  const matchesImpersonationOwner = existing
-    && existing.impersonatedByUserId
-    && String(existing.originalEmail || '').toLowerCase() === String(email || '').toLowerCase();
-  if (existing && (matchesRealUser || matchesImpersonationOwner)) {
-    if (!existing.userId && window.API && typeof window.API.getUserInfo === 'function') {
-      try {
-        const info = await window.API.getUserInfo();
-        const hydrated = { ...existing, ...info };
-        setGasSession(hydrated);
-        if (!sessionMatchesAllowedRoles(hydrated, allowedRoles)) {
-          return null;
-        }
-        return hydrated;
-      } catch {}
-    }
-    if (!sessionMatchesAllowedRoles(existing, allowedRoles)) {
+  const existing = getGasSession();
+  if (existing && existing.email === email) {
+    if (allowedRoles && !allowedRoles.includes(existing.role)) {
       return null;
     }
     return existing;
@@ -193,7 +117,7 @@ async function requireAuth(allowedRoles) {
     const session = { ...result, email };
     setGasSession(session);
 
-    if (!sessionMatchesAllowedRoles(session, allowedRoles)) {
+    if (allowedRoles && !allowedRoles.includes(session.role)) {
       return null;
     }
     return session;
@@ -238,9 +162,6 @@ async function mountSignIn(containerId, options = {}) {
 }
 
 async function signOut() {
-  if (window.StreamMessaging && typeof window.StreamMessaging.disconnect === 'function') {
-    try { await window.StreamMessaging.disconnect(); } catch {}
-  }
   clearGasSession();
   if (_clerkInstance) {
     await _clerkInstance.signOut();
@@ -254,10 +175,6 @@ window.Auth = {
   signOut,
   getClerkUser,
   getClerkEmail,
-  getEffectiveSessionRoles,
-  getAvailableViewRoles,
-  getActiveViewRole,
-  setActiveViewRole,
   getGasSession,
   setGasSession,
   clearGasSession,
