@@ -871,43 +871,86 @@ function loadMoreFinance() {
   applyFinanceFilters();
 }
 
+function getClientInvoiceUiId(item) {
+  return String(item && (item['Docket# [Invoice UIN]'] || item['Tax Invoice Number'] || item.INVOICE_ID || '') || '');
+}
+
+function getClientInvoiceUiTotal(item) {
+  return parseFloat(item && (item.InvAmount || item.TOTAL || 0) || 0) || 0;
+}
+
+function getClientInvoiceUiDue(item) {
+  if (item && item['Amount due'] != null && String(item['Amount due']) !== '') return parseFloat(item['Amount due']) || 0;
+  if (String(item && item.PAYMENT_STATUS || '') === 'Partially Paid') {
+    return Math.max(getClientInvoiceUiTotal(item) - (parseFloat(item && item.PAYMENT_AMOUNT || 0) || 0), 0);
+  }
+  return String(item && item.PAYMENT_STATUS || '') === 'Paid' ? 0 : getClientInvoiceUiTotal(item);
+}
+
+function getClientInvoiceSearchFields(item) {
+  return [
+    getClientInvoiceUiId(item),
+    item && item.ClientCode,
+    item && item.CLIENT_ID,
+    item && item['Name of Client'],
+    item && item.CLIENT_NAME,
+    item && item['Docket Number'],
+    item && item.CASE_ID,
+    item && item['Invention#'],
+    item && item['Main ServiceCode'],
+    item && item['Service Code 2'],
+    item && item['Service Code 3'],
+    item && item['First Inventor'],
+    item && item['Title Identfication (Only key words, Enter in lower case}'],
+    item && item['Patent Office'],
+    item && item.PAYMENT_STATUS,
+    item && item.TAX_TYPE,
+    item && item.NOTES
+  ].join(' ');
+}
+
 function applyFinanceFilters(resetLimit) {
   if (resetLimit) STATE.finance.limit = 20;
   var filters = STATE.finance.filters;
   var filtered = STATE.finance.all.filter(function(item) {
-    var invoiceDate = item.INVOICE_DATE || item.CREATED_AT;
+    var invoiceDate = item['Invoice Date'] || item.INVOICE_DATE || item.CREATED_AT;
     var invoiceMonth = invoiceDate ? new Date(invoiceDate).toISOString().slice(0, 7) : '';
-    if (filters.client && String(item.CLIENT_ID || '').trim().toUpperCase() !== String(filters.client || '').trim().toUpperCase()) return false;
+    var clientCode = String(item.ClientCode || item.CLIENT_ID || '').trim().toUpperCase();
+    if (filters.client && clientCode !== String(filters.client || '').trim().toUpperCase()) return false;
     if (filters.status && String(item.PAYMENT_STATUS || '') !== filters.status) return false;
     if (filters.month && invoiceMonth !== filters.month) return false;
     if (!matchesDateRange(invoiceDate, filters.fromDate, filters.toDate)) return false;
-    return csvContains([item.INVOICE_ID, item.CLIENT_ID, item.SERVICE_TYPE, item.DESCRIPTION, item.PAYMENT_STATUS], filters.query);
+    return csvContains([getClientInvoiceSearchFields(item)], filters.query);
   });
 
   filtered.sort(function(a, b) {
-    return new Date(b.INVOICE_DATE || b.CREATED_AT || 0) - new Date(a.INVOICE_DATE || a.CREATED_AT || 0);
+    return new Date(b['Invoice Date'] || b.INVOICE_DATE || b.CREATED_AT || 0) - new Date(a['Invoice Date'] || a.INVOICE_DATE || a.CREATED_AT || 0);
   });
 
   STATE.finance.filtered = filtered;
   var visible = filtered.slice(0, STATE.finance.limit);
-  var pendingAmount = filtered.filter(function(item) { return String(item.PAYMENT_STATUS || '') !== 'Paid'; }).reduce(function(sum, item) { return sum + (parseFloat(item.TOTAL) || 0); }, 0);
-  var paidAmount = filtered.filter(function(item) { return String(item.PAYMENT_STATUS || '') === 'Paid'; }).reduce(function(sum, item) { return sum + (parseFloat(item.TOTAL) || 0); }, 0);
+  var pendingAmount = filtered.filter(function(item) { return String(item.PAYMENT_STATUS || '') !== 'Paid'; }).reduce(function(sum, item) { return sum + getClientInvoiceUiDue(item); }, 0);
+  var paidAmount = filtered.filter(function(item) { return String(item.PAYMENT_STATUS || '') === 'Paid'; }).reduce(function(sum, item) { return sum + getClientInvoiceUiTotal(item); }, 0);
+  var paidCount = filtered.filter(function(item) { return String(item.PAYMENT_STATUS || '') === 'Paid'; }).length;
+  var pendingCount = filtered.length - paidCount;
 
   document.getElementById('page-content').innerHTML = `
     <div class="page">
       <div class="stats-grid">
-        <div class="stat-card accent-rose"><div class="stat-label">Pending Amount</div><div class="stat-value">${money(pendingAmount)}</div><div class="stat-sub">outstanding</div></div>
+        <div class="stat-card accent-primary"><div class="stat-label">Total Invoices</div><div class="stat-value">${filtered.length}</div><div class="stat-sub">matching filters</div></div>
+        <div class="stat-card accent-rose"><div class="stat-label">Pending Count</div><div class="stat-value">${pendingCount}</div><div class="stat-sub">open invoices</div></div>
+        <div class="stat-card accent-emerald"><div class="stat-label">Paid Count</div><div class="stat-value">${paidCount}</div><div class="stat-sub">closed invoices</div></div>
+        <div class="stat-card accent-amber"><div class="stat-label">Pending Amount</div><div class="stat-value">${money(pendingAmount)}</div><div class="stat-sub">outstanding</div></div>
         <div class="stat-card accent-emerald"><div class="stat-label">Paid Amount</div><div class="stat-value">${money(paidAmount)}</div><div class="stat-sub">received</div></div>
-        <div class="stat-card accent-primary"><div class="stat-label">Invoices</div><div class="stat-value">${filtered.length}</div><div class="stat-sub">matching filters</div></div>
       </div>
       <div class="card filter-panel" style="margin-bottom:16px">
         <div class="filter-toggle-row"><button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer('finance')">${STATE.finance.filtersOpen ? 'Hide Filters' : 'Show Filters'}</button></div>
         <div class="filter-drawer ${STATE.finance.filtersOpen ? 'open' : ''}">
           <div class="filter-head"><div class="card-title">Invoice Filters</div><div class="filter-actions"><button class="btn btn-ghost btn-sm" onclick="resetFinanceFilters()">Reset</button></div></div>
           <div class="filter-grid">
-            <div><label class="form-label">Search</label><input class="form-control" value="${esc(filters.query)}" placeholder="Invoice ID or service type" oninput="handleFinanceFilterChange('query', this.value)" /></div>
+            <div><label class="form-label">Search</label><input class="form-control" value="${esc(filters.query)}" placeholder="Invoice, client, inventor, docket, service code" oninput="handleFinanceFilterChange('query', this.value)" /></div>
             <div><label class="form-label">Client</label><select class="form-control" onchange="handleFinanceFilterChange('client', this.value)">${buildClientOptions(filters.client, 'All Clients')}</select></div>
-            <div><label class="form-label">Status</label><select class="form-control" onchange="handleFinanceFilterChange('status', this.value)"><option value="">All Statuses</option><option value="Paid"${filters.status === 'Paid' ? ' selected' : ''}>Paid</option><option value="Unpaid"${filters.status === 'Unpaid' ? ' selected' : ''}>Unpaid</option></select></div>
+            <div><label class="form-label">Status</label><select class="form-control" onchange="handleFinanceFilterChange('status', this.value)"><option value="">All Statuses</option><option value="Paid"${filters.status === 'Paid' ? ' selected' : ''}>Paid</option><option value="Unpaid"${filters.status === 'Unpaid' ? ' selected' : ''}>Unpaid</option><option value="Partially Paid"${filters.status === 'Partially Paid' ? ' selected' : ''}>Partially Paid</option></select></div>
             <div><label class="form-label">Month</label><input class="form-control" type="month" value="${esc(filters.month)}" onchange="handleFinanceFilterChange('month', this.value)" /></div>
             <div><label class="form-label">From Date</label><input class="form-control" type="date" value="${esc(filters.fromDate)}" onchange="handleFinanceFilterChange('fromDate', this.value)" /></div>
             <div><label class="form-label">To Date</label><input class="form-control" type="date" value="${esc(filters.toDate)}" onchange="handleFinanceFilterChange('toDate', this.value)" /></div>
@@ -918,11 +961,11 @@ function applyFinanceFilters(resetLimit) {
         <div class="card-title">Invoice Ledger</div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Invoice ID</th><th>Date</th><th>Service</th><th>Total</th><th>Status</th><th>PDF</th></tr></thead>
+            <thead><tr><th>Invoice UIN</th><th>Date</th><th>Client Code</th><th>Client</th><th>Docket</th><th>Service Code</th><th>Invoice Amount</th><th>Amount Due</th><th>Status</th><th>PDF</th></tr></thead>
             <tbody>
               ${visible.map(function(item) {
-                return '<tr><td class="text-em">' + esc(item.INVOICE_ID || '') + '</td><td>' + esc(fmt(item.INVOICE_DATE)) + '</td><td><div class="text-em">' + esc(item.SERVICE_TYPE || '') + '</div><div class="text-muted" style="font-size:11px">' + esc(item.DESCRIPTION || '') + '</div></td><td>' + esc(money(item.TOTAL)) + '</td><td>' + statusBadge(item.PAYMENT_STATUS || 'Unpaid') + '</td><td>' + (item.INVOICE_PDF_LINK ? '<a href="' + esc(item.INVOICE_PDF_LINK) + '" target="_blank">Open</a>' : '-') + '</td></tr>';
-              }).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No invoices found.</td></tr>'}
+                return '<tr><td class="text-em">' + esc(getClientInvoiceUiId(item)) + '</td><td>' + esc(fmt(item['Invoice Date'] || item.INVOICE_DATE)) + '</td><td>' + esc(item.ClientCode || item.CLIENT_ID || '') + '</td><td><div class="text-em">' + esc(item['Name of Client'] || item.CLIENT_NAME || '') + '</div><div class="text-muted" style="font-size:11px">' + esc(item['First Inventor'] || '') + '</div></td><td>' + esc(item['Docket Number'] || item.CASE_ID || '') + '</td><td><div class="text-em">' + esc(item['Main ServiceCode'] || '') + '</div><div class="text-muted" style="font-size:11px">' + esc(item['Service Code 2'] || item['Service Code 3'] || '') + '</div></td><td>' + esc(money(getClientInvoiceUiTotal(item))) + '</td><td>' + esc(money(getClientInvoiceUiDue(item))) + '</td><td>' + statusBadge(item.PAYMENT_STATUS || 'Unpaid') + '</td><td>' + (item.INVOICE_PDF_LINK ? '<a href="' + esc(item.INVOICE_PDF_LINK) + '" target="_blank">Open</a>' : '-') + '</td></tr>';
+              }).join('') || '<tr><td colspan="10" class="text-muted" style="padding:20px;text-align:center">No invoices found.</td></tr>'}
             </tbody>
           </table>
         </div>
