@@ -6,7 +6,7 @@
  */
 
 const API_BASE = (window.APP_CONFIG && window.APP_CONFIG.apiBase) || '';
-const API_CACHE_PREFIX = 'mg_api_cache_v2';
+const API_CACHE_PREFIX = 'mg_api_cache_v3';
 const API_MEMORY_CACHE = new Map();
 const SAFE_LOOKUP_TTL_MS = 5 * 24 * 60 * 60 * 1000;
 
@@ -49,7 +49,7 @@ function stableStringify(value) {
 
 function getCacheScope() {
   const session = window.Auth?.getGasSession?.();
-  return [session?.email || session?.token || 'public', session?.activeViewRole || 'default'].join(':');
+  return [session?.email || session?.token || 'public', session?.role || 'default'].join(':');
 }
 
 function buildClientCacheKey(action, params = {}) {

@@ -40,8 +40,7 @@ async function initClerk() {
   const Clerk = await loadClerk();
   const currentUrl = getCurrentPageUrl();
   await Clerk.load({
-    afterSignInUrl: currentUrl,
-    afterSignUpUrl: currentUrl,
+    fallbackRedirectUrl: currentUrl,
   });
   _clerkInstance = Clerk;
   return Clerk;
@@ -84,9 +83,8 @@ function getAllSessionRoles(session) {
 }
 
 function getActiveViewRole(session) {
+  if (session?.role) return session.role;
   const roles = getAllSessionRoles(session);
-  const requested = String(session?.activeViewRole || '').trim();
-  if (requested && roles.includes(requested)) return requested;
   return roles[0] || '';
 }
 
@@ -97,10 +95,7 @@ function setGasSession(session) {
     return;
   }
   const next = { ...session };
-  const roles = getAllSessionRoles(next);
-  if (next.activeViewRole && !roles.includes(next.activeViewRole)) {
-    delete next.activeViewRole;
-  }
+  delete next.activeViewRole;
   _gasSession = next;
   sessionStorage.setItem('mg_session', JSON.stringify(next));
 }
@@ -125,21 +120,18 @@ function clearGasSession() {
 }
 
 function getEffectiveSessionRoles(session) {
-  const active = getActiveViewRole(session);
-  return active ? [active] : [];
+  return getAllSessionRoles(session);
 }
 
 function getAvailableViewRoles(session) {
-  return getAllSessionRoles(session);
+  const primaryRole = getActiveViewRole(session);
+  return primaryRole ? [primaryRole] : [];
 }
 
 function setActiveViewRole(role) {
   const session = getGasSession();
   if (!session) return null;
-  const roles = getAllSessionRoles(session);
-  const requested = String(role || '').trim();
-  if (requested && roles.includes(requested)) session.activeViewRole = requested;
-  else delete session.activeViewRole;
+  delete session.activeViewRole;
   setGasSession(session);
   return session;
 }
