@@ -2319,6 +2319,7 @@ function renderFinance(invoices, canEdit) {
       <td>${inv.INVOICE_PDF_LINK ? `<a href="${inv.INVOICE_PDF_LINK}" target="_blank" style="font-size:12px">View PDF</a>` : '—'}</td>
       ${canEdit ? `<td><div class="action-row">
         ${!isPaid ? `<button class="btn btn-success btn-sm" onclick="markPaid('${escapeAttr(getInvoiceUiId(inv))}',this)">Paid</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick='openInvoicePaymentModal(${JSON.stringify(JSON.stringify(inv))})'>Payment</button>
         <button class="btn btn-ghost btn-sm" onclick='openInvoiceModal(${JSON.stringify(JSON.stringify(inv))})'>Edit</button>
         <button class="btn btn-danger btn-sm" onclick="deleteItem('Invoice','${escapeAttr(getInvoiceUiId(inv))}')">Del</button>
       </div></td>` : ''}
@@ -2353,6 +2354,59 @@ async function markPaid(invoiceId, btn) {
   } catch(e) {
     btn.disabled = false; btn.textContent = 'Paid';
     alert('Error: ' + e.message);
+  }
+}
+
+function openInvoicePaymentModal(jsonStr) {
+  const inv = jsonStr ? JSON.parse(jsonStr) : null;
+  if (!inv) return;
+  const invoiceId = getInvoiceUiId(inv);
+  const total = getInvoiceUiTotal(inv);
+  const paidAmount = parseFloat(inv.PAYMENT_AMOUNT || 0) || 0;
+  openGenericModal(`Update Payment — ${escapeHtml(invoiceId)}`, `
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Invoice Amount</label><input class="form-control" id="qp-total" value="${total.toFixed(2)}" readonly /></div>
+      <div class="form-group"><label class="form-label">Amount Paid</label><input type="number" step="0.01" class="form-control" id="qp-paid-amount" value="${paidAmount ? paidAmount.toFixed(2) : ''}" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Payment Date</label><input type="date" class="form-control" id="qp-payment-date" value="${inv.PAYMENT_DATE ? new Date(inv.PAYMENT_DATE).toISOString().split('T')[0] : ''}" /></div>
+      <div class="form-group"><label class="form-label">Payment Mode</label><input class="form-control" id="qp-payment-mode" value="${escapeAttr(inv.PAYMENT_MODE || '')}" placeholder="UPI, Bank Transfer, Cash" /></div>
+    </div>
+    <div class="text-muted" style="margin-bottom:12px;font-size:12px">
+      Status will be set automatically:
+      0 = Unpaid, between 0 and invoice amount = Partially Paid, full amount = Paid.
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" id="qp-save-btn" onclick="submitQuickInvoicePayment('${escapeAttr(invoiceId)}', ${total})">Save Payment</button>
+    </div>`);
+}
+
+async function submitQuickInvoicePayment(invoiceId, total) {
+  const btn = document.getElementById('qp-save-btn');
+  const paidAmount = parseFloat(document.getElementById('qp-paid-amount')?.value || 0) || 0;
+  if (paidAmount < 0) {
+    alert('Paid amount cannot be negative.');
+    return;
+  }
+  if (paidAmount > total) {
+    alert('Paid amount cannot exceed invoice amount.');
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    await API.updateInvoicePayment(invoiceId, {
+      PAYMENT_AMOUNT: paidAmount,
+      PAYMENT_DATE: document.getElementById('qp-payment-date')?.value || '',
+      PAYMENT_MODE: document.getElementById('qp-payment-mode')?.value.trim() || '',
+    });
+    closeModal('modal-generic');
+    loadFinance();
+  } catch (e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'Save Payment';
   }
 }
 

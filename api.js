@@ -509,6 +509,10 @@ async function markInvoicePaid(invoiceId) {
   return callGAS('markInvoicePaid', { invoiceId });
 }
 
+async function updateInvoicePayment(invoiceId, paymentData) {
+  return callGAS('updateInvoicePayment', { invoiceId, paymentData });
+}
+
 async function getUsers(filters = {}) {
   const hasFilters = filters && Object.keys(filters).some((key) => String(filters[key] || '').trim() !== '');
   return hasFilters
@@ -688,6 +692,7 @@ window.API = {
   getGalvanizerCommandCenter,
   submitContact,
   markInvoicePaid,
+  updateInvoicePayment,
   getUsers, saveUser, deleteUser,
   impersonateUser,
   getClients, getAccessibleClients, saveClient, deleteClient,
