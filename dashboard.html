@@ -366,6 +366,10 @@ function canAccessManagement() {
   return sessionHasAnyRole(['Super Admin', 'Admin', 'Client Admin']);
 }
 
+function canImpersonateUsers() {
+  return String(SESSION?.userId || '') === 'USR001';
+}
+
 function isInternalUser() {
   return sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney']);
 }
@@ -623,11 +627,8 @@ let STREAM_STATE = {
   pendingFile: null,
   pendingPoll: null,
   typingTimeout: null,
-  videoClient: null,
-  activeCall: null,
-  callSubscription: null,
-  callBindings: [],
   draftText: '',
+  contextMenu: { messageId: '', mode: '' },
 };
 
 function deriveWorkflowStageFromStatus(status, currentStage) {
@@ -1083,7 +1084,10 @@ function setTopbarActions(extraHtml = '') {
   window.__lastTopbarExtra = extraHtml || '';
   const right = document.getElementById('topbar-right');
   if (!right) return;
-  right.innerHTML = `${getThemeToggleHtml()}${extraHtml ? `<span class="topbar-actions-extra">${extraHtml}</span>` : ''}`;
+  const impersonationHtml = SESSION?.impersonatedByUserId
+    ? `<span class="topbar-actions-extra"><span class="stream-chip">Impersonating ${escapeAttr(SESSION.name || SESSION.email || '')}</span><button class="btn btn-ghost btn-sm" onclick="stopImpersonation()">Stop Impersonation</button></span>`
+    : '';
+  right.innerHTML = `${getThemeToggleHtml()}${impersonationHtml}${extraHtml ? `<span class="topbar-actions-extra">${extraHtml}</span>` : ''}`;
 }
 
 function toggleTheme() {
@@ -2810,8 +2814,7 @@ async function disconnectStreamMessaging() {
   STREAM_STATE.pendingPoll = null;
   STREAM_STATE.typingTimeout = null;
   STREAM_STATE.draftText = '';
-  await leaveStreamCall(true);
-  STREAM_STATE.videoClient = null;
+  STREAM_STATE.contextMenu = { messageId: '', mode: '' };
 }
 
 function canModerateStreamMessages() {
@@ -2960,154 +2963,25 @@ function renderStreamReactionBar(message) {
     </div>`;
 }
 
-async function loadStreamVideoSdk() {
-  if (window.__STREAM_VIDEO_SDK__) return window.__STREAM_VIDEO_SDK__;
-  const mod = await import('https://esm.sh/@stream-io/video-client?bundle');
-  window.__STREAM_VIDEO_SDK__ = mod;
-  return mod;
-}
-
-async function ensureStreamVideoClient() {
-  if (STREAM_STATE.videoClient && STREAM_STATE.auth) return STREAM_STATE.videoClient;
-  const sdk = await loadStreamVideoSdk();
-  const auth = STREAM_STATE.auth || await API.getStreamAuth();
-  const apiKey = auth.apiKey || window.APP_CONFIG?.streamApiKey || '';
-  const StreamVideoClientCtor = sdk.StreamVideoClient || sdk.default?.StreamVideoClient || sdk.default || null;
-  if (!StreamVideoClientCtor) {
-    throw new Error('Stream Video SDK failed to load.');
+function openStreamMessageContext(messageId, mode, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
   }
-  STREAM_STATE.videoClient = new StreamVideoClientCtor({
-    apiKey,
-    user: auth.user,
-    token: auth.token,
-  });
-  return STREAM_STATE.videoClient;
+  if (!messageId) return;
+  const sameMessage = STREAM_STATE.contextMenu?.messageId === messageId;
+  const currentMode = sameMessage ? STREAM_STATE.contextMenu?.mode : '';
+  const nextMode = currentMode === mode ? '' : mode;
+  STREAM_STATE.contextMenu = nextMode ? { messageId, mode: nextMode } : { messageId: '', mode: '' };
+  renderStreamActiveChannel();
 }
 
-function buildStreamCallId(channel, kind) {
-  return `${kind}_${String(channel?.cid || '').replace(/[^A-Za-z0-9_-]/g, '_')}`;
+function handleStreamMessageContext(messageId, event) {
+  openStreamMessageContext(messageId, 'reactions', event);
 }
 
-function clearStreamCallBindings() {
-  (STREAM_STATE.callBindings || []).forEach((unbind) => {
-    try { if (typeof unbind === 'function') unbind(); } catch {}
-  });
-  STREAM_STATE.callBindings = [];
-}
-
-function withTimeout(promise, timeoutMs, message) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(message || 'Timed out.')), timeoutMs)),
-  ]);
-}
-
-function renderStreamCallParticipants() {
-  const call = STREAM_STATE.activeCall;
-  const host = document.getElementById('stream-call-grid');
-  if (!call || !host) return;
-  clearStreamCallBindings();
-  const participants = Array.isArray(call.state?.participants) ? call.state.participants : [];
-  host.innerHTML = participants.length ? participants.map((participant) => `
-    <div class="stream-call-tile">
-      <video id="stream-video-${escapeAttr(participant.sessionId || '')}" autoplay playsinline muted="${participant.userId === STREAM_STATE.auth?.user?.id ? 'muted' : ''}"></video>
-      <audio id="stream-audio-${escapeAttr(participant.sessionId || '')}" autoplay></audio>
-      <div class="stream-call-name">${participant.name || participant.userId || 'Participant'}</div>
-    </div>`).join('') : '<div class="text-muted">Waiting for participants to join…</div>';
-  participants.forEach((participant) => {
-    if (!participant?.sessionId) return;
-    const videoEl = document.getElementById(`stream-video-${participant.sessionId}`);
-    const audioEl = document.getElementById(`stream-audio-${participant.sessionId}`);
-    try {
-      if (videoEl) STREAM_STATE.callBindings.push(call.bindVideoElement(videoEl, participant.sessionId, 'videoTrack'));
-    } catch {}
-    try {
-      if (audioEl) STREAM_STATE.callBindings.push(call.bindAudioElement(audioEl, participant.sessionId, 'audioTrack'));
-    } catch {}
-  });
-}
-
-async function leaveStreamCall(silent = false) {
-  if (STREAM_STATE.callSubscription && typeof STREAM_STATE.callSubscription.unsubscribe === 'function') {
-    try { STREAM_STATE.callSubscription.unsubscribe(); } catch {}
-  }
-  STREAM_STATE.callSubscription = null;
-  clearStreamCallBindings();
-  if (STREAM_STATE.activeCall) {
-    try { await STREAM_STATE.activeCall.leave(); } catch {}
-  }
-  STREAM_STATE.activeCall = null;
-  if (!silent) {
-    closeModal('modal-generic');
-  }
-}
-
-async function toggleStreamCallMic() {
-  const call = STREAM_STATE.activeCall;
-  if (!call?.microphone) return;
-  try {
-    if (call.microphone.state?.status === 'enabled') await call.microphone.disable();
-    else await call.microphone.enable();
-  } catch (e) {
-    alert(e.message || 'Unable to toggle microphone.');
-  }
-}
-
-async function toggleStreamCallCamera() {
-  const call = STREAM_STATE.activeCall;
-  if (!call?.camera) return;
-  try {
-    if (call.camera.state?.status === 'enabled') await call.camera.disable();
-    else await call.camera.enable();
-  } catch (e) {
-    alert(e.message || 'Unable to toggle camera.');
-  }
-}
-
-function openStreamCallModal(kind) {
-  openGenericModal(kind === 'video' ? 'Stream Video Call' : 'Stream Audio Call', `
-    <div class="stream-call-shell">
-      <div class="stream-call-grid" id="stream-call-grid"><div class="text-muted">Joining call…</div></div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="toggleStreamCallMic()">Mic</button>
-        <button class="btn btn-ghost" onclick="toggleStreamCallCamera()">Camera</button>
-        <button class="btn btn-danger" onclick="leaveStreamCall()">Leave Call</button>
-      </div>
-    </div>`);
-}
-
-async function startStreamCall(kind) {
-  const channel = STREAM_STATE.activeChannel;
-  if (!channel) return;
-  try {
-    openStreamCallModal(kind);
-    const videoClient = await ensureStreamVideoClient();
-    const memberIds = Object.keys(channel.state?.members || {});
-    const call = videoClient.call('default', buildStreamCallId(channel, kind));
-    await withTimeout(call.getOrCreate({
-      data: {
-        custom: { channelCid: channel.cid, kind },
-        members: memberIds.map((id) => ({ user_id: id })),
-      },
-    }), 10000, 'Call setup timed out.');
-    await withTimeout(call.join({ create: true }), 12000, 'Call join timed out.');
-    await withTimeout(call.microphone?.enable?.() || Promise.resolve(), 8000, 'Microphone enable timed out.');
-    if (kind === 'video') {
-      await withTimeout(call.camera?.enable?.() || Promise.resolve(), 8000, 'Camera enable timed out.');
-    }
-    STREAM_STATE.activeCall = call;
-    if (STREAM_STATE.callSubscription && typeof STREAM_STATE.callSubscription.unsubscribe === 'function') {
-      try { STREAM_STATE.callSubscription.unsubscribe(); } catch {}
-    }
-    if (call.state?.participants$?.subscribe) {
-      STREAM_STATE.callSubscription = call.state.participants$.subscribe(() => renderStreamCallParticipants());
-    }
-    setTimeout(renderStreamCallParticipants, 80);
-  } catch (e) {
-    try { await leaveStreamCall(true); } catch {}
-    closeModal('modal-generic');
-    alert(e.message || 'Unable to start Stream call.');
-  }
+function handleStreamMessageDeleteContext(messageId, event) {
+  openStreamMessageContext(messageId, 'delete', event);
 }
 
 async function ensureStreamMessagingClient() {
@@ -3238,21 +3112,21 @@ function renderStreamActiveChannel() {
     const mine = message.user?.id === STREAM_STATE.auth?.user?.id;
     const canDelete = mine || canModerateStreamMessages();
     const readSummary = mine ? getStreamReadSummary(channel, message) : '';
+    const isReactionMenuOpen = STREAM_STATE.contextMenu?.messageId === message.id && STREAM_STATE.contextMenu?.mode === 'reactions';
+    const isDeleteMenuOpen = STREAM_STATE.contextMenu?.messageId === message.id && STREAM_STATE.contextMenu?.mode === 'delete';
     return `
       <div class="stream-message-row ${mine ? 'mine' : ''}">
-        <div class="stream-message-card">
+        <div class="stream-message-card" oncontextmenu="handleStreamMessageContext('${escapeAttr(message.id)}', event)" ondblclick="handleStreamMessageDeleteContext('${escapeAttr(message.id)}', event)">
           <div class="stream-message-author">${mine ? 'You' : (message.user?.name || 'User')}</div>
           ${message.text ? `<div class="stream-message-text">${message.text}</div>` : ''}
           ${renderStreamAttachments(message)}
           ${renderStreamPoll(message)}
-          ${renderStreamReactionBar(message)}
+          ${isReactionMenuOpen ? renderStreamReactionBar(message) : ''}
           <div class="stream-message-foot">
             <span>${formatChatTime(message.created_at)}</span>
             ${readSummary ? `<span>${readSummary}</span>` : ''}
           </div>
-          <div class="stream-message-actions">
-            ${canDelete ? `<button class="btn btn-ghost btn-sm" onclick="deleteStreamMessageAction('${escapeAttr(message.id)}', ${mine ? 'true' : 'false'})">Delete</button>` : ''}
-          </div>
+          ${isDeleteMenuOpen && canDelete ? `<div class="stream-message-actions"><button class="btn btn-ghost btn-sm" onclick="deleteStreamMessageAction('${escapeAttr(message.id)}', ${mine ? 'true' : 'false'})">Delete</button></div>` : ''}
         </div>
       </div>`;
   }).join('');
@@ -3266,12 +3140,9 @@ function renderStreamActiveChannel() {
           <div class="text-muted" id="stream-typing-label" style="font-size:12px">${typingLabel}</div>
         </div>
         <div class="stream-header-actions">
-          <button class="btn btn-ghost btn-sm" onclick="startStreamCall('audio')">Audio Call</button>
-          <button class="btn btn-ghost btn-sm" onclick="startStreamCall('video')">Video Call</button>
           <button class="btn btn-ghost btn-sm" onclick="openStreamPollModal()">Poll</button>
           <button class="btn btn-ghost btn-sm" onclick="openStreamMentionMenu()">Mention</button>
           <button class="btn btn-ghost btn-sm" onclick="triggerStreamAttachment()">Attach</button>
-          <button class="btn btn-ghost btn-sm" onclick="insertStreamGiphy()">Giphy</button>
           ${canModerateStreamMessages() ? `<button class="btn btn-ghost btn-sm" onclick="clearActiveStreamChat()">Clear Chat</button>` : ''}
         </div>
       </div>
@@ -3281,7 +3152,7 @@ function renderStreamActiveChannel() {
       <div class="stream-thread" id="stream-message-thread">${items || '<div class="text-muted" style="padding:12px">No messages yet.</div>'}</div>
       <div class="stream-pending-bar">${pendingFileName}${pendingPollName}</div>
       <div class="stream-composer">
-        <textarea class="form-control" id="stream-message-input" rows="3" placeholder="Type a message. Use @email for mentions or /giphy cats" oninput="handleStreamComposerInput()">${escapeAttr(STREAM_STATE.draftText || '')}</textarea>
+        <textarea class="form-control" id="stream-message-input" rows="3" placeholder="Type a message. Use @email for mentions" oninput="handleStreamComposerInput()" onkeydown="handleStreamComposerKeydown(event)">${escapeAttr(STREAM_STATE.draftText || '')}</textarea>
         <input type="file" id="stream-file-input" style="display:none" onchange="handleStreamAttachmentSelected(event)" />
         <button class="btn btn-primary" style="align-self:flex-end" onclick="sendStreamMessage()">Send</button>
       </div>
@@ -3469,6 +3340,13 @@ function handleStreamComposerInput() {
   }, 1600);
 }
 
+function handleStreamComposerKeydown(event) {
+  if (event && event.ctrlKey && event.key === 'Enter') {
+    event.preventDefault();
+    sendStreamMessage();
+  }
+}
+
 function triggerStreamAttachment() {
   document.getElementById('stream-file-input')?.click();
 }
@@ -3476,14 +3354,6 @@ function triggerStreamAttachment() {
 function handleStreamAttachmentSelected(event) {
   STREAM_STATE.pendingFile = event?.target?.files?.[0] || null;
   renderStreamActiveChannel();
-}
-
-function insertStreamGiphy() {
-  const input = document.getElementById('stream-message-input');
-  if (!input) return;
-  input.value = input.value ? `${input.value} /giphy ` : '/giphy ';
-  STREAM_STATE.draftText = input.value;
-  input.focus();
 }
 
 function insertStreamMention(email) {
@@ -3568,6 +3438,7 @@ async function deleteStreamMessageAction(messageId, mine) {
   } else {
     await API.deleteStreamMessage(messageId);
   }
+  STREAM_STATE.contextMenu = { messageId: '', mode: '' };
   await openStreamChannel(channel.cid);
 }
 
