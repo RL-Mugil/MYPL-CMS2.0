@@ -287,6 +287,7 @@ let MGMT_ORG_FILTERS = { query: '', sortDir: 'az' };
 let TASK_FILTERS = { query: '', status: '', sortDir: 'az' };
 let APPROVAL_FILTERS = { query: '', status: '', type: '', sortDir: 'az' };
 let EXPENSE_FILTERS = { period: 'month', fromDate: '', toDate: '', sortDir: 'az' };
+let FINANCE_FILTERS = { clientCode: '', query: '', sortDir: 'az' };
 let CASES_PAGE_LIMIT = 50;
 let CASES_PAGE_OFFSET = 0;
 let CASES_HAS_MORE = false;
@@ -306,10 +307,12 @@ let CURRENT_PAGE = 'dashboard';
 let CASE_FILTER_TARGET = 'cases';
 let CASE_MODAL_RETURN_PAGE = 'cases';
 let CASE_IMPORT_STATE = { parsedRows: [], importableRows: [], skippedRows: [], fileName: '' };
+let FINANCE_INVOICES_CACHE = [];
 const NAV_SECTION_STORAGE_KEY = 'mg_sidebar_sections_v1';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'mg_sidebar_collapsed_v1';
 const FILTER_PANEL_STATE = {
   cases: false,
+  finance: false,
   galvanizer: false,
   tasks: false,
   approvals: false,
@@ -778,6 +781,42 @@ function normalizeAlphaValue(value) {
   return String(value == null ? '' : value).trim().toLowerCase();
 }
 
+function normalizeSearchText(value) {
+  return String(value == null ? '' : value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function fuzzyIncludesText(haystack, needle) {
+  const source = normalizeSearchText(haystack);
+  const target = normalizeSearchText(needle);
+  if (!target) return true;
+  if (!source) return false;
+  if (source.includes(target)) return true;
+  let position = 0;
+  for (let i = 0; i < target.length; i++) {
+    const ch = target[i];
+    if (ch === ' ') continue;
+    position = source.indexOf(ch, position);
+    if (position === -1) return false;
+    position += 1;
+  }
+  return true;
+}
+
+function matchesBroadSearch(values, query) {
+  const terms = normalizeSearchText(query).split(' ').filter(Boolean);
+  if (!terms.length) return true;
+  const fields = (values || []).map((value) => normalizeSearchText(value)).filter(Boolean);
+  const allText = fields.join(' ');
+  return terms.every((term) => {
+    if (allText.includes(term)) return true;
+    return fields.some((field) => fuzzyIncludesText(field, term));
+  });
+}
+
 function sortItemsBy(items, getter, direction = 'az') {
   const factor = direction === 'za' ? -1 : 1;
   return [...(items || [])].sort((a, b) => {
@@ -795,6 +834,7 @@ function toggleFilterPanel(filterKey) {
   FILTER_PANEL_STATE[filterKey] = !FILTER_PANEL_STATE[filterKey];
   const reloadMap = {
     cases: loadCases,
+    finance: renderFinance,
     galvanizer: loadGalvanizerQueue,
     tasks: loadTasks,
     approvals: loadApprovals,
@@ -2263,13 +2303,13 @@ async function loadFinance() {
   }
   const canEdit = sessionHasRoleAtLeast('Admin');
   if (canEdit) {
-    setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openInvoiceModal()">+ New Invoice</button>`);
+    setTopbarActions(`${renderFilterToggleButton('finance')}<button class="btn btn-primary btn-sm" onclick="openInvoiceModal()">+ New Invoice</button>`);
   } else {
-    setTopbarActions('');
+    setTopbarActions(renderFilterToggleButton('finance'));
   }
   try {
-    const invoices = await API.getInvoices();
-    renderFinance(invoices, canEdit);
+    FINANCE_INVOICES_CACHE = await API.getInvoices();
+    renderFinance(FINANCE_INVOICES_CACHE, canEdit);
   } catch(e) {
     showPageError('loadFinance', e);
   }
@@ -2326,16 +2366,83 @@ function previewInvoiceByLink(link) {
   window.open(target, '_blank');
 }
 
-function renderFinance(invoices, canEdit) {
+function getFinanceSearchFields(inv) {
+  return [
+    getInvoiceUiId(inv),
+    inv?.ClientCode,
+    inv?.CLIENT_ID,
+    inv?.['Name of Client'],
+    inv?.CLIENT_NAME,
+    inv?.['Docket Number'],
+    inv?.CASE_ID,
+    inv?.['Invention#'],
+    inv?.['Main ServiceCode'],
+    inv?.['Service Code 2'],
+    inv?.['Service Code 3'],
+    inv?.['First Inventor'],
+    inv?.['Title Identfication (Only key words, Enter in lower case}'],
+    inv?.['Patent Office'],
+    inv?.PAYMENT_STATUS,
+    inv?.TAX_TYPE,
+    inv?.NOTES
+  ];
+}
+
+function getFilteredFinanceInvoices() {
+  const clientCode = String(FINANCE_FILTERS.clientCode || '').trim().toUpperCase();
+  const query = String(FINANCE_FILTERS.query || '').trim();
+  const sorted = sortItemsBy((FINANCE_INVOICES_CACHE || []).filter((inv) => {
+    const invoiceClientCode = String(inv?.ClientCode || inv?.CLIENT_ID || '').trim().toUpperCase();
+    if (clientCode && !invoiceClientCode.includes(clientCode)) return false;
+    if (query && !matchesBroadSearch(getFinanceSearchFields(inv), query)) return false;
+    return true;
+  }), (inv) => inv?.['Name of Client'] || inv?.ClientCode || getInvoiceUiId(inv), FINANCE_FILTERS.sortDir);
+  return sorted;
+}
+
+function renderFinanceFilters() {
+  return `
+    <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.finance ? 'open' : ''}" style="margin-bottom:16px">
+      <div class="filter-head">
+        <div class="card-title">Finance Filters</div>
+        <div class="filter-actions">
+          <button class="btn btn-primary btn-sm" onclick="applyFinanceFilters()">Apply</button>
+          <button class="btn btn-ghost btn-sm" onclick="resetFinanceFilters()">Reset</button>
+        </div>
+      </div>
+      <div class="filter-grid compact-2">
+        <div class="form-group">
+          <label class="form-label">Client Code</label>
+          <input class="form-control" id="finance-filter-client" value="${escapeAttr(FINANCE_FILTERS.clientCode || '')}" placeholder="999M" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Search</label>
+          <input class="form-control" id="finance-filter-query" value="${escapeAttr(FINANCE_FILTERS.query || '')}" placeholder="Client, inventor, docket, service code, title" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sort</label>
+          <select class="form-control" id="finance-filter-sort">
+            <option value="az"${FINANCE_FILTERS.sortDir === 'az' ? ' selected' : ''}>A-Z</option>
+            <option value="za"${FINANCE_FILTERS.sortDir === 'za' ? ' selected' : ''}>Z-A</option>
+          </select>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderFinance(invoices = FINANCE_INVOICES_CACHE, canEdit = sessionHasRoleAtLeast('Admin')) {
+  if (Array.isArray(invoices)) FINANCE_INVOICES_CACHE = invoices;
+  const filteredInvoices = getFilteredFinanceInvoices();
+  const paged = paginateItems(filteredInvoices, 'finance-invoices', 10);
   let paid=0, unpaid=0, paidSum=0, unpaidSum=0;
-  invoices.forEach(inv => {
+  filteredInvoices.forEach(inv => {
     const total = getInvoiceUiTotal(inv);
     const due = getInvoiceUiDue(inv);
     if (inv.PAYMENT_STATUS === 'Paid') { paid++; paidSum += total; }
     else { unpaid++; unpaidSum += due; }
   });
 
-  const rows = invoices.map(inv => {
+  const rows = paged.items.map(inv => {
     const isPaid = inv.PAYMENT_STATUS === 'Paid';
     const encoded = encodeInlinePayload(inv);
     return `<tr>
@@ -2361,8 +2468,9 @@ function renderFinance(invoices, canEdit) {
 
   document.getElementById('page-content').innerHTML = `
   <div class="page">
+    ${renderFinanceFilters()}
     <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
-      <div class="stat-card"><div class="stat-label">Total Invoices</div><div class="stat-value">${invoices.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Invoices</div><div class="stat-value">${filteredInvoices.length}</div></div>
       <div class="stat-card accent-rose"><div class="stat-label">Pending Count</div><div class="stat-value">${unpaid}</div></div>
       <div class="stat-card accent-emerald"><div class="stat-label">Paid Count</div><div class="stat-value">${paid}</div></div>
       <div class="stat-card accent-amber"><div class="stat-label">Pending Amount</div><div class="stat-value" style="font-size:18px">${money(unpaidSum)}</div></div>
@@ -2375,7 +2483,28 @@ function renderFinance(invoices, canEdit) {
         <tbody>${rows || `<tr><td colspan="${canEdit ? 10 : 9}" class="text-muted" style="padding:20px;text-align:center">No invoices found.</td></tr>`}</tbody>
       </table></div>
     </div>
+    ${buildPagerControls('finance-invoices', paged, 'renderFinance', 'invoices')}
   </div>`;
+}
+
+function applyFinanceFilters() {
+  FINANCE_FILTERS = {
+    clientCode: document.getElementById('finance-filter-client')?.value.trim().toUpperCase() || '',
+    query: document.getElementById('finance-filter-query')?.value.trim() || '',
+    sortDir: document.getElementById('finance-filter-sort')?.value || 'az',
+  };
+  FILTER_PANEL_STATE.finance = false;
+  const pager = getPagerState('finance-invoices', 10);
+  pager.page = 1;
+  renderFinance();
+}
+
+function resetFinanceFilters() {
+  FINANCE_FILTERS = { clientCode: '', query: '', sortDir: 'az' };
+  FILTER_PANEL_STATE.finance = false;
+  const pager = getPagerState('finance-invoices', 10);
+  pager.page = 1;
+  renderFinance();
 }
 
 async function markPaid(invoiceId, btn) {
