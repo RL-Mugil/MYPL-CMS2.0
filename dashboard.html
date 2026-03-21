@@ -1675,7 +1675,7 @@ async function loadCases() {
   destroyCharts();
   CASE_FILTER_TARGET = 'cases';
   const canEdit = sessionHasRoleAtLeast('Staff');
-  const canBulk = sessionHasRoleAtLeast('Admin');
+  const canBulk = sessionHasRoleAtLeast('Galvanizer');
   if (canEdit) {
     setTopbarActions(`${renderFilterToggleButton('cases')}${canBulk ? `<button class="btn btn-ghost btn-sm" onclick="openBulkCaseUpdate()">Bulk Update</button>` : ''}<button class="btn btn-ghost btn-sm" onclick="openBulkDocketTrakImport()">Bulk Import</button><button class="btn btn-primary btn-sm" onclick="openCaseModal()">+ New Case</button>`);
   } else {
@@ -1692,7 +1692,7 @@ async function loadCases() {
   }
 }
 
-function renderCases(canEdit = sessionHasRoleAtLeast('Staff'), canBulk = sessionHasRoleAtLeast('Admin')) {
+function renderCases(canEdit = sessionHasRoleAtLeast('Staff'), canBulk = sessionHasRoleAtLeast('Galvanizer')) {
   const paged = paginateItems(CASES_ALL, 'cases', 10);
   const cases = paged.items;
   if (!cases.length) {
@@ -1745,7 +1745,7 @@ async function loadMoreCases() {
     CASES_TOTAL = page.total || CASES_ITEMS.length;
     CASES_HAS_MORE = !!page.hasMore;
     CASES_PAGE_OFFSET = page.nextOffset || CASES_ITEMS.length;
-    renderCases(CASES_ITEMS, sessionHasRoleAtLeast('Staff'), sessionHasRoleAtLeast('Admin'));
+    renderCases(CASES_ITEMS, sessionHasRoleAtLeast('Staff'), sessionHasRoleAtLeast('Galvanizer'));
   } catch (e) {
     if (btn) {
       btn.disabled = false;
@@ -2105,7 +2105,7 @@ async function loadApprovals() {
 }
 
 function renderApprovals() {
-  const canManageAll = sessionHasRoleAtLeast('Admin');
+  const canManageAll = sessionHasRoleAtLeast('Galvanizer');
   const filtered = sortItemsBy((APPROVALS_CACHE || []).filter(item => {
     const query = normalizeAlphaValue(APPROVAL_FILTERS.query);
     const haystack = normalizeAlphaValue([item.APPROVAL_ID, item.TITLE, item.APPROVER_EMAIL, item.APPROVAL_TYPE].join(' '));
@@ -3179,7 +3179,7 @@ async function disconnectStreamMessaging() {
 }
 
 function canModerateStreamMessages() {
-  return sessionHasAnyRole(['Super Admin', 'Admin']);
+  return sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer']);
 }
 
 function getStreamChannelMeta(channel) {
@@ -4235,7 +4235,7 @@ async function loadNotifications() {
   destroyCharts();
   try {
     const items = await API.getNotifications();
-    const canAnnounce = sessionHasAnyRole(['Super Admin', 'Admin']);
+    const canAnnounce = sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer']);
     setTopbarActions(`${canAnnounce ? `<button class="btn btn-primary btn-sm" onclick="openAnnouncementModal()">+ Announcement</button>` : ''}<button class="btn btn-ghost btn-sm" onclick="clearAllNotifications()">Clear All</button>`);
     const rows = items.map(n => `
       <div class="card" style="margin-bottom:12px">
