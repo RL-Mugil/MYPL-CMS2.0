@@ -620,6 +620,13 @@ let STREAM_STATE = {
   channels: [],
   activeChannel: null,
   unsubscribe: null,
+  pendingFile: null,
+  pendingPoll: null,
+  typingTimeout: null,
+  videoClient: null,
+  activeCall: null,
+  callSubscription: null,
+  callBindings: [],
 };
 
 function deriveWorkflowStageFromStatus(status, currentStage) {
@@ -2798,6 +2805,300 @@ async function disconnectStreamMessaging() {
   STREAM_STATE.auth = null;
   STREAM_STATE.channels = [];
   STREAM_STATE.activeChannel = null;
+  STREAM_STATE.pendingFile = null;
+  STREAM_STATE.pendingPoll = null;
+  STREAM_STATE.typingTimeout = null;
+  await leaveStreamCall(true);
+  STREAM_STATE.videoClient = null;
+}
+
+function canModerateStreamMessages() {
+  return sessionHasAnyRole(['Super Admin', 'Admin']);
+}
+
+function getStreamChannelMeta(channel) {
+  const state = channel?.state || {};
+  const messages = state.messages || [];
+  const lastMessage = messages[messages.length - 1] || null;
+  const currentUserId = STREAM_STATE.auth?.user?.id;
+  const otherMembers = Object.values(state.members || {}).filter((member) => member.user?.id !== currentUserId);
+  const memberNames = otherMembers.map((member) => member.user?.name || member.user?.email || member.user?.id).filter(Boolean);
+  const title = channel?.data?.name || memberNames.join(', ') || 'Untitled chat';
+  const typingUsers = Object.values(state.typing || {}).filter((entry) => entry?.user?.id && entry.user.id !== currentUserId);
+  return {
+    state,
+    messages,
+    lastMessage,
+    otherMembers,
+    memberNames,
+    title,
+    isGroup: Number(channel?.data?.member_count || Object.keys(state.members || {}).length || 0) > 2,
+    typingUsers,
+  };
+}
+
+function buildStreamUserLookup() {
+  const map = new Map();
+  getInternalStreamCandidates().forEach((user) => {
+    const streamId = buildStreamUserIdForDirectory(user);
+    map.set(streamId, user);
+    map.set(String(user.EMAIL || '').toLowerCase(), user);
+  });
+  return map;
+}
+
+function getStreamMentionTargets(channel) {
+  const lookup = buildStreamUserLookup();
+  const currentUserId = STREAM_STATE.auth?.user?.id;
+  return Object.values(channel?.state?.members || {})
+    .map((member) => member.user)
+    .filter((user) => user?.id && user.id !== currentUserId)
+    .map((user) => {
+      const directory = lookup.get(user.id) || lookup.get(String(user.email || '').toLowerCase()) || {};
+      return {
+        id: user.id,
+        name: user.name || directory.FULL_NAME || user.email || user.id,
+        email: user.email || directory.EMAIL || '',
+      };
+    });
+}
+
+function parseStreamMentionedUsers(text, channel) {
+  const targets = getStreamMentionTargets(channel);
+  const lowerText = String(text || '').toLowerCase();
+  return targets
+    .filter((target) => lowerText.includes(`@${String(target.email || '').toLowerCase()}`))
+    .map((target) => ({ id: target.id, name: target.name }));
+}
+
+function getStreamReadSummary(channel, message) {
+  if (!message?.created_at) return '';
+  const createdAt = new Date(message.created_at).getTime();
+  if (!createdAt) return '';
+  const readers = Object.values(channel?.state?.read || {})
+    .filter((entry) => entry?.user?.id && entry.user.id !== STREAM_STATE.auth?.user?.id)
+    .filter((entry) => new Date(entry.last_read || 0).getTime() >= createdAt)
+    .map((entry) => entry.user?.name || entry.user?.email || entry.user?.id)
+    .filter(Boolean);
+  if (!readers.length) return '';
+  return `Read by ${readers.join(', ')}`;
+}
+
+function getStreamPollAttachment(message) {
+  return (message?.attachments || []).find((attachment) => attachment?.type === 'portal_poll') || null;
+}
+
+function getStreamPollVotes(message, attachment) {
+  const votes = {};
+  (attachment?.options || []).forEach((option) => {
+    votes[option.id] = 0;
+  });
+  (message?.latest_reactions || []).forEach((reaction) => {
+    const match = String(reaction.type || '').match(/^poll_(.+)$/);
+    if (match && Object.prototype.hasOwnProperty.call(votes, match[1])) {
+      votes[match[1]] += 1;
+    }
+  });
+  return votes;
+}
+
+function hasOwnStreamReaction(message, reactionType) {
+  const own = message?.own_reactions || [];
+  return own.some((reaction) => String(reaction.type || '') === String(reactionType || ''));
+}
+
+function renderStreamPoll(message) {
+  const attachment = getStreamPollAttachment(message);
+  if (!attachment) return '';
+  const votes = getStreamPollVotes(message, attachment);
+  const totalVotes = Object.values(votes).reduce((sum, count) => sum + count, 0);
+  const options = (attachment.options || []).map((option) => {
+    const count = votes[option.id] || 0;
+    const active = hasOwnStreamReaction(message, `poll_${option.id}`);
+    return `
+      <button class="stream-poll-option ${active ? 'active' : ''}" onclick="voteStreamPoll('${escapeAttr(message.id)}','${escapeAttr(option.id)}')">
+        <span>${option.label}</span>
+        <span>${count}</span>
+      </button>`;
+  }).join('');
+  return `
+    <div class="stream-poll">
+      <div class="stream-poll-question">${attachment.question || 'Poll'}</div>
+      <div class="stream-poll-options">${options}</div>
+      <div class="stream-poll-total">${totalVotes} vote${totalVotes === 1 ? '' : 's'}</div>
+    </div>`;
+}
+
+function renderStreamAttachments(message) {
+  const attachments = (message?.attachments || []).filter((attachment) => attachment?.type !== 'portal_poll');
+  if (!attachments.length) return '';
+  return `
+    <div class="stream-attachments">
+      ${attachments.map((attachment) => {
+        const url = attachment.asset_url || attachment.image_url || attachment.thumb_url || attachment.title_link || attachment.og_scrape_url || '';
+        const title = attachment.title || attachment.name || attachment.fallback || 'Attachment';
+        if (attachment.type === 'image' && url) {
+          return `<a class="stream-image-attachment" href="${escapeAttr(url)}" target="_blank" rel="noopener"><img src="${escapeAttr(url)}" alt="${escapeAttr(title)}" /></a>`;
+        }
+        return `<a class="stream-file-attachment" href="${escapeAttr(url)}" target="_blank" rel="noopener">${title}</a>`;
+      }).join('')}
+    </div>`;
+}
+
+function renderStreamReactionBar(message) {
+  const options = [
+    { type: 'love', label: '❤️' },
+    { type: 'like', label: '👍' },
+    { type: 'fire', label: '🔥' },
+    { type: 'smile', label: '😄' },
+  ];
+  return `
+    <div class="stream-reaction-row">
+      ${options.map((option) => `<button class="stream-reaction-btn ${hasOwnStreamReaction(message, option.type) ? 'active' : ''}" onclick="toggleStreamReaction('${escapeAttr(message.id)}','${option.type}')">${option.label}</button>`).join('')}
+    </div>`;
+}
+
+async function loadStreamVideoSdk() {
+  if (window.__STREAM_VIDEO_SDK__) return window.__STREAM_VIDEO_SDK__;
+  const mod = await import('https://esm.sh/@stream-io/video-client?bundle');
+  window.__STREAM_VIDEO_SDK__ = mod;
+  return mod;
+}
+
+async function ensureStreamVideoClient() {
+  if (STREAM_STATE.videoClient && STREAM_STATE.auth) return STREAM_STATE.videoClient;
+  const sdk = await loadStreamVideoSdk();
+  const auth = STREAM_STATE.auth || await API.getStreamAuth();
+  const apiKey = auth.apiKey || window.APP_CONFIG?.streamApiKey || '';
+  const StreamVideoClientCtor = sdk.StreamVideoClient || sdk.default?.StreamVideoClient || sdk.default || null;
+  if (!StreamVideoClientCtor) {
+    throw new Error('Stream Video SDK failed to load.');
+  }
+  STREAM_STATE.videoClient = new StreamVideoClientCtor({
+    apiKey,
+    user: auth.user,
+    token: auth.token,
+  });
+  return STREAM_STATE.videoClient;
+}
+
+function buildStreamCallId(channel, kind) {
+  return `${kind}_${String(channel?.cid || '').replace(/[^A-Za-z0-9_-]/g, '_')}`;
+}
+
+function clearStreamCallBindings() {
+  (STREAM_STATE.callBindings || []).forEach((unbind) => {
+    try { if (typeof unbind === 'function') unbind(); } catch {}
+  });
+  STREAM_STATE.callBindings = [];
+}
+
+function renderStreamCallParticipants() {
+  const call = STREAM_STATE.activeCall;
+  const host = document.getElementById('stream-call-grid');
+  if (!call || !host) return;
+  clearStreamCallBindings();
+  const participants = Array.isArray(call.state?.participants) ? call.state.participants : [];
+  host.innerHTML = participants.length ? participants.map((participant) => `
+    <div class="stream-call-tile">
+      <video id="stream-video-${escapeAttr(participant.sessionId || '')}" autoplay playsinline muted="${participant.userId === STREAM_STATE.auth?.user?.id ? 'muted' : ''}"></video>
+      <audio id="stream-audio-${escapeAttr(participant.sessionId || '')}" autoplay></audio>
+      <div class="stream-call-name">${participant.name || participant.userId || 'Participant'}</div>
+    </div>`).join('') : '<div class="text-muted">Waiting for participants to join…</div>';
+  participants.forEach((participant) => {
+    if (!participant?.sessionId) return;
+    const videoEl = document.getElementById(`stream-video-${participant.sessionId}`);
+    const audioEl = document.getElementById(`stream-audio-${participant.sessionId}`);
+    try {
+      if (videoEl) STREAM_STATE.callBindings.push(call.bindVideoElement(videoEl, participant.sessionId, 'videoTrack'));
+    } catch {}
+    try {
+      if (audioEl) STREAM_STATE.callBindings.push(call.bindAudioElement(audioEl, participant.sessionId, 'audioTrack'));
+    } catch {}
+  });
+}
+
+async function leaveStreamCall(silent = false) {
+  if (STREAM_STATE.callSubscription && typeof STREAM_STATE.callSubscription.unsubscribe === 'function') {
+    try { STREAM_STATE.callSubscription.unsubscribe(); } catch {}
+  }
+  STREAM_STATE.callSubscription = null;
+  clearStreamCallBindings();
+  if (STREAM_STATE.activeCall) {
+    try { await STREAM_STATE.activeCall.leave(); } catch {}
+  }
+  STREAM_STATE.activeCall = null;
+  if (!silent) {
+    closeModal('modal-generic');
+  }
+}
+
+async function toggleStreamCallMic() {
+  const call = STREAM_STATE.activeCall;
+  if (!call?.microphone) return;
+  try {
+    if (call.microphone.state?.status === 'enabled') await call.microphone.disable();
+    else await call.microphone.enable();
+  } catch (e) {
+    alert(e.message || 'Unable to toggle microphone.');
+  }
+}
+
+async function toggleStreamCallCamera() {
+  const call = STREAM_STATE.activeCall;
+  if (!call?.camera) return;
+  try {
+    if (call.camera.state?.status === 'enabled') await call.camera.disable();
+    else await call.camera.enable();
+  } catch (e) {
+    alert(e.message || 'Unable to toggle camera.');
+  }
+}
+
+function openStreamCallModal(kind) {
+  openGenericModal(kind === 'video' ? 'Stream Video Call' : 'Stream Audio Call', `
+    <div class="stream-call-shell">
+      <div class="stream-call-grid" id="stream-call-grid"><div class="text-muted">Joining call…</div></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="toggleStreamCallMic()">Mic</button>
+        <button class="btn btn-ghost" onclick="toggleStreamCallCamera()">Camera</button>
+        <button class="btn btn-danger" onclick="leaveStreamCall()">Leave Call</button>
+      </div>
+    </div>`);
+}
+
+async function startStreamCall(kind) {
+  const channel = STREAM_STATE.activeChannel;
+  if (!channel) return;
+  try {
+    const videoClient = await ensureStreamVideoClient();
+    const memberIds = Object.keys(channel.state?.members || {});
+    const call = videoClient.call('default', buildStreamCallId(channel, kind));
+    await call.getOrCreate({
+      data: {
+        custom: { channelCid: channel.cid, kind },
+        members: memberIds.map((id) => ({ user_id: id })),
+      },
+    });
+    await call.join({ create: true });
+    await call.microphone?.enable?.();
+    if (kind === 'video') {
+      await call.camera?.enable?.();
+    } else {
+      await call.camera?.disable?.();
+    }
+    STREAM_STATE.activeCall = call;
+    if (STREAM_STATE.callSubscription && typeof STREAM_STATE.callSubscription.unsubscribe === 'function') {
+      try { STREAM_STATE.callSubscription.unsubscribe(); } catch {}
+    }
+    if (call.state?.participants$?.subscribe) {
+      STREAM_STATE.callSubscription = call.state.participants$.subscribe(() => renderStreamCallParticipants());
+    }
+    openStreamCallModal(kind);
+    setTimeout(renderStreamCallParticipants, 80);
+  } catch (e) {
+    alert(e.message || 'Unable to start Stream call.');
+  }
 }
 
 async function ensureStreamMessagingClient() {
@@ -2827,7 +3128,7 @@ async function ensureStreamMessagingClient() {
   }
   STREAM_STATE.unsubscribe = client.on((event) => {
     if (CURRENT_PAGE !== 'stream') return;
-    if (['message.new', 'notification.message_new', 'channel.updated', 'channel.deleted', 'notification.added_to_channel'].includes(event.type)) {
+    if (['message.new', 'notification.message_new', 'channel.updated', 'channel.deleted', 'notification.added_to_channel', 'message.updated', 'message.deleted', 'reaction.new', 'reaction.deleted', 'typing.start', 'typing.stop', 'message.read', 'channel.truncated'].includes(event.type)) {
       refreshStreamChannelList(false);
     }
     if (STREAM_STATE.activeChannel && event.cid === STREAM_STATE.activeChannel.cid) {
@@ -2874,21 +3175,27 @@ function renderStreamChannelList() {
   const target = document.getElementById('stream-channel-list');
   if (!target) return;
   const rows = (STREAM_STATE.channels || []).map((channel) => {
-    const state = channel.state || {};
-    const messages = state.messages || [];
-    const lastMessage = messages[messages.length - 1] || null;
-    const otherMembers = Object.values(state.members || {}).filter((member) => member.user?.id !== STREAM_STATE.auth?.user?.id);
-    const title = channel.data?.name || otherMembers.map((member) => member.user?.name || member.user?.id).join(', ') || 'Untitled chat';
-    const subtitle = lastMessage?.text || 'No messages yet.';
+    const meta = getStreamChannelMeta(channel);
+    const subtitle = meta.typingUsers.length
+      ? `${meta.typingUsers.map((entry) => entry.user?.name || entry.user?.email || 'User').join(', ')} typing…`
+      : (meta.lastMessage?.text || (meta.lastMessage?.attachments?.some((attachment) => attachment?.type === 'portal_poll') ? 'Poll' : 'No messages yet.'));
+    const unreadCount = Number(channel?.countUnread?.() || channel?.state?.unreadCount || 0);
     return `
       <button class="chat-list-item ${STREAM_STATE.activeChannel?.cid === channel.cid ? 'active' : ''}" onclick="openStreamChannel('${escapeAttr(channel.cid)}')">
-        <div class="chat-avatar">${String(title || 'U').slice(0, 1).toUpperCase()}</div>
+        <div class="chat-avatar">${String(meta.title || 'U').slice(0, 1).toUpperCase()}</div>
         <div class="chat-meta">
           <div class="chat-head">
-            <div class="chat-name">${title}</div>
-            <div class="chat-time">${formatChatTime(lastMessage?.created_at)}</div>
+            <div class="chat-name">${meta.title}</div>
+            <div class="chat-time">${formatChatTime(meta.lastMessage?.created_at)}</div>
           </div>
-          <div class="chat-preview">${truncateText(subtitle, 54)}</div>
+          <div class="chat-preview-row">
+            <div class="chat-preview">${truncateText(subtitle, 54)}</div>
+            ${unreadCount ? `<span class="chat-unread">${unreadCount}</span>` : ''}
+          </div>
+          <div class="stream-channel-meta">
+            <span class="stream-channel-pill">${meta.isGroup ? 'Group' : 'Direct'}</span>
+            <span class="stream-channel-pill">${Object.keys(meta.state.members || {}).length} member${Object.keys(meta.state.members || {}).length === 1 ? '' : 's'}</span>
+          </div>
         </div>
       </button>`;
   }).join('');
@@ -2903,32 +3210,60 @@ function renderStreamActiveChannel() {
     target.innerHTML = '<div class="text-muted" style="padding:24px">Select a Stream conversation to start messaging.</div>';
     return;
   }
-  const state = channel.state || {};
-  const messages = state.messages || [];
-  const otherMembers = Object.values(state.members || {}).filter((member) => member.user?.id !== STREAM_STATE.auth?.user?.id);
-  const title = channel.data?.name || otherMembers.map((member) => member.user?.name || member.user?.id).join(', ') || 'Conversation';
-  const items = messages.map((message) => {
+  const meta = getStreamChannelMeta(channel);
+  const mentionTargets = getStreamMentionTargets(channel);
+  const typingLabel = meta.typingUsers.length
+    ? `${meta.typingUsers.map((entry) => entry.user?.name || entry.user?.email || 'User').join(', ')} typing…`
+    : (meta.isGroup ? `${Object.keys(meta.state.members || {}).length} members` : (meta.otherMembers[0]?.user?.email || 'Direct stream conversation'));
+  const items = meta.messages.map((message) => {
     const mine = message.user?.id === STREAM_STATE.auth?.user?.id;
+    const canDelete = mine || canModerateStreamMessages();
+    const readSummary = mine ? getStreamReadSummary(channel, message) : '';
     return `
-      <div style="display:flex;justify-content:${mine ? 'flex-end' : 'flex-start'};margin-bottom:10px">
-        <div style="max-width:78%;padding:10px 12px;border-radius:14px;background:${mine ? 'rgba(99, 102, 241, 0.18)' : 'var(--surface)'};border:1px solid var(--border)">
-          <div style="font-size:11px;color:var(--text-2);margin-bottom:4px">${mine ? 'You' : (message.user?.name || 'User')}</div>
-          <div style="white-space:pre-wrap">${message.text || ''}</div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:6px">${formatChatTime(message.created_at)}</div>
+      <div class="stream-message-row ${mine ? 'mine' : ''}">
+        <div class="stream-message-card">
+          <div class="stream-message-author">${mine ? 'You' : (message.user?.name || 'User')}</div>
+          ${message.text ? `<div class="stream-message-text">${message.text}</div>` : ''}
+          ${renderStreamAttachments(message)}
+          ${renderStreamPoll(message)}
+          ${renderStreamReactionBar(message)}
+          <div class="stream-message-foot">
+            <span>${formatChatTime(message.created_at)}</span>
+            ${readSummary ? `<span>${readSummary}</span>` : ''}
+          </div>
+          <div class="stream-message-actions">
+            ${canDelete ? `<button class="btn btn-ghost btn-sm" onclick="deleteStreamMessageAction('${escapeAttr(message.id)}', ${mine ? 'true' : 'false'})">Delete</button>` : ''}
+          </div>
         </div>
       </div>`;
   }).join('');
+  const pendingFileName = STREAM_STATE.pendingFile?.name ? `<span class="stream-chip">File: ${STREAM_STATE.pendingFile.name}</span>` : '';
+  const pendingPollName = STREAM_STATE.pendingPoll?.question ? `<span class="stream-chip">Poll: ${STREAM_STATE.pendingPoll.question}</span>` : '';
   target.innerHTML = `
     <div class="stream-panel-inner">
       <div class="inbox-chat-head">
         <div>
-          <div class="card-title" style="margin-bottom:2px">${title}</div>
-          <div class="text-muted" style="font-size:12px">${otherMembers.length ? otherMembers.map((member) => member.user?.email || member.user?.id).join(', ') : 'Direct stream conversation'}</div>
+          <div class="card-title" style="margin-bottom:2px">${meta.title}</div>
+          <div class="text-muted" style="font-size:12px">${typingLabel}</div>
+        </div>
+        <div class="stream-header-actions">
+          <button class="btn btn-ghost btn-sm" onclick="startStreamCall('audio')">Audio Call</button>
+          <button class="btn btn-ghost btn-sm" onclick="startStreamCall('video')">Video Call</button>
+          <button class="btn btn-ghost btn-sm" onclick="openStreamPollModal()">Poll</button>
+          <button class="btn btn-ghost btn-sm" onclick="openStreamMentionMenu()">Mention</button>
+          <button class="btn btn-ghost btn-sm" onclick="triggerStreamAttachment()">Attach</button>
+          <button class="btn btn-ghost btn-sm" onclick="insertStreamGiphy()">Giphy</button>
+          ${canModerateStreamMessages() ? `<button class="btn btn-ghost btn-sm" onclick="clearActiveStreamChat()">Clear Chat</button>` : ''}
         </div>
       </div>
+      <div class="stream-mention-strip">
+        ${mentionTargets.map((target) => `<button class="stream-mention-btn" onclick="insertStreamMention('${escapeAttr(target.email)}')">@${target.name}</button>`).join('')}
+      </div>
       <div class="stream-thread" id="stream-message-thread">${items || '<div class="text-muted" style="padding:12px">No messages yet.</div>'}</div>
+      <div class="stream-pending-bar">${pendingFileName}${pendingPollName}</div>
       <div class="stream-composer">
-        <textarea class="form-control" id="stream-message-input" rows="3" placeholder="Type a message"></textarea>
+        <textarea class="form-control" id="stream-message-input" rows="3" placeholder="Type a message. Use @email for mentions or /giphy cats" oninput="handleStreamComposerInput()"></textarea>
+        <input type="file" id="stream-file-input" style="display:none" onchange="handleStreamAttachmentSelected(event)" />
         <button class="btn btn-primary" style="align-self:flex-end" onclick="sendStreamMessage()">Send</button>
       </div>
     </div>`;
@@ -2949,9 +3284,35 @@ async function sendStreamMessage() {
   const channel = STREAM_STATE.activeChannel;
   const input = document.getElementById('stream-message-input');
   const text = String(input?.value || '').trim();
-  if (!channel || !text) return;
-  await channel.sendMessage({ text });
+  if (!channel) return;
+  const attachments = [];
+  if (STREAM_STATE.pendingFile) {
+    const uploaded = await channel.sendFile(STREAM_STATE.pendingFile, STREAM_STATE.pendingFile.name, STREAM_STATE.pendingFile.type);
+    attachments.push({
+      type: String(STREAM_STATE.pendingFile.type || '').startsWith('image/') ? 'image' : 'file',
+      asset_url: uploaded.file || uploaded.file_url || uploaded.url || '',
+      title: STREAM_STATE.pendingFile.name,
+      mime_type: STREAM_STATE.pendingFile.type || '',
+      file_size: STREAM_STATE.pendingFile.size || 0,
+    });
+  }
+  if (STREAM_STATE.pendingPoll) {
+    attachments.push({
+      type: 'portal_poll',
+      question: STREAM_STATE.pendingPoll.question,
+      options: STREAM_STATE.pendingPoll.options,
+    });
+  }
+  const mentionedUsers = parseStreamMentionedUsers(text, channel);
+  if (!text && !attachments.length) return;
+  await channel.sendMessage({
+    text,
+    attachments,
+    mentioned_users: mentionedUsers.map((item) => item.id),
+  });
   if (input) input.value = '';
+  STREAM_STATE.pendingFile = null;
+  STREAM_STATE.pendingPoll = null;
   renderStreamActiveChannel();
 }
 
@@ -2977,6 +3338,30 @@ async function openStreamNewChatModal() {
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
       <button class="btn btn-primary" onclick="createStreamConversation()">Open Conversation</button>
+    </div>`);
+}
+
+function buildStreamDirectoryCheckboxes() {
+  return getInternalStreamCandidates().map((user) => {
+    const label = `${user.FULL_NAME || user.EMAIL} (${user.EMAIL})`;
+    return `<label class="stream-picker-option"><input type="checkbox" value="${escapeAttr(user.EMAIL || '')}" /> <span>${label}</span></label>`;
+  }).join('');
+}
+
+async function openStreamNewGroupModal() {
+  await ensureUserLookupLoaded();
+  openGenericModal('New Stream Group', `
+    <div class="form-group">
+      <label class="form-label">Group Name</label>
+      <input class="form-control" id="stream-group-name" placeholder="Product Team / Filing Desk" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Members</label>
+      <div class="stream-picker-list" id="stream-group-member-list">${buildStreamDirectoryCheckboxes()}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" onclick="createStreamGroupConversation()">Create Group</button>
     </div>`);
 }
 
@@ -3010,6 +3395,169 @@ async function createStreamConversation() {
   await openStreamChannel(channel.cid);
 }
 
+async function createStreamGroupConversation() {
+  const name = String(document.getElementById('stream-group-name')?.value || '').trim();
+  const selected = Array.from(document.querySelectorAll('#stream-group-member-list input[type="checkbox"]:checked')).map((input) => String(input.value || '').trim().toLowerCase());
+  if (!name) {
+    alert('Enter a group name.');
+    return;
+  }
+  if (!selected.length) {
+    alert('Select at least one member.');
+    return;
+  }
+  const recipients = getInternalStreamCandidates().filter((user) => selected.includes(String(user.EMAIL || '').toLowerCase()));
+  if (!recipients.length) {
+    alert('Select valid internal users.');
+    return;
+  }
+  const client = await ensureStreamMessagingClient();
+  const selfId = STREAM_STATE.auth.user.id;
+  const payloadUsers = recipients.map((recipient) => ({
+    id: buildStreamUserIdForDirectory(recipient),
+    name: recipient.FULL_NAME || recipient.EMAIL || recipient.USER_ID || '',
+    email: recipient.EMAIL || '',
+    role: recipient.ROLE || '',
+    additionalRoles: recipient.ADDITIONAL_ROLES || '',
+    userId: recipient.USER_ID || '',
+  }));
+  await API.ensureStreamUsers(payloadUsers);
+  const memberIds = [selfId].concat(payloadUsers.map((item) => item.id));
+  const channelId = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const channel = client.channel('messaging', channelId, {
+    members: Array.from(new Set(memberIds)),
+    name,
+  });
+  await channel.watch();
+  closeModal('modal-generic');
+  await refreshStreamChannelList(false);
+  await openStreamChannel(channel.cid);
+}
+
+function handleStreamComposerInput() {
+  const channel = STREAM_STATE.activeChannel;
+  if (!channel || typeof channel.keystroke !== 'function') return;
+  channel.keystroke();
+  if (STREAM_STATE.typingTimeout) {
+    clearTimeout(STREAM_STATE.typingTimeout);
+  }
+  STREAM_STATE.typingTimeout = setTimeout(() => {
+    try { channel.stopTyping?.(); } catch {}
+  }, 1600);
+}
+
+function triggerStreamAttachment() {
+  document.getElementById('stream-file-input')?.click();
+}
+
+function handleStreamAttachmentSelected(event) {
+  STREAM_STATE.pendingFile = event?.target?.files?.[0] || null;
+  renderStreamActiveChannel();
+}
+
+function insertStreamGiphy() {
+  const input = document.getElementById('stream-message-input');
+  if (!input) return;
+  input.value = input.value ? `${input.value} /giphy ` : '/giphy ';
+  input.focus();
+}
+
+function insertStreamMention(email) {
+  const input = document.getElementById('stream-message-input');
+  if (!input) return;
+  input.value = `${String(input.value || '').trim()} @${email} `.trimStart();
+  input.focus();
+}
+
+function openStreamMentionMenu() {
+  const channel = STREAM_STATE.activeChannel;
+  if (!channel) return;
+  const options = getStreamMentionTargets(channel).map((target) => `<button class="chat-list-item" style="margin-bottom:8px" onclick="insertStreamMention('${escapeAttr(target.email)}');closeModal('modal-generic')"><div class="chat-avatar">${String(target.name || 'U').slice(0,1).toUpperCase()}</div><div class="chat-meta"><div class="chat-name">${target.name}</div><div class="chat-preview">@${target.email}</div></div></button>`).join('');
+  openGenericModal('Mention User', `<div>${options || '<div class="text-muted">No other members in this conversation.</div>'}</div>`);
+}
+
+function openStreamPollModal() {
+  if (!STREAM_STATE.activeChannel) return;
+  openGenericModal('Create Poll', `
+    <div class="form-group"><label class="form-label">Question</label><input class="form-control" id="stream-poll-question" placeholder="What should we prioritize next?" /></div>
+    <div class="form-group"><label class="form-label">Options</label><textarea class="form-control" id="stream-poll-options" rows="5" placeholder="One option per line"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" onclick="savePendingStreamPoll()">Add Poll</button>
+    </div>`);
+}
+
+function savePendingStreamPoll() {
+  const question = String(document.getElementById('stream-poll-question')?.value || '').trim();
+  const options = String(document.getElementById('stream-poll-options')?.value || '')
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .slice(0, 6)
+    .map((label, index) => ({ id: `${Date.now()}_${index + 1}`, label }));
+  if (!question || options.length < 2) {
+    alert('Enter a question and at least two options.');
+    return;
+  }
+  STREAM_STATE.pendingPoll = { question, options };
+  closeModal('modal-generic');
+  renderStreamActiveChannel();
+}
+
+async function voteStreamPoll(messageId, optionId) {
+  const channel = STREAM_STATE.activeChannel;
+  if (!channel) return;
+  const reactionType = `poll_${optionId}`;
+  const activeMessage = (channel.state.messages || []).find((message) => message.id === messageId);
+  const existing = activeMessage?.own_reactions?.find((reaction) => String(reaction.type || '').startsWith('poll_'));
+  if (existing && existing.type === reactionType) {
+    await channel.deleteReaction(messageId, reactionType);
+  } else {
+    if (existing) {
+      await channel.deleteReaction(messageId, existing.type);
+    }
+    await channel.sendReaction(messageId, { type: reactionType });
+  }
+  await openStreamChannel(channel.cid);
+}
+
+async function toggleStreamReaction(messageId, reactionType) {
+  const channel = STREAM_STATE.activeChannel;
+  if (!channel) return;
+  const activeMessage = (channel.state.messages || []).find((message) => message.id === messageId);
+  const hasOwn = activeMessage?.own_reactions?.some((reaction) => String(reaction.type || '') === reactionType);
+  if (hasOwn) {
+    await channel.deleteReaction(messageId, reactionType);
+  } else {
+    await channel.sendReaction(messageId, { type: reactionType });
+  }
+  await openStreamChannel(channel.cid);
+}
+
+async function deleteStreamMessageAction(messageId, mine) {
+  const channel = STREAM_STATE.activeChannel;
+  if (!channel || !messageId) return;
+  if (!confirm('Delete this message?')) return;
+  if (mine) {
+    await STREAM_STATE.client.deleteMessage(messageId);
+  } else {
+    await API.deleteStreamMessage(messageId);
+  }
+  await openStreamChannel(channel.cid);
+}
+
+async function clearActiveStreamChat() {
+  const channel = STREAM_STATE.activeChannel;
+  if (!channel) return;
+  if (!canModerateStreamMessages()) {
+    alert('Only Admin or Super Admin can clear chats.');
+    return;
+  }
+  if (!confirm('Clear this chat for all members? This will remove message history from the channel.')) return;
+  await API.clearStreamChannel(channel.cid);
+  await refreshStreamChannelList(false);
+}
+
 async function loadStreamMessaging() {
   destroyCharts();
   try {
@@ -3018,14 +3566,17 @@ async function loadStreamMessaging() {
       return;
     }
     await ensureUserLookupLoaded();
-    setTopbarActions(`<button class="btn btn-ghost btn-sm" onclick="refreshStreamChannelList(false)">Refresh</button><button class="btn btn-primary btn-sm" onclick="openStreamNewChatModal()">+ New Stream Chat</button>`);
+    setTopbarActions(`<button class="btn btn-ghost btn-sm" onclick="refreshStreamChannelList(false)">Refresh</button><button class="btn btn-ghost btn-sm" onclick="openStreamNewGroupModal()">+ New Group</button><button class="btn btn-primary btn-sm" onclick="openStreamNewChatModal()">+ New Stream Chat</button>`);
     document.getElementById('page-content').innerHTML = `
       <div class="page">
         <div class="stream-layout">
           <div class="card stream-sidebar">
             <div class="inbox-sidebar-head">
               <div class="card-title">Stream Channels</div>
-              <button class="btn btn-ghost btn-sm" onclick="openStreamNewChatModal()">New</button>
+              <div class="stream-header-actions">
+                <button class="btn btn-ghost btn-sm" onclick="openStreamNewGroupModal()">Group</button>
+                <button class="btn btn-ghost btn-sm" onclick="openStreamNewChatModal()">Direct</button>
+              </div>
             </div>
             <div class="form-group" style="margin-bottom:12px">
               <input class="form-control" id="stream-channel-search" placeholder="Search channels or people" oninput="filterStreamChannels()" />

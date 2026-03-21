@@ -299,6 +299,48 @@ async function ensureStreamUsers(users = []) {
   }
 }
 
+async function clearStreamChannel(cid) {
+  ensureApiBase();
+  const session = window.Auth.getGasSession();
+  const token = session?.token || '';
+  if (!token) throw new Error('Session expired. Please sign in again.');
+  const endpoint = `${String(API_BASE).replace(/\/$/, '')}/stream-truncate-channel`;
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, cid }),
+    });
+    const data = sanitizePayload(await res.json());
+    if (!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`);
+    return data;
+  } catch (error) {
+    reportError('clearStreamChannel', error, { endpoint, cid });
+    throw error;
+  }
+}
+
+async function deleteStreamMessage(messageId) {
+  ensureApiBase();
+  const session = window.Auth.getGasSession();
+  const token = session?.token || '';
+  if (!token) throw new Error('Session expired. Please sign in again.');
+  const endpoint = `${String(API_BASE).replace(/\/$/, '')}/stream-delete-message`;
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, messageId }),
+    });
+    const data = sanitizePayload(await res.json());
+    if (!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`);
+    return data;
+  } catch (error) {
+    reportError('deleteStreamMessage', error, { endpoint, messageId });
+    throw error;
+  }
+}
+
 async function getDashboard(filters = {}) { return callGASCached('getDashboard', { filters }, 30000); }
 async function getDashboardSummary(filters = {}) { return callGASPersistentCached('getDashboardSummary', { filters }, 15 * 60 * 1000); }
 async function getDashboardDetails(filters = {}) { return callGASPersistentCached('getDashboardDetails', { filters }, 15 * 60 * 1000); }
@@ -572,6 +614,8 @@ window.API = {
   clerkLogin,
   getStreamAuth,
   ensureStreamUsers,
+  clearStreamChannel,
+  deleteStreamMessage,
   getDashboard,
   getDashboardSummary,
   getDashboardDetails,
