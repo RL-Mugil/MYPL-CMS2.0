@@ -8,6 +8,50 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <style>
+    .filter-drawer { display: none; }
+    .filter-drawer.open { display: block; }
+    .search-dropdown { position: relative; }
+    .search-dropdown-shell { position: relative; }
+    .search-dropdown-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      z-index: 60;
+      max-height: 220px;
+      overflow-y: auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+      display: none;
+      padding: 6px;
+    }
+    .search-dropdown-menu.open { display: block; }
+    .search-dropdown-option {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: block;
+      font: inherit;
+    }
+    .search-dropdown-option:hover,
+    .search-dropdown-option.active { background: rgba(122, 107, 255, 0.16); }
+    .search-dropdown-empty {
+      padding: 10px 12px;
+      color: var(--text-2);
+      font-size: 12px;
+    }
+    .chat-list { max-height: calc(100vh - 320px); overflow-y: auto; padding-right: 4px; }
+    .inbox-panel { display: flex; flex-direction: column; min-height: 560px; max-height: calc(100vh - 180px); }
+    .chat-thread { flex: 1; min-height: 260px; overflow-y: auto; padding-right: 6px; }
+  </style>
 </head>
 <body>
 
@@ -66,7 +110,7 @@
         </button>
         <button class="nav-item" data-page="docworkflow" onclick="showPage('docworkflow')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h6l2 2v10H4z"/><path d="M10 2v3h3"/><path d="M6 8h4M6 11h4"/></svg>
-          Document Workflow
+          Document Request
         </button>
         <button class="nav-item" id="nav-finance" data-page="finance" onclick="showPage('finance')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="10" rx="1.5"/><path d="M4 4V3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v1"/><line x1="8" y1="8" x2="8" y2="12"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
@@ -235,8 +279,14 @@
 let SESSION = null;
 let _charts = {};
 let DASHBOARD_FILTERS = { clientCode: '', caseId: '', fromDate: '', toDate: '' };
-let CASE_FILTERS = { clientCode: '', caseId: '', status: '', country: '', workflowStage: '', query: '' };
-let USER_FILTERS = { query: '', role: '' };
+let CASE_FILTERS = { clientCode: '', caseId: '', status: '', country: '', workflowStage: '', query: '', sortDir: 'az' };
+let GALVANIZER_FILTERS = { clientCode: '', caseId: '', workflowStage: '', query: '', sortDir: 'az' };
+let USER_FILTERS = { query: '', role: '', sortDir: 'az' };
+let MGMT_CLIENT_FILTERS = { query: '', orgId: '', sortDir: 'az' };
+let MGMT_ORG_FILTERS = { query: '', sortDir: 'az' };
+let TASK_FILTERS = { query: '', status: '', sortDir: 'az' };
+let APPROVAL_FILTERS = { query: '', status: '', type: '', sortDir: 'az' };
+let EXPENSE_FILTERS = { period: 'month', fromDate: '', toDate: '', sortDir: 'az' };
 let CASES_PAGE_LIMIT = 50;
 let CASES_PAGE_OFFSET = 0;
 let CASES_HAS_MORE = false;
@@ -258,6 +308,16 @@ let CASE_MODAL_RETURN_PAGE = 'cases';
 let CASE_IMPORT_STATE = { parsedRows: [], importableRows: [], skippedRows: [], fileName: '' };
 const NAV_SECTION_STORAGE_KEY = 'mg_sidebar_sections_v1';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'mg_sidebar_collapsed_v1';
+const FILTER_PANEL_STATE = {
+  cases: false,
+  galvanizer: false,
+  tasks: false,
+  approvals: false,
+  mgmtUsers: false,
+  mgmtClients: false,
+  mgmtOrganizations: false,
+  expenses: false,
+};
 
 function hasRoleAtLeast(role, minimumRole) {
   const order = {
@@ -413,7 +473,7 @@ const PAGE_TITLES = {
   inbox: 'Inbox',
   workflow: 'Workflow Board',
   attorney: 'Attorney Workspace',
-  docworkflow: 'Document Workflow',
+  docworkflow: 'Document Request',
   finance: 'Finance',
   messages: 'Threads',
   notifications: 'Notification Center',
@@ -541,8 +601,12 @@ let MGMT_CLIENTS_CACHE = [];
 let MGMT_ORGS_CACHE = [];
 let MGMT_ORG_CLIENTS_CACHE = [];
 let EXPENSES_CACHE = [];
+let TASKS_CACHE = [];
+let APPROVALS_CACHE = [];
 let ATTORNEY_WORKSPACE_CACHE = { cases: [], tasks: [], pendingReview: [], activeReview: [] };
 let WORKFLOW_BOARD_CACHE = {};
+let GALVANIZER_CASE_ID_OPTIONS = [];
+let ACTIVE_CUSTOM_DROPDOWN = '';
 
 function deriveWorkflowStageFromStatus(status, currentStage) {
   const normalized = String(status || '').trim();
@@ -620,6 +684,48 @@ function buildPagerControls(key, paged, renderFnName, label) {
       </div>
     </div>`;
 }
+
+function normalizeAlphaValue(value) {
+  return String(value == null ? '' : value).trim().toLowerCase();
+}
+
+function sortItemsBy(items, getter, direction = 'az') {
+  const factor = direction === 'za' ? -1 : 1;
+  return [...(items || [])].sort((a, b) => {
+    const left = normalizeAlphaValue(getter(a));
+    const right = normalizeAlphaValue(getter(b));
+    return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }) * factor;
+  });
+}
+
+function renderFilterToggleButton(filterKey) {
+  return `<button class="btn btn-ghost btn-sm" onclick="toggleFilterPanel('${filterKey}')">${FILTER_PANEL_STATE[filterKey] ? 'Close Filter' : 'Filter'}</button>`;
+}
+
+function toggleFilterPanel(filterKey) {
+  FILTER_PANEL_STATE[filterKey] = !FILTER_PANEL_STATE[filterKey];
+  const reloadMap = {
+    cases: loadCases,
+    galvanizer: loadGalvanizerQueue,
+    tasks: loadTasks,
+    approvals: loadApprovals,
+    mgmtUsers: renderMgmtUsers,
+    mgmtClients: renderMgmtClients,
+    mgmtOrganizations: renderMgmtOrganizations,
+    expenses: loadExpenses,
+  };
+  const fn = reloadMap[filterKey];
+  if (typeof fn === 'function') fn();
+}
+
+function closeCustomDropdowns() {
+  ACTIVE_CUSTOM_DROPDOWN = '';
+  document.querySelectorAll('.search-dropdown-menu').forEach(menu => menu.classList.remove('open'));
+}
+
+document.addEventListener('click', (event) => {
+  if (!event.target.closest('.search-dropdown')) closeCustomDropdowns();
+});
 
 async function ensureClientLookupLoaded() {
   if (CLIENT_LOOKUP_CACHE.length) return CLIENT_LOOKUP_CACHE;
@@ -968,6 +1074,39 @@ function toggleTheme() {
 
 function buildCaseIdOptions(list) {
   return (list || []).map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function renderGalvanizerCaseIdDropdown(forceOpen = false) {
+  const input = document.getElementById('galvanizer-filter-caseid');
+  const menu = document.getElementById('galvanizer-caseid-menu');
+  if (!input || !menu) return;
+  const query = String(input.value || '').trim().toUpperCase();
+  const options = (GALVANIZER_CASE_ID_OPTIONS || []).filter(value => !query || String(value || '').toUpperCase().includes(query)).slice(0, 50);
+  menu.innerHTML = options.length
+    ? options.map(value => `<button type="button" class="search-dropdown-option" onclick="selectGalvanizerCaseId('${String(value).replace(/'/g, "\\'")}')">${value}</button>`).join('')
+    : '<div class="search-dropdown-empty">No matching case IDs.</div>';
+  if (forceOpen || query) {
+    ACTIVE_CUSTOM_DROPDOWN = 'galvanizer-caseid';
+    menu.classList.add('open');
+  }
+}
+
+function toggleGalvanizerCaseIdDropdown(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const menu = document.getElementById('galvanizer-caseid-menu');
+  if (!menu) return;
+  const shouldOpen = ACTIVE_CUSTOM_DROPDOWN !== 'galvanizer-caseid' || !menu.classList.contains('open');
+  closeCustomDropdowns();
+  if (shouldOpen) renderGalvanizerCaseIdDropdown(true);
+}
+
+function selectGalvanizerCaseId(value) {
+  const input = document.getElementById('galvanizer-filter-caseid');
+  if (input) input.value = value || '';
+  closeCustomDropdowns();
 }
 
 function buildCircleOptions(list) {
@@ -1369,15 +1508,15 @@ async function loadCases() {
   const canEdit = sessionHasRoleAtLeast('Staff');
   const canBulk = sessionHasRoleAtLeast('Admin');
   if (canEdit) {
-    setTopbarActions(`${canBulk ? `<button class="btn btn-ghost btn-sm" onclick="openBulkCaseUpdate()">Bulk Update</button>` : ''}<button class="btn btn-ghost btn-sm" onclick="openBulkDocketTrakImport()">Bulk Import</button><button class="btn btn-primary btn-sm" onclick="openCaseModal()">+ New Case</button>`);
+    setTopbarActions(`${renderFilterToggleButton('cases')}${canBulk ? `<button class="btn btn-ghost btn-sm" onclick="openBulkCaseUpdate()">Bulk Update</button>` : ''}<button class="btn btn-ghost btn-sm" onclick="openBulkDocketTrakImport()">Bulk Import</button><button class="btn btn-primary btn-sm" onclick="openCaseModal()">+ New Case</button>`);
   } else {
-    setTopbarActions('');
+    setTopbarActions(renderFilterToggleButton('cases'));
   }
   try {
     await ensureClientLookupLoaded();
     await ensureUserLookupLoaded();
     TABLE_PAGERS.cases = TABLE_PAGERS.cases || { page: 1, size: 10 };
-    CASES_ALL = await API.getCases(CASE_FILTERS);
+    CASES_ALL = sortItemsBy(await API.getCases(CASE_FILTERS), item => item.PATENT_TITLE || item.CASE_ID, CASE_FILTERS.sortDir);
     renderCases(canEdit, canBulk);
   } catch(e) {
     showPageError('loadCases', e);
@@ -1390,7 +1529,7 @@ function renderCases(canEdit = sessionHasRoleAtLeast('Staff'), canBulk = session
   if (!cases.length) {
     document.getElementById('page-content').innerHTML = `
     <div class="page">
-      ${renderCaseFilters()}
+      ${renderCaseFilters('cases')}
       <div class="empty-state"><p>No cases found.</p></div>
     </div>`;
     return;
@@ -1404,6 +1543,7 @@ function renderCases(canEdit = sessionHasRoleAtLeast('Staff'), canBulk = session
       <td>${c.COUNTRY||'—'}</td>
       <td>${fmt(c.FILING_DATE)}</td>
       <td>${statusBadge(c.CURRENT_STATUS)}</td>
+      <td>${statusBadge(c.WORKFLOW_STAGE || deriveWorkflowStageFromStatus(c.CURRENT_STATUS, c.WORKFLOW_STAGE))}</td>
       <td style="color:${c.NEXT_DEADLINE?'var(--amber)':'var(--text-3)'}">${fmt(c.NEXT_DEADLINE)}</td>
       <td style="font-size:12px;color:var(--text-2)">${c.ATTORNEY||'—'}</td>
       ${canEdit ? `<td><div class="action-row">
@@ -1414,9 +1554,9 @@ function renderCases(canEdit = sessionHasRoleAtLeast('Staff'), canBulk = session
 
   document.getElementById('page-content').innerHTML = `
   <div class="page">
-    ${renderCaseFilters()}
+    ${renderCaseFilters('cases')}
     <div class="card"><div class="table-wrap"><table>
-      <thead><tr>${canBulk?'<th></th>':''}<th>Case ID</th><th>Patent Title</th><th>Country</th><th>Filed</th><th>Status</th><th>Deadline</th><th>Attorney</th>${canEdit?'<th>Actions</th>':''}</tr></thead>
+      <thead><tr>${canBulk?'<th></th>':''}<th>Case ID</th><th>Patent Title</th><th>Country</th><th>Filed</th><th>Status</th><th>Workflow Stage</th><th>Deadline</th><th>Attorney</th>${canEdit?'<th>Actions</th>':''}</tr></thead>
       <tbody>${rows}</tbody>
     </table></div></div>
     ${buildPagerControls('cases', paged, 'renderCases', 'cases')}
@@ -1446,48 +1586,79 @@ async function loadMoreCases() {
   }
 }
 
-function renderCaseFilters() {
+function renderCaseFilters(mode = 'cases') {
+  const state = mode === 'galvanizer' ? GALVANIZER_FILTERS : CASE_FILTERS;
+  const filterKey = mode === 'galvanizer' ? 'galvanizer' : 'cases';
   const statuses = ['','Drafted','Filed','Published','Under Examination','Granted','Abandoned','Lapsed','Refused'];
   const countries = ['','India','USA','EPO','PCT','China','Japan','Other'];
   const stages = ['','Drafting','Ready for Attorney','Under Attorney Review','Filed','Under Examination','Granted','Closed'];
+  const caseIdField = mode === 'galvanizer'
+    ? `<div class="form-group search-dropdown">
+         <label class="form-label">Case ID</label>
+         <div class="search-dropdown-shell">
+           <input class="form-control" id="galvanizer-filter-caseid" value="${state.caseId || ''}" placeholder="Search case ID" autocomplete="off" onfocus="renderGalvanizerCaseIdDropdown(true)" oninput="renderGalvanizerCaseIdDropdown(true)" />
+           <div class="search-dropdown-menu" id="galvanizer-caseid-menu"></div>
+         </div>
+       </div>`
+    : `<div class="form-group"><label class="form-label">Case ID</label><input class="form-control" id="case-filter-caseid" value="${state.caseId || ''}" placeholder="A61M002" /></div>`;
   return `
-  <div class="card filter-panel">
+  <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE[filterKey] ? 'open' : ''}">
     <div class="filter-head">
-      <div class="card-title">Case Filters</div>
+      <div class="card-title">${mode === 'galvanizer' ? 'Galvanizer Filters' : 'Case Filters'}</div>
       <div class="filter-actions">
-        <button class="btn btn-primary btn-sm" onclick="applyCaseFilters()">Apply</button>
-        <button class="btn btn-ghost btn-sm" onclick="resetCaseFilters()">Reset</button>
+        <button class="btn btn-primary btn-sm" onclick="applyCaseFilters('${mode}')">Apply</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetCaseFilters('${mode}')">Reset</button>
       </div>
     </div>
     <div class="filter-grid">
       <div class="form-group">
         <label class="form-label">Client Code</label>
-        <input class="form-control" id="case-filter-client" list="case-filter-clients" value="${CASE_FILTERS.clientCode || ''}" placeholder="A61M" />
+        <input class="form-control" id="${mode === 'galvanizer' ? 'galvanizer-filter-client' : 'case-filter-client'}" list="case-filter-clients" value="${state.clientCode || ''}" placeholder="A61M" />
         <datalist id="case-filter-clients">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist>
       </div>
-      <div class="form-group"><label class="form-label">Case ID</label><input class="form-control" id="case-filter-caseid" value="${CASE_FILTERS.caseId || ''}" placeholder="A61M002" /></div>
-      <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="case-filter-query" value="${CASE_FILTERS.query || ''}" placeholder="Title, app no, attorney" /></div>
-      <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="case-filter-status">${statuses.map(v=>`<option value="${v}"${CASE_FILTERS.status===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
-      <div class="form-group"><label class="form-label">Country</label><select class="form-control" id="case-filter-country">${countries.map(v=>`<option value="${v}"${CASE_FILTERS.country===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
-      <div class="form-group"><label class="form-label">Workflow Stage</label><select class="form-control" id="case-filter-stage">${stages.map(v=>`<option value="${v}"${CASE_FILTERS.workflowStage===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
+      ${caseIdField}
+      <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="${mode === 'galvanizer' ? 'galvanizer-filter-query' : 'case-filter-query'}" value="${state.query || ''}" placeholder="Title, app no, attorney" /></div>
+      ${mode === 'cases' ? `<div class="form-group"><label class="form-label">Status</label><select class="form-control" id="case-filter-status">${statuses.map(v=>`<option value="${v}"${state.status===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>` : ''}
+      ${mode === 'cases' ? `<div class="form-group"><label class="form-label">Country</label><select class="form-control" id="case-filter-country">${countries.map(v=>`<option value="${v}"${state.country===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>` : ''}
+      <div class="form-group"><label class="form-label">Workflow Stage</label><select class="form-control" id="${mode === 'galvanizer' ? 'galvanizer-filter-stage' : 'case-filter-stage'}">${stages.map(v=>`<option value="${v}"${state.workflowStage===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="${mode === 'galvanizer' ? 'galvanizer-filter-sort' : 'case-filter-sort'}"><option value="az"${state.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${state.sortDir==='za'?' selected':''}>Z-A</option></select></div>
     </div>
   </div>`;
 }
 
-function applyCaseFilters() {
-  CASE_FILTERS = {
-    clientCode: document.getElementById('case-filter-client')?.value.trim().toUpperCase() || '',
-    caseId: document.getElementById('case-filter-caseid')?.value.trim().toUpperCase() || '',
-    query: document.getElementById('case-filter-query')?.value.trim() || '',
-    status: document.getElementById('case-filter-status')?.value || '',
-    country: document.getElementById('case-filter-country')?.value || '',
-    workflowStage: document.getElementById('case-filter-stage')?.value || '',
-  };
+function applyCaseFilters(mode = 'cases') {
+  if (mode === 'galvanizer') {
+    GALVANIZER_FILTERS = {
+      clientCode: document.getElementById('galvanizer-filter-client')?.value.trim().toUpperCase() || '',
+      caseId: document.getElementById('galvanizer-filter-caseid')?.value.trim().toUpperCase() || '',
+      query: document.getElementById('galvanizer-filter-query')?.value.trim() || '',
+      workflowStage: document.getElementById('galvanizer-filter-stage')?.value || '',
+      sortDir: document.getElementById('galvanizer-filter-sort')?.value || 'az',
+    };
+    FILTER_PANEL_STATE.galvanizer = false;
+  } else {
+    CASE_FILTERS = {
+      clientCode: document.getElementById('case-filter-client')?.value.trim().toUpperCase() || '',
+      caseId: document.getElementById('case-filter-caseid')?.value.trim().toUpperCase() || '',
+      query: document.getElementById('case-filter-query')?.value.trim() || '',
+      status: document.getElementById('case-filter-status')?.value || '',
+      country: document.getElementById('case-filter-country')?.value || '',
+      workflowStage: document.getElementById('case-filter-stage')?.value || '',
+      sortDir: document.getElementById('case-filter-sort')?.value || 'az',
+    };
+    FILTER_PANEL_STATE.cases = false;
+  }
   reloadCaseFilterTarget();
 }
 
-function resetCaseFilters() {
-  CASE_FILTERS = { clientCode: '', caseId: '', status: '', country: '', workflowStage: '', query: '' };
+function resetCaseFilters(mode = 'cases') {
+  if (mode === 'galvanizer') {
+    GALVANIZER_FILTERS = { clientCode: '', caseId: '', workflowStage: '', query: '', sortDir: 'az' };
+    FILTER_PANEL_STATE.galvanizer = false;
+  } else {
+    CASE_FILTERS = { clientCode: '', caseId: '', status: '', country: '', workflowStage: '', query: '', sortDir: 'az' };
+    FILTER_PANEL_STATE.cases = false;
+  }
   reloadCaseFilterTarget();
 }
 
@@ -1634,31 +1805,74 @@ function renderAttorneyWorkspace() {
 
 async function loadTasks() {
   destroyCharts();
-  setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openTaskModal()">+ New Task</button>`);
+  setTopbarActions(`${renderFilterToggleButton('tasks')}<button class="btn btn-primary btn-sm" onclick="openTaskModal()">+ New Task</button>`);
   try {
-    const tasks = await API.getTasks({});
-    document.getElementById('page-content').innerHTML = `
-      <div class="page">
-        <div class="card">
-          <div class="table-wrap"><table>
-            <thead><tr><th>ID</th><th>Title</th><th>Assignee</th><th>Priority</th><th>Due</th><th>Status</th><th></th></tr></thead>
-            <tbody>${(tasks || []).map(item => `
-              <tr>
-                <td class="text-em">${item.TASK_ID}</td>
-                <td>${item.TITLE || ''}</td>
-                <td>${item.ASSIGNED_TO_NAME || item.ASSIGNED_TO_EMAIL || ''}</td>
-                <td>${item.PRIORITY || ''}</td>
-                <td>${fmt(item.DUE_DATE)}</td>
-                <td>${statusBadge(item.STATUS || 'Open')}</td>
-                <td><button class="btn btn-ghost btn-sm" onclick="advanceTaskStatus('${item.TASK_ID}','${item.STATUS || 'Open'}')">Next</button></td>
-              </tr>`).join('') || '<tr><td colspan="7" class="text-muted" style="padding:20px;text-align:center">No tasks found.</td></tr>'}
-            </tbody>
-          </table></div>
-        </div>
-      </div>`;
+    TASKS_CACHE = await API.getTasks({});
+    renderTasks();
   } catch (e) {
     showPageError('loadTasks', e);
   }
+}
+
+function renderTasks() {
+  const filtered = sortItemsBy((TASKS_CACHE || []).filter(item => {
+    const query = normalizeAlphaValue(TASK_FILTERS.query);
+    const haystack = normalizeAlphaValue([item.TASK_ID, item.TITLE, item.ASSIGNED_TO_NAME, item.ASSIGNED_TO_EMAIL].join(' '));
+    if (query && !haystack.includes(query)) return false;
+    if (TASK_FILTERS.status && String(item.STATUS || '') !== TASK_FILTERS.status) return false;
+    return true;
+  }), item => item.TITLE || item.TASK_ID, TASK_FILTERS.sortDir);
+  const paged = paginateItems(filtered, 'tasks', 10);
+  document.getElementById('page-content').innerHTML = `
+    <div class="page">
+      <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.tasks ? 'open' : ''}" style="margin-bottom:16px">
+        <div class="filter-head">
+          <div class="card-title">Task Filters</div>
+          <div class="filter-actions">
+            <button class="btn btn-primary btn-sm" onclick="applyTaskFilters()">Apply</button>
+            <button class="btn btn-ghost btn-sm" onclick="resetTaskFilters()">Reset</button>
+          </div>
+        </div>
+        <div class="filter-grid compact-2">
+          <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="task-filter-query" value="${TASK_FILTERS.query || ''}" placeholder="Task, assignee, ID" /></div>
+          <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="task-filter-status">${['','Open','In Progress','Completed'].map(v => `<option value="${v}"${TASK_FILTERS.status===v?' selected':''}>${v || 'All'}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="task-filter-sort"><option value="az"${TASK_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${TASK_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>Title</th><th>Assignee</th><th>Priority</th><th>Due</th><th>Status</th><th></th></tr></thead>
+          <tbody>${paged.items.map(item => `
+            <tr>
+              <td class="text-em">${item.TASK_ID}</td>
+              <td>${item.TITLE || ''}</td>
+              <td>${item.ASSIGNED_TO_NAME || item.ASSIGNED_TO_EMAIL || ''}</td>
+              <td>${item.PRIORITY || ''}</td>
+              <td>${fmt(item.DUE_DATE)}</td>
+              <td>${statusBadge(item.STATUS || 'Open')}</td>
+              <td><button class="btn btn-ghost btn-sm" onclick="advanceTaskStatus('${item.TASK_ID}','${item.STATUS || 'Open'}')">Next</button></td>
+            </tr>`).join('') || '<tr><td colspan="7" class="text-muted" style="padding:20px;text-align:center">No tasks found.</td></tr>'}
+          </tbody>
+        </table></div>
+      </div>
+      ${buildPagerControls('tasks', paged, 'renderTasks', 'tasks')}
+    </div>`;
+}
+
+function applyTaskFilters() {
+  TASK_FILTERS = {
+    query: document.getElementById('task-filter-query')?.value.trim() || '',
+    status: document.getElementById('task-filter-status')?.value || '',
+    sortDir: document.getElementById('task-filter-sort')?.value || 'az',
+  };
+  FILTER_PANEL_STATE.tasks = false;
+  renderTasks();
+}
+
+function resetTaskFilters() {
+  TASK_FILTERS = { query: '', status: '', sortDir: 'az' };
+  FILTER_PANEL_STATE.tasks = false;
+  renderTasks();
 }
 
 async function quickCreateTask() {
@@ -1712,25 +1926,71 @@ async function advanceTaskStatus(taskId, currentStatus) {
 
 async function loadApprovals() {
   destroyCharts();
-  setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openApprovalModal()">+ New Approval</button>`);
+  setTopbarActions(`${renderFilterToggleButton('approvals')}<button class="btn btn-primary btn-sm" onclick="openApprovalModal()">+ New Approval</button>`);
   try {
-    const items = await API.getApprovalRequests({});
-    const canManageAll = sessionHasRoleAtLeast('Admin');
-    document.getElementById('page-content').innerHTML = `
-      <div class="page">
-        <div class="card">
-          <div class="table-wrap"><table>
-            <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Approver</th><th>Status</th><th></th></tr></thead>
-            <tbody>${(items || []).map(item => {
-              const canReview = item.STATUS === 'Pending' && (canManageAll || String(item.APPROVER_EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase());
-              return `<tr><td class="text-em">${item.APPROVAL_ID}</td><td>${item.TITLE || ''}</td><td>${item.APPROVAL_TYPE || ''}</td><td>${item.APPROVER_EMAIL || ''}</td><td>${statusBadge(item.STATUS || 'Pending')}</td><td>${canReview ? `<div class="action-row"><button class="btn btn-success btn-sm" onclick="reviewApproval('${item.APPROVAL_ID}','Approved')">Approve</button><button class="btn btn-danger btn-sm" onclick="reviewApproval('${item.APPROVAL_ID}','Rejected')">Reject</button></div>` : ''}</td></tr>`;
-            }).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No approvals.</td></tr>'}</tbody>
-          </table></div>
-        </div>
-      </div>`;
+    APPROVALS_CACHE = await API.getApprovalRequests({});
+    renderApprovals();
   } catch (e) {
     showPageError('loadApprovals', e);
   }
+}
+
+function renderApprovals() {
+  const canManageAll = sessionHasRoleAtLeast('Admin');
+  const filtered = sortItemsBy((APPROVALS_CACHE || []).filter(item => {
+    const query = normalizeAlphaValue(APPROVAL_FILTERS.query);
+    const haystack = normalizeAlphaValue([item.APPROVAL_ID, item.TITLE, item.APPROVER_EMAIL, item.APPROVAL_TYPE].join(' '));
+    if (query && !haystack.includes(query)) return false;
+    if (APPROVAL_FILTERS.status && String(item.STATUS || '') !== APPROVAL_FILTERS.status) return false;
+    if (APPROVAL_FILTERS.type && String(item.APPROVAL_TYPE || '') !== APPROVAL_FILTERS.type) return false;
+    return true;
+  }), item => item.TITLE || item.APPROVAL_ID, APPROVAL_FILTERS.sortDir);
+  const paged = paginateItems(filtered, 'approvals', 10);
+  document.getElementById('page-content').innerHTML = `
+    <div class="page">
+      <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.approvals ? 'open' : ''}" style="margin-bottom:16px">
+        <div class="filter-head">
+          <div class="card-title">Approval Filters</div>
+          <div class="filter-actions">
+            <button class="btn btn-primary btn-sm" onclick="applyApprovalFilters()">Apply</button>
+            <button class="btn btn-ghost btn-sm" onclick="resetApprovalFilters()">Reset</button>
+          </div>
+        </div>
+        <div class="filter-grid compact-2">
+          <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="approval-filter-query" value="${APPROVAL_FILTERS.query || ''}" placeholder="Approval, approver, type" /></div>
+          <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="approval-filter-status">${['','Pending','Approved','Rejected'].map(v => `<option value="${v}"${APPROVAL_FILTERS.status===v?' selected':''}>${v || 'All'}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">Type</label><select class="form-control" id="approval-filter-type">${['','General','Case','Finance','Document'].map(v => `<option value="${v}"${APPROVAL_FILTERS.type===v?' selected':''}>${v || 'All'}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="approval-filter-sort"><option value="az"${APPROVAL_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${APPROVAL_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Approver</th><th>Status</th><th></th></tr></thead>
+          <tbody>${paged.items.map(item => {
+            const canReview = item.STATUS === 'Pending' && (canManageAll || String(item.APPROVER_EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase());
+            return `<tr><td class="text-em">${item.APPROVAL_ID}</td><td>${item.TITLE || ''}</td><td>${item.APPROVAL_TYPE || ''}</td><td>${item.APPROVER_EMAIL || ''}</td><td>${statusBadge(item.STATUS || 'Pending')}</td><td>${canReview ? `<div class="action-row"><button class="btn btn-success btn-sm" onclick="reviewApproval('${item.APPROVAL_ID}','Approved')">Approve</button><button class="btn btn-danger btn-sm" onclick="reviewApproval('${item.APPROVAL_ID}','Rejected')">Reject</button></div>` : ''}</td></tr>`;
+          }).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No approvals.</td></tr>'}</tbody>
+        </table></div>
+      </div>
+      ${buildPagerControls('approvals', paged, 'renderApprovals', 'approvals')}
+    </div>`;
+}
+
+function applyApprovalFilters() {
+  APPROVAL_FILTERS = {
+    query: document.getElementById('approval-filter-query')?.value.trim() || '',
+    status: document.getElementById('approval-filter-status')?.value || '',
+    type: document.getElementById('approval-filter-type')?.value || '',
+    sortDir: document.getElementById('approval-filter-sort')?.value || 'az',
+  };
+  FILTER_PANEL_STATE.approvals = false;
+  renderApprovals();
+}
+
+function resetApprovalFilters() {
+  APPROVAL_FILTERS = { query: '', status: '', type: '', sortDir: 'az' };
+  FILTER_PANEL_STATE.approvals = false;
+  renderApprovals();
 }
 
 async function quickCreateApproval() {
@@ -2023,7 +2283,8 @@ async function loadMgmtUsers() {
 
 function renderMgmtUsers() {
   const mc = document.getElementById('mgmt-content');
-  const paged = paginateItems(MGMT_USERS_CACHE, 'mgmt-users', 10);
+  const sortedUsers = sortItemsBy(MGMT_USERS_CACHE, user => user.FULL_NAME || user.EMAIL || user.USER_ID, USER_FILTERS.sortDir);
+  const paged = paginateItems(sortedUsers, 'mgmt-users', 10);
   const rows = paged.items.map(u => `<tr>
       <td class="font-mono">${u.USER_ID}</td>
       <td>${u.FULL_NAME}</td>
@@ -2037,17 +2298,19 @@ function renderMgmtUsers() {
       </div></td>
     </tr>`).join('');
     mc.innerHTML = `
-    <div class="card" style="margin-bottom:12px">
+    <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.mgmtUsers ? 'open' : ''}" style="margin-bottom:12px">
       <div class="form-row">
         <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="user-search" value="${USER_FILTERS.query || ''}" placeholder="Name, email, ID" /></div>
         <div class="form-group"><label class="form-label">Role</label><select class="form-control" id="user-role-filter">${['','Super Admin','Admin','Galvanizer','Staff','Attorney','Client Admin','Client Employee','Individual Client'].map(v=>`<option value="${v}"${USER_FILTERS.role===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="user-sort-filter"><option value="az"${USER_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${USER_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-primary btn-sm" onclick="applyUserFilters()">Apply</button>
         <button class="btn btn-ghost btn-sm" onclick="resetUserFilters()">Reset</button>
       </div>
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
+      ${renderFilterToggleButton('mgmtUsers')}
       <button class="btn btn-primary btn-sm" onclick="openUserModal()">+ New User</button>
     </div>
     <div class="card"><div class="table-wrap"><table>
@@ -2061,12 +2324,15 @@ function applyUserFilters() {
   USER_FILTERS = {
     query: document.getElementById('user-search')?.value.trim() || '',
     role: document.getElementById('user-role-filter')?.value || '',
+    sortDir: document.getElementById('user-sort-filter')?.value || 'az',
   };
+  FILTER_PANEL_STATE.mgmtUsers = false;
   loadMgmtUsers();
 }
 
 function resetUserFilters() {
-  USER_FILTERS = { query: '', role: '' };
+  USER_FILTERS = { query: '', role: '', sortDir: 'az' };
+  FILTER_PANEL_STATE.mgmtUsers = false;
   loadMgmtUsers();
 }
 
@@ -2074,6 +2340,7 @@ async function loadMgmtClients() {
   const mc = document.getElementById('mgmt-content');
   try {
     MGMT_CLIENTS_CACHE = await API.getClients();
+    return renderMgmtClients();
     const paged = paginateItems(MGMT_CLIENTS_CACHE, 'mgmt-clients', 10);
     const rows = paged.items.map(c => `<tr>
       <td class="font-mono">${c.CLIENT_ID}</td>
@@ -2095,6 +2362,65 @@ async function loadMgmtClients() {
     </table></div></div>
     ${buildPagerControls('mgmt-clients', paged, 'loadMgmtClients', 'clients')}`;
   } catch(e) { mc.innerHTML = err(e.message); }
+}
+
+function renderMgmtClients() {
+  const mc = document.getElementById('mgmt-content');
+  const filtered = sortItemsBy((MGMT_CLIENTS_CACHE || []).filter(client => {
+    const query = normalizeAlphaValue(MGMT_CLIENT_FILTERS.query);
+    const haystack = normalizeAlphaValue([client.CLIENT_ID, client.CLIENT_CODE, client.CLIENT_NAME, client.EMAIL].join(' '));
+    if (query && !haystack.includes(query)) return false;
+    if (MGMT_CLIENT_FILTERS.orgId && String(client.ORG_ID || '').toUpperCase() !== String(MGMT_CLIENT_FILTERS.orgId || '').toUpperCase()) return false;
+    return true;
+  }), client => client.CLIENT_NAME || client.CLIENT_ID, MGMT_CLIENT_FILTERS.sortDir);
+  const paged = paginateItems(filtered, 'mgmt-clients', 10);
+  const rows = paged.items.map(c => `<tr>
+    <td class="font-mono">${c.CLIENT_ID}</td>
+    <td>${c.CLIENT_NAME}</td>
+    <td style="font-size:12px">${c.EMAIL||'â€”'}</td>
+    <td>${statusBadge(c.STATUS)}</td>
+    <td><div class="action-row">
+      <button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(c))})'>Edit</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteItem('Client','${c.CLIENT_ID}')">Del</button>
+    </div></td>
+  </tr>`).join('');
+  mc.innerHTML = `
+  <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.mgmtClients ? 'open' : ''}" style="margin-bottom:12px">
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="mgmt-client-query" value="${MGMT_CLIENT_FILTERS.query || ''}" placeholder="Client code, name, email" /></div>
+      <div class="form-group"><label class="form-label">Organization</label><input class="form-control" id="mgmt-client-org" value="${MGMT_CLIENT_FILTERS.orgId || ''}" placeholder="ORG0002" /></div>
+      <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="mgmt-client-sort"><option value="az"${MGMT_CLIENT_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${MGMT_CLIENT_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary btn-sm" onclick="applyMgmtClientFilters()">Apply</button>
+      <button class="btn btn-ghost btn-sm" onclick="resetMgmtClientFilters()">Reset</button>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
+    ${renderFilterToggleButton('mgmtClients')}
+    <button class="btn btn-primary btn-sm" onclick="openClientModal()">+ New Client</button>
+  </div>
+  <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No clients found.</td></tr>'}</tbody>
+  </table></div></div>
+  ${buildPagerControls('mgmt-clients', paged, 'renderMgmtClients', 'clients')}`;
+}
+
+function applyMgmtClientFilters() {
+  MGMT_CLIENT_FILTERS = {
+    query: document.getElementById('mgmt-client-query')?.value.trim() || '',
+    orgId: document.getElementById('mgmt-client-org')?.value.trim().toUpperCase() || '',
+    sortDir: document.getElementById('mgmt-client-sort')?.value || 'az',
+  };
+  FILTER_PANEL_STATE.mgmtClients = false;
+  renderMgmtClients();
+}
+
+function resetMgmtClientFilters() {
+  MGMT_CLIENT_FILTERS = { query: '', orgId: '', sortDir: 'az' };
+  FILTER_PANEL_STATE.mgmtClients = false;
+  renderMgmtClients();
 }
 
 async function loadMgmtCases() {
@@ -2188,6 +2514,7 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
     await ensureClientLookupLoaded();
     MGMT_ORGS_CACHE = await API.getOrganizations();
     ACTIVE_ORG_VIEW_ID = selectedOrgId || ACTIVE_ORG_VIEW_ID || '';
+    return renderMgmtOrganizations();
     const activeOrg = (MGMT_ORGS_CACHE || []).find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || null;
     const orgClients = activeOrg ? (CLIENT_LOOKUP_CACHE || []).filter(client => String(client.ORG_ID || '') === String(activeOrg.ORG_ID)) : [];
     const paged = paginateItems(MGMT_ORGS_CACHE, 'mgmt-orgs', 10);
@@ -2236,6 +2563,86 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
   } catch (e) {
     mc.innerHTML = err(e.message);
   }
+}
+
+function renderMgmtOrganizations() {
+  const mc = document.getElementById('mgmt-content');
+  const filtered = sortItemsBy((MGMT_ORGS_CACHE || []).filter(org => {
+    const query = normalizeAlphaValue(MGMT_ORG_FILTERS.query);
+    const haystack = normalizeAlphaValue([org.ORG_ID, org.ORG_NAME, org.PRIMARY_EMAIL, org.ASSIGNED_STAFF_EMAIL].join(' '));
+    return !query || haystack.includes(query);
+  }), org => org.ORG_NAME || org.ORG_ID, MGMT_ORG_FILTERS.sortDir);
+  const activeOrg = filtered.find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || (MGMT_ORGS_CACHE || []).find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || null;
+  const orgClients = activeOrg ? (CLIENT_LOOKUP_CACHE || []).filter(client => String(client.ORG_ID || '') === String(activeOrg.ORG_ID)) : [];
+  const paged = paginateItems(filtered, 'mgmt-orgs', 10);
+  const rows = paged.items.map(o => `<tr>
+    <td class="font-mono">${o.ORG_ID}</td>
+    <td>${o.ORG_NAME}</td>
+    <td>${o.ASSIGNED_STAFF_EMAIL || 'â€”'}</td>
+    <td>${statusBadge(o.STATUS || 'Active')}</td>
+    <td><div class="action-row">
+      <button class="btn btn-ghost btn-sm" onclick='openOrganizationModal(${JSON.stringify(JSON.stringify(o))})'>Edit</button>
+      <button class="btn btn-ghost btn-sm" onclick="loadMgmtOrganizationsV2('${o.ORG_ID}')">Clients</button>
+      <button class="btn btn-primary btn-sm" onclick="openOrganizationClientModal('${o.ORG_ID}','${escapeAttr(o.ORG_NAME || '')}')">+ Add Client</button>
+    </div></td>
+  </tr>`).join('');
+  const userRows = (orgClients || []).map(client => `<tr>
+    <td>${client.CLIENT_ID}</td>
+    <td>${client.CLIENT_NAME}</td>
+    <td>${client.EMAIL || 'â€”'}</td>
+    <td>${statusBadge(client.CLIENT_TYPE || 'Client')}</td>
+    <td><button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(client))})'>Open</button></td>
+  </tr>`).join('');
+  mc.innerHTML = `
+    <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.mgmtOrganizations ? 'open' : ''}" style="margin-bottom:12px">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="mgmt-org-query" value="${MGMT_ORG_FILTERS.query || ''}" placeholder="Organization, ID, email, staff" /></div>
+        <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="mgmt-org-sort"><option value="az"${MGMT_ORG_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${MGMT_ORG_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="applyMgmtOrgFilters()">Apply</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetMgmtOrgFilters()">Reset</button>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
+      ${renderFilterToggleButton('mgmtOrganizations')}
+      <button class="btn btn-primary btn-sm" onclick="openOrganizationModal()">+ New Organization</button>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>Organization</th><th>Assigned Staff</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No organizations found.</td></tr>'}</tbody>
+      </table></div></div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <div class="card-title" style="margin-bottom:0">${activeOrg ? `${activeOrg.ORG_NAME} Clients` : 'Organization Clients'}</div>
+          ${activeOrg ? `<button class="btn btn-primary btn-sm" onclick="openOrganizationClientModal('${activeOrg.ORG_ID}','${escapeAttr(activeOrg.ORG_NAME || '')}')">+ Add Client</button>` : ''}
+        </div>
+        ${activeOrg ? `
+          <div class="text-muted" style="margin:10px 0 14px">${activeOrg.ORG_ID} | ${activeOrg.PRIMARY_EMAIL || 'No email'} | Staff: ${activeOrg.ASSIGNED_STAFF_EMAIL || 'Unassigned'}</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Type</th><th></th></tr></thead>
+            <tbody>${userRows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No organization clients yet.</td></tr>'}</tbody>
+          </table></div>
+        ` : '<div class="text-muted">Select an organization to view or attach clients.</div>'}
+      </div>
+    </div>
+    ${buildPagerControls('mgmt-orgs', paged, 'renderMgmtOrganizations', 'organizations')}`;
+}
+
+function applyMgmtOrgFilters() {
+  MGMT_ORG_FILTERS = {
+    query: document.getElementById('mgmt-org-query')?.value.trim() || '',
+    sortDir: document.getElementById('mgmt-org-sort')?.value || 'az',
+  };
+  FILTER_PANEL_STATE.mgmtOrganizations = false;
+  renderMgmtOrganizations();
+}
+
+function resetMgmtOrgFilters() {
+  MGMT_ORG_FILTERS = { query: '', sortDir: 'az' };
+  FILTER_PANEL_STATE.mgmtOrganizations = false;
+  renderMgmtOrganizations();
 }
 
 async function openOrganizationModal(jsonStr) {
@@ -2916,11 +3323,13 @@ async function loadExpenses() {
     return;
   }
   try {
-    const period = document.getElementById('expense-period')?.value || 'month';
-    const fromDate = document.getElementById('expense-from-date')?.value || '';
-    const toDate = document.getElementById('expense-to-date')?.value || '';
+    setTopbarActions(renderFilterToggleButton('expenses'));
+    const period = EXPENSE_FILTERS.period || 'month';
+    const fromDate = EXPENSE_FILTERS.fromDate || '';
+    const toDate = EXPENSE_FILTERS.toDate || '';
     EXPENSES_CACHE = await API.getExpenseClaims({ period, fromDate, toDate });
-    const paged = paginateItems(EXPENSES_CACHE, 'expenses-history', 10);
+    const filteredClaims = sortItemsBy(EXPENSES_CACHE, claim => claim.CATEGORY || claim.CLAIM_ID, EXPENSE_FILTERS.sortDir);
+    const paged = paginateItems(filteredClaims, 'expenses-history', 10);
     const rows = paged.items.map(c => `
       <tr>
         <td>${c.CLAIM_ID}</td>
@@ -2933,8 +3342,8 @@ async function loadExpenses() {
       </tr>`).join('');
     document.getElementById('page-content').innerHTML = `
     <div class="page">
-      <div class="grid-2">
-        <div class="card">
+        <div class="grid-2">
+          <div class="card">
           <div class="card-title">New Expense Claim</div>
           <div class="form-group"><label class="form-label">Claim Date</label><input type="date" class="form-control" id="ex-date" /></div>
           <div class="form-group"><label class="form-label">Category</label><input class="form-control" id="ex-cat" placeholder="Travel, filing fee, courier, office expense" /></div>
@@ -2943,20 +3352,30 @@ async function loadExpenses() {
           <div class="form-group"><label class="form-label">Bill link</label><input class="form-control" id="ex-bill" placeholder="Drive link" /></div>
           <div class="form-group"><label class="form-label">Description</label><textarea class="form-control" id="ex-desc"></textarea></div>
           <button class="btn btn-primary" onclick="saveExpenseClaim()">Submit Claim</button>
-        </div>
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px">
-            <div class="card-title" style="margin-bottom:0">Claim History</div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;justify-content:flex-end;overflow:auto">
-              <select class="form-control" id="expense-period" style="max-width:140px" onchange="loadExpenses()">
-                <option value="month" ${period === 'month' ? 'selected' : ''}>This Month</option>
-                <option value="all" ${period === 'all' ? 'selected' : ''}>All Time</option>
-              </select>
-              <input type="date" class="form-control" id="expense-from-date" style="max-width:150px" value="${fromDate}" onchange="loadExpenses()" />
-              <input type="date" class="form-control" id="expense-to-date" style="max-width:150px" value="${toDate}" onchange="loadExpenses()" />
-            </div>
           </div>
-          <div class="table-wrap"><table>
+          <div class="card">
+            <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.expenses ? 'open' : ''}" style="margin-bottom:16px">
+              <div class="filter-head">
+                <div class="card-title">Expense Filters</div>
+                <div class="filter-actions">
+                  <button class="btn btn-primary btn-sm" onclick="applyExpenseFilters()">Apply</button>
+                  <button class="btn btn-ghost btn-sm" onclick="resetExpenseFilters()">Reset</button>
+                </div>
+              </div>
+              <div class="filter-grid compact-2">
+                <div class="form-group"><label class="form-label">Period</label><select class="form-control" id="expense-period" style="max-width:140px">
+                  <option value="month" ${period === 'month' ? 'selected' : ''}>This Month</option>
+                  <option value="all" ${period === 'all' ? 'selected' : ''}>All Time</option>
+                </select></div>
+                <div class="form-group"><label class="form-label">From Date</label><input type="date" class="form-control" id="expense-from-date" style="max-width:150px" value="${fromDate}" /></div>
+                <div class="form-group"><label class="form-label">To Date</label><input type="date" class="form-control" id="expense-to-date" style="max-width:150px" value="${toDate}" /></div>
+                <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="expense-sort"><option value="az"${EXPENSE_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${EXPENSE_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px">
+              <div class="card-title" style="margin-bottom:0">Claim History</div>
+            </div>
+            <div class="table-wrap"><table>
             <thead><tr><th>ID</th><th>Date</th><th>Category</th><th>Amount</th><th>Status</th><th>User</th><th>Bill</th></tr></thead>
             <tbody>${rows || '<tr><td colspan="7" class="text-muted" style="padding:20px;text-align:center">No expense claims yet.</td></tr>'}</tbody>
           </table></div>
@@ -2976,18 +3395,38 @@ async function loadGalvanizerQueue() {
     document.getElementById('page-content').innerHTML = err('Galvanizer queue is restricted.');
     return;
   }
+
+function applyExpenseFilters() {
+  EXPENSE_FILTERS = {
+    period: document.getElementById('expense-period')?.value || 'month',
+    fromDate: document.getElementById('expense-from-date')?.value || '',
+    toDate: document.getElementById('expense-to-date')?.value || '',
+    sortDir: document.getElementById('expense-sort')?.value || 'az',
+  };
+  FILTER_PANEL_STATE.expenses = false;
+  loadExpenses();
+}
+
+function resetExpenseFilters() {
+  EXPENSE_FILTERS = { period: 'month', fromDate: '', toDate: '', sortDir: 'az' };
+  FILTER_PANEL_STATE.expenses = false;
+  loadExpenses();
+}
   try {
+    setTopbarActions(renderFilterToggleButton('galvanizer'));
     const filters = {
-      clientCode: CASE_FILTERS.clientCode || '',
-      caseId: CASE_FILTERS.caseId || '',
-      workflowStage: CASE_FILTERS.workflowStage || '',
-      query: CASE_FILTERS.query || '',
+      clientCode: GALVANIZER_FILTERS.clientCode || '',
+      caseId: GALVANIZER_FILTERS.caseId || '',
+      workflowStage: GALVANIZER_FILTERS.workflowStage || '',
+      query: GALVANIZER_FILTERS.query || '',
     };
     const [cases, commandCenter] = await Promise.all([
       API.getGalvanizerQueue(filters),
       API.getGalvanizerCommandCenter(filters)
     ]);
-    const rows = cases.map(c => `
+    const sortedCases = sortItemsBy(cases, item => item.PATENT_TITLE || item.CASE_ID, GALVANIZER_FILTERS.sortDir);
+    GALVANIZER_CASE_ID_OPTIONS = Array.from(new Set(sortedCases.map(item => item.CASE_ID).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
+    const rows = sortedCases.map(c => `
       <tr>
         <td>${c.CASE_ID}</td>
         <td>${c.CLIENT_ID}</td>
@@ -3006,7 +3445,7 @@ async function loadGalvanizerQueue() {
         <div class="stat-card accent-amber"><div class="stat-label">Under Review</div><div class="stat-value">${(commandCenter.underReview || []).length}</div></div>
         <div class="stat-card accent-rose"><div class="stat-label">Pending Approvals</div><div class="stat-value">${(commandCenter.pendingApprovals || []).length}</div></div>
       </div>
-      ${renderCaseFilters()}
+      ${renderCaseFilters('galvanizer')}
       <div class="card">
         <div class="card-title">Galvanizer Work Queue</div>
         <div class="table-wrap"><table>
