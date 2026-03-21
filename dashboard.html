@@ -413,8 +413,17 @@ function canAccessStreamMessaging() {
   await populateCircleNav();
   startSafePrefetch();
 
-  showPage('dashboard');
+  const initialPage = getValidPageFromHash();
+  syncHashToPage(initialPage, true);
+  showPage(initialPage);
 })();
+
+window.addEventListener('hashchange', () => {
+  if (__suppressHashRouting) return;
+  const targetPage = getValidPageFromHash();
+  if (targetPage === CURRENT_PAGE) return;
+  showPage(targetPage);
+});
 
 function toggleSidebarCollapsed() {
   const next = !document.body.classList.contains('sidebar-hidden');
@@ -498,8 +507,32 @@ const PAGE_TITLES = {
   contact: 'Contact',
 };
 
+let __suppressHashRouting = false;
+
+function getValidPageFromHash() {
+  const raw = String(window.location.hash || '').replace(/^#/, '').trim().toLowerCase();
+  if (!raw) return 'dashboard';
+  return Object.prototype.hasOwnProperty.call(PAGE_TITLES, raw) ? raw : 'dashboard';
+}
+
+function syncHashToPage(page, replace) {
+  const targetHash = `#${page}`;
+  if (window.location.hash === targetHash) return;
+  __suppressHashRouting = true;
+  if (replace) {
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${targetHash}`);
+  } else {
+    window.location.hash = targetHash;
+  }
+  setTimeout(() => { __suppressHashRouting = false; }, 0);
+}
+
 function showPage(page) {
+  if (!Object.prototype.hasOwnProperty.call(PAGE_TITLES, page)) {
+    page = 'dashboard';
+  }
   CURRENT_PAGE = page;
+  syncHashToPage(page, false);
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
   });
