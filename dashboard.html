@@ -96,14 +96,6 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>
           Tasks
         </button>
-        <button class="nav-item" data-page="timeline" onclick="showPage('timeline')">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v10M8 5v8M13 2v11"/><circle cx="3" cy="8" r="1"/><circle cx="8" cy="9" r="1"/><circle cx="13" cy="6" r="1"/></svg>
-          Activity Timeline
-        </button>
-        <button class="nav-item" data-page="search" onclick="showPage('search')">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
-          Smart Search
-        </button>
         <button class="nav-item" data-page="approvals" onclick="showPage('approvals')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8l3 3 7-7"/><path d="M2 2h12v12H2z"/></svg>
           Approvals
@@ -261,6 +253,8 @@ let NOTICES_VISIBLE_COUNT = 25;
 let SAFE_PREFETCH_STARTED = false;
 let CURRENT_THEME = 'dark';
 let CURRENT_PAGE = 'dashboard';
+let CASE_FILTER_TARGET = 'cases';
+let CASE_MODAL_RETURN_PAGE = 'cases';
 let CASE_IMPORT_STATE = { parsedRows: [], importableRows: [], skippedRows: [], fileName: '' };
 const NAV_SECTION_STORAGE_KEY = 'mg_sidebar_sections_v1';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'mg_sidebar_collapsed_v1';
@@ -424,8 +418,6 @@ const PAGE_TITLES = {
   messages: 'Threads',
   notifications: 'Notification Center',
   tasks: 'Task System',
-  timeline: 'Activity Timeline',
-  search: 'Smart Search',
   approvals: 'Approval Workflow',
   dailyaudit: 'Daily Audit',
   expenses: 'Expense Claims',
@@ -460,8 +452,6 @@ function showPage(page) {
     messages: loadMessages,
     notifications: loadNotifications,
     tasks: loadTasks,
-    timeline: loadTimeline,
-    search: loadSmartSearch,
     approvals: loadApprovals,
     dailyaudit: loadDailyAudit,
     expenses: loadExpenses,
@@ -544,6 +534,92 @@ let CIRCLE_LOOKUP_CACHE = [];
 let ORG_LOOKUP_CACHE = [];
 let DASHBOARD_FILTER_OPEN = false;
 let DAILY_AUDIT_FILTER_OPEN = false;
+let TABLE_PAGERS = {};
+let CASES_ALL = [];
+let MGMT_USERS_CACHE = [];
+let MGMT_CLIENTS_CACHE = [];
+let MGMT_ORGS_CACHE = [];
+let MGMT_ORG_CLIENTS_CACHE = [];
+let EXPENSES_CACHE = [];
+let ATTORNEY_WORKSPACE_CACHE = { cases: [], tasks: [], pendingReview: [], activeReview: [] };
+let WORKFLOW_BOARD_CACHE = {};
+
+function deriveWorkflowStageFromStatus(status, currentStage) {
+  const normalized = String(status || '').trim();
+  const stageMap = {
+    'Drafted': 'Drafting',
+    'Filed': 'Filed',
+    'Published': 'Under Examination',
+    'Under Examination': 'Under Examination',
+    'Granted': 'Granted',
+    'Abandoned': 'Closed',
+    'Lapsed': 'Closed',
+    'Refused': 'Closed',
+    'Deleted': 'Closed',
+    'Closed': 'Closed',
+  };
+  if (stageMap[normalized]) return stageMap[normalized];
+  return currentStage || 'Drafting';
+}
+
+function getPagerState(key, defaultSize = 10) {
+  if (!TABLE_PAGERS[key]) {
+    TABLE_PAGERS[key] = { page: 1, size: defaultSize };
+  }
+  return TABLE_PAGERS[key];
+}
+
+function paginateItems(items, key, defaultSize = 10) {
+  const list = Array.isArray(items) ? items : [];
+  const state = getPagerState(key, defaultSize);
+  const total = list.length;
+  const totalPages = Math.max(1, Math.ceil(total / state.size));
+  if (state.page > totalPages) state.page = totalPages;
+  const start = (state.page - 1) * state.size;
+  const end = start + state.size;
+  return {
+    items: list.slice(start, end),
+    total,
+    start: total ? start + 1 : 0,
+    end: Math.min(end, total),
+    page: state.page,
+    size: state.size,
+    totalPages
+  };
+}
+
+function setPagerSize(key, size, renderFnName) {
+  const state = getPagerState(key, Number(size) || 10);
+  state.size = Number(size) || 10;
+  state.page = 1;
+  if (typeof window[renderFnName] === 'function') window[renderFnName]();
+}
+
+function setPagerPage(key, page, renderFnName) {
+  const state = getPagerState(key);
+  state.page = Math.max(1, Number(page) || 1);
+  if (typeof window[renderFnName] === 'function') window[renderFnName]();
+}
+
+function buildPagerControls(key, paged, renderFnName, label) {
+  const totalPages = paged.totalPages || 1;
+  const pageButtons = [];
+  for (let page = 1; page <= totalPages; page++) {
+    pageButtons.push(`<button class="btn ${page === paged.page ? 'btn-primary' : 'btn-ghost'} btn-sm" onclick="setPagerPage('${key}', ${page}, '${renderFnName}')">${page}</button>`);
+  }
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px">
+      <div class="text-muted" style="font-size:12px">Showing ${paged.start} to ${paged.end} of ${paged.total} ${label}</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <label class="text-muted" style="font-size:12px">Show:
+          <select class="form-control" style="display:inline-flex;width:auto;min-width:120px;margin-left:6px;max-height:240px;overflow-y:auto" onchange="setPagerSize('${key}', this.value, '${renderFnName}')">
+            ${[3,5,10,20,50].map(size => `<option value="${size}"${paged.size === size ? ' selected' : ''}>${size} rows per page</option>`).join('')}
+          </select>
+        </label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${pageButtons.join('')}</div>
+      </div>
+    </div>`;
+}
 
 async function ensureClientLookupLoaded() {
   if (CLIENT_LOOKUP_CACHE.length) return CLIENT_LOOKUP_CACHE;
@@ -1289,6 +1365,7 @@ function toggleDashboardFilters() {
 // ═══════════════════════════════════════════════════════════════════════════════
 async function loadCases() {
   destroyCharts();
+  CASE_FILTER_TARGET = 'cases';
   const canEdit = sessionHasRoleAtLeast('Staff');
   const canBulk = sessionHasRoleAtLeast('Admin');
   if (canEdit) {
@@ -1299,20 +1376,17 @@ async function loadCases() {
   try {
     await ensureClientLookupLoaded();
     await ensureUserLookupLoaded();
-    CASES_PAGE_OFFSET = 0;
-    CASES_ITEMS = [];
-    const page = await API.getCasesPage(CASE_FILTERS, CASES_PAGE_LIMIT, CASES_PAGE_OFFSET);
-    CASES_ITEMS = Array.isArray(page.items) ? page.items : [];
-    CASES_TOTAL = page.total || CASES_ITEMS.length;
-    CASES_HAS_MORE = !!page.hasMore;
-    CASES_PAGE_OFFSET = page.nextOffset || CASES_ITEMS.length;
-    renderCases(CASES_ITEMS, canEdit, canBulk);
+    TABLE_PAGERS.cases = TABLE_PAGERS.cases || { page: 1, size: 10 };
+    CASES_ALL = await API.getCases(CASE_FILTERS);
+    renderCases(canEdit, canBulk);
   } catch(e) {
     showPageError('loadCases', e);
   }
 }
 
-function renderCases(cases, canEdit, canBulk) {
+function renderCases(canEdit = sessionHasRoleAtLeast('Staff'), canBulk = sessionHasRoleAtLeast('Admin')) {
+  const paged = paginateItems(CASES_ALL, 'cases', 10);
+  const cases = paged.items;
   if (!cases.length) {
     document.getElementById('page-content').innerHTML = `
     <div class="page">
@@ -1345,10 +1419,7 @@ function renderCases(cases, canEdit, canBulk) {
       <thead><tr>${canBulk?'<th></th>':''}<th>Case ID</th><th>Patent Title</th><th>Country</th><th>Filed</th><th>Status</th><th>Deadline</th><th>Attorney</th>${canEdit?'<th>Actions</th>':''}</tr></thead>
       <tbody>${rows}</tbody>
     </table></div></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
-      <div class="text-muted" style="font-size:12px">${cases.length} of ${CASES_TOTAL} cases loaded</div>
-      ${CASES_HAS_MORE ? `<button class="btn btn-ghost btn-sm" id="cases-load-more" onclick="loadMoreCases()">Load More</button>` : ''}
-    </div>
+    ${buildPagerControls('cases', paged, 'renderCases', 'cases')}
   </div>`;
 }
 
@@ -1378,7 +1449,7 @@ async function loadMoreCases() {
 function renderCaseFilters() {
   const statuses = ['','Drafted','Filed','Published','Under Examination','Granted','Abandoned','Lapsed','Refused'];
   const countries = ['','India','USA','EPO','PCT','China','Japan','Other'];
-  const stages = ['','Drafting','Ready for Attorney','Under Attorney Review','Filed'];
+  const stages = ['','Drafting','Ready for Attorney','Under Attorney Review','Filed','Under Examination','Granted','Closed'];
   return `
   <div class="card filter-panel">
     <div class="filter-head">
@@ -1412,12 +1483,17 @@ function applyCaseFilters() {
     country: document.getElementById('case-filter-country')?.value || '',
     workflowStage: document.getElementById('case-filter-stage')?.value || '',
   };
-  loadCases();
+  reloadCaseFilterTarget();
 }
 
 function resetCaseFilters() {
   CASE_FILTERS = { clientCode: '', caseId: '', status: '', country: '', workflowStage: '', query: '' };
-  loadCases();
+  reloadCaseFilterTarget();
+}
+
+function reloadCaseFilterTarget() {
+  if (CASE_FILTER_TARGET === 'galvanizer') return loadGalvanizerQueue();
+  return loadCases();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1461,15 +1537,26 @@ async function submitDocumentUpload() {
 async function loadWorkflowBoard() {
   destroyCharts();
   try {
-    const board = await API.getWorkflowBoard({});
-    const stages = Object.keys(board || {});
-    document.getElementById('page-content').innerHTML = `
-      <div class="page">
-        <div class="grid-3">
-          ${stages.map(stage => `
+    WORKFLOW_BOARD_CACHE = await API.getWorkflowBoard({});
+    renderWorkflowBoard();
+  } catch (e) {
+    showPageError('loadWorkflowBoard', e);
+  }
+}
+
+function renderWorkflowBoard() {
+  const board = WORKFLOW_BOARD_CACHE || {};
+  const stages = ['Drafting', 'Ready for Attorney', 'Under Attorney Review', 'Filed', 'Under Examination', 'Granted', 'Closed'];
+  document.getElementById('page-content').innerHTML = `
+    <div class="page">
+      <div class="grid-3">
+        ${stages.map(stage => {
+          const items = Array.isArray(board[stage]) ? board[stage] : [];
+          const preview = items.slice(0, 3);
+          return `
             <div class="card">
               <div class="card-title">${stage}</div>
-              ${(board[stage] || []).slice(0, 12).map(item => `
+              ${preview.map(item => `
                 <div class="card" style="padding:12px;margin-bottom:10px">
                   <div class="text-em">${item.CASE_ID}</div>
                   <div style="font-weight:600">${item.PATENT_TITLE || 'Untitled case'}</div>
@@ -1477,21 +1564,47 @@ async function loadWorkflowBoard() {
                   <div class="text-muted" style="font-size:12px">${item.ASSIGNED_STAFF_EMAIL || 'Unassigned'} | ${item.ATTORNEY || 'No attorney'}</div>
                 </div>
               `).join('') || '<div class="text-muted">No cases in this stage.</div>'}
-            </div>
-          `).join('')}
-        </div>
-      </div>`;
-  } catch (e) {
-    showPageError('loadWorkflowBoard', e);
-  }
+              ${items.length > 3 ? `<div style="margin-top:10px"><button class="btn btn-ghost btn-sm" onclick="openWorkflowStageModal('${stage.replace(/'/g, "\\'")}')">See more</button></div>` : ''}
+            </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+function openWorkflowStageModal(stage) {
+  const items = Array.isArray(WORKFLOW_BOARD_CACHE?.[stage]) ? WORKFLOW_BOARD_CACHE[stage] : [];
+  const key = `workflow-${stage}`;
+  const paged = paginateItems(items, key, 5);
+  openGenericModal(`${stage} Cases`, `
+    <div class="card">
+      <div class="table-wrap"><table>
+        <thead><tr><th>Case ID</th><th>Title</th><th>Client</th><th>Status</th><th>Attorney</th></tr></thead>
+        <tbody>${paged.items.map(item => `<tr><td class="font-mono">${item.CASE_ID}</td><td>${item.PATENT_TITLE || ''}</td><td>${item.CLIENT_NAME || item.CLIENT_ID || ''}</td><td>${statusBadge(item.CURRENT_STATUS || '')}</td><td>${item.ATTORNEY || '—'}</td></tr>`).join('') || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No cases in this stage.</td></tr>'}</tbody>
+      </table></div>
+      ${buildPagerControls(key, paged, 'rerenderWorkflowStageModal', 'cases')}
+    </div>`);
+  window.__ACTIVE_WORKFLOW_STAGE__ = stage;
+}
+
+function rerenderWorkflowStageModal() {
+  if (window.__ACTIVE_WORKFLOW_STAGE__) openWorkflowStageModal(window.__ACTIVE_WORKFLOW_STAGE__);
 }
 
 async function loadAttorneyWorkspace() {
   destroyCharts();
   try {
     const data = await API.getAttorneyWorkspace({});
-    const cases = data.cases || [];
-    const tasks = data.tasks || [];
+    ATTORNEY_WORKSPACE_CACHE = data || { cases: [], tasks: [], pendingReview: [], activeReview: [] };
+    renderAttorneyWorkspace();
+  } catch (e) {
+    showPageError('loadAttorneyWorkspace', e);
+  }
+}
+
+function renderAttorneyWorkspace() {
+  const data = ATTORNEY_WORKSPACE_CACHE || { cases: [], tasks: [], pendingReview: [], activeReview: [] };
+  const pagedCases = paginateItems(data.cases || [], 'attorney-cases', 10);
+  const tasks = data.tasks || [];
     document.getElementById('page-content').innerHTML = `
       <div class="page">
         <div class="stats-grid">
@@ -1504,8 +1617,9 @@ async function loadAttorneyWorkspace() {
             <div class="card-title">Cases</div>
             <div class="table-wrap"><table>
               <thead><tr><th>Case</th><th>Title</th><th>Stage</th><th>Status</th></tr></thead>
-              <tbody>${cases.map(item => `<tr><td class="text-em">${item.CASE_ID}</td><td>${item.PATENT_TITLE || ''}</td><td>${item.WORKFLOW_STAGE || ''}</td><td>${statusBadge(item.CURRENT_STATUS || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="text-muted" style="padding:20px;text-align:center">No attorney cases.</td></tr>'}</tbody>
+              <tbody>${pagedCases.items.map(item => `<tr><td class="text-em">${item.CASE_ID}</td><td>${item.PATENT_TITLE || ''}</td><td>${item.WORKFLOW_STAGE || ''}</td><td>${statusBadge(item.CURRENT_STATUS || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="text-muted" style="padding:20px;text-align:center">No attorney cases.</td></tr>'}</tbody>
             </table></div>
+            ${buildPagerControls('attorney-cases', pagedCases, 'renderAttorneyWorkspace', 'cases')}
           </div>
           <div class="card">
             <div class="card-title">Assigned Tasks</div>
@@ -1516,9 +1630,6 @@ async function loadAttorneyWorkspace() {
           </div>
         </div>
       </div>`;
-  } catch (e) {
-    showPageError('loadAttorneyWorkspace', e);
-  }
 }
 
 async function loadTasks() {
@@ -1597,64 +1708,6 @@ async function advanceTaskStatus(taskId, currentStatus) {
   const next = flow[currentStatus] || 'In Progress';
   await API.updateTaskStatus(taskId, next, '');
   loadTasks();
-}
-
-async function loadTimeline() {
-  destroyCharts();
-  try {
-    const items = await API.getActivityTimeline({});
-    document.getElementById('page-content').innerHTML = `
-      <div class="page">
-        <div class="card">
-          ${(items || []).map(item => `
-            <div style="padding:14px 0;border-bottom:1px solid var(--border)">
-              <div style="display:flex;justify-content:space-between;gap:12px">
-                <div>
-                  <div style="font-weight:600">${item.TITLE || item.EVENT_TYPE}</div>
-                  <div class="text-muted" style="font-size:13px">${item.DESCRIPTION || ''}</div>
-                  <div class="text-muted" style="font-size:11px">${item.ENTITY_TYPE || ''} ${item.ENTITY_ID || ''}</div>
-                </div>
-                <div class="text-muted" style="font-size:11px;white-space:nowrap">${fmt(item.CREATED_AT)}</div>
-              </div>
-            </div>`).join('') || '<div class="text-muted">No activity yet.</div>'}
-        </div>
-      </div>`;
-  } catch (e) {
-    showPageError('loadTimeline', e);
-  }
-}
-
-async function loadSmartSearch() {
-  destroyCharts();
-  document.getElementById('page-content').innerHTML = `
-    <div class="page">
-      <div class="card">
-        <div class="form-row">
-          <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="smart-search-query" placeholder="Case ID, client code, name, thread, task" /></div>
-          <div class="form-group"><label class="form-label">Scope</label><select class="form-control" id="smart-search-scope"><option value="all">All</option><option value="cases">Cases</option><option value="clients">Clients</option><option value="users">Users</option><option value="tasks">Tasks</option><option value="messages">Messages</option></select></div>
-        </div>
-        <div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm" onclick="runSmartSearch()">Search</button></div>
-      </div>
-      <div id="smart-search-results" style="margin-top:16px"></div>
-    </div>`;
-}
-
-async function runSmartSearch() {
-  const query = document.getElementById('smart-search-query').value.trim();
-  const scope = document.getElementById('smart-search-scope').value;
-  const target = document.getElementById('smart-search-results');
-  if (!query) {
-    target.innerHTML = '<div class="alert alert-error">Enter a search term.</div>';
-    return;
-  }
-  const data = await API.getSmartSearch(query, scope);
-  target.innerHTML = `
-    <div class="grid-2">
-      <div class="card"><div class="card-title">Cases</div>${(data.cases||[]).map(item => `<div style="margin-bottom:10px"><div class="text-em">${item.CASE_ID}</div><div>${item.PATENT_TITLE || ''}</div></div>`).join('') || '<div class="text-muted">No case results.</div>'}</div>
-      <div class="card"><div class="card-title">Clients</div>${(data.clients||[]).map(item => `<div style="margin-bottom:10px"><div class="text-em">${item.CLIENT_CODE || item.CLIENT_ID}</div><div>${item.CLIENT_NAME || ''}</div></div>`).join('') || '<div class="text-muted">No client results.</div>'}</div>
-      <div class="card"><div class="card-title">Tasks</div>${(data.tasks||[]).map(item => `<div style="margin-bottom:10px"><div>${item.TITLE || item.TASK_ID}</div><div class="text-muted">${item.STATUS || ''}</div></div>`).join('') || '<div class="text-muted">No task results.</div>'}</div>
-      <div class="card"><div class="card-title">Messages</div>${(data.threads||[]).map(item => `<div style="margin-bottom:10px"><div>${item.TITLE || item.THREAD_ID}</div><div class="text-muted">${item.THREAD_TYPE || ''}</div></div>`).join('') || '<div class="text-muted">No message results.</div>'}</div>
-    </div>`;
 }
 
 async function loadApprovals() {
@@ -1963,8 +2016,15 @@ async function loadMgmtUsers() {
   try {
     await ensureClientLookupLoaded();
     await ensureCircleLookupLoaded();
-    const users = await API.getUsers(USER_FILTERS);
-    const rows = users.map(u => `<tr>
+    MGMT_USERS_CACHE = await API.getUsers(USER_FILTERS);
+    renderMgmtUsers();
+  } catch(e) { mc.innerHTML = err(e.message); }
+}
+
+function renderMgmtUsers() {
+  const mc = document.getElementById('mgmt-content');
+  const paged = paginateItems(MGMT_USERS_CACHE, 'mgmt-users', 10);
+  const rows = paged.items.map(u => `<tr>
       <td class="font-mono">${u.USER_ID}</td>
       <td>${u.FULL_NAME}</td>
       <td>${u.EMAIL}</td>
@@ -1992,9 +2052,9 @@ async function loadMgmtUsers() {
     </div>
     <div class="card"><div class="table-wrap"><table>
       <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div></div>`;
-  } catch(e) { mc.innerHTML = err(e.message); }
+      <tbody>${rows || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No users found.</td></tr>'}</tbody>
+    </table></div></div>
+    ${buildPagerControls('mgmt-users', paged, 'renderMgmtUsers', 'users')}`;
 }
 
 function applyUserFilters() {
@@ -2013,8 +2073,9 @@ function resetUserFilters() {
 async function loadMgmtClients() {
   const mc = document.getElementById('mgmt-content');
   try {
-    const clients = await API.getClients();
-    const rows = clients.map(c => `<tr>
+    MGMT_CLIENTS_CACHE = await API.getClients();
+    const paged = paginateItems(MGMT_CLIENTS_CACHE, 'mgmt-clients', 10);
+    const rows = paged.items.map(c => `<tr>
       <td class="font-mono">${c.CLIENT_ID}</td>
       <td>${c.CLIENT_NAME}</td>
       <td style="font-size:12px">${c.EMAIL||'—'}</td>
@@ -2030,8 +2091,9 @@ async function loadMgmtClients() {
     </div>
     <div class="card"><div class="table-wrap"><table>
       <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div></div>`;
+      <tbody>${rows || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No clients found.</td></tr>'}</tbody>
+    </table></div></div>
+    ${buildPagerControls('mgmt-clients', paged, 'loadMgmtClients', 'clients')}`;
   } catch(e) { mc.innerHTML = err(e.message); }
 }
 
@@ -2124,11 +2186,12 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
   try {
     await ensureOrgLookupLoaded(true);
     await ensureClientLookupLoaded();
-    const orgs = await API.getOrganizations();
+    MGMT_ORGS_CACHE = await API.getOrganizations();
     ACTIVE_ORG_VIEW_ID = selectedOrgId || ACTIVE_ORG_VIEW_ID || '';
-    const activeOrg = (orgs || []).find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || null;
+    const activeOrg = (MGMT_ORGS_CACHE || []).find(o => o.ORG_ID === ACTIVE_ORG_VIEW_ID) || null;
     const orgClients = activeOrg ? (CLIENT_LOOKUP_CACHE || []).filter(client => String(client.ORG_ID || '') === String(activeOrg.ORG_ID)) : [];
-    const rows = orgs.map(o => `<tr>
+    const paged = paginateItems(MGMT_ORGS_CACHE, 'mgmt-orgs', 10);
+    const rows = paged.items.map(o => `<tr>
       <td class="font-mono">${o.ORG_ID}</td>
       <td>${o.ORG_NAME}</td>
       <td>${o.ASSIGNED_STAFF_EMAIL || '—'}</td>
@@ -2168,7 +2231,8 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
             </table></div>
           ` : '<div class="text-muted">Select an organization to view or attach clients.</div>'}
         </div>
-      </div>`;
+      </div>
+      ${buildPagerControls('mgmt-orgs', paged, 'loadMgmtOrganizationsV2', 'organizations')}`;
   } catch (e) {
     mc.innerHTML = err(e.message);
   }
@@ -2657,7 +2721,8 @@ async function loadNotifications() {
   destroyCharts();
   try {
     const items = await API.getNotifications();
-    setTopbarActions(`<button class="btn btn-ghost btn-sm" onclick="clearAllNotifications()">Clear All</button>`);
+    const canAnnounce = sessionHasAnyRole(['Super Admin', 'Admin']);
+    setTopbarActions(`${canAnnounce ? `<button class="btn btn-primary btn-sm" onclick="openAnnouncementModal()">+ Announcement</button>` : ''}<button class="btn btn-ghost btn-sm" onclick="clearAllNotifications()">Clear All</button>`);
     const rows = items.map(n => `
       <div class="card" style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;gap:12px">
@@ -2691,6 +2756,50 @@ async function deleteNotice(notificationId) {
 async function clearAllNotifications() {
   if (!confirm('Clear all notifications?')) return;
   await API.clearNotifications();
+  loadNotifications();
+}
+
+async function openAnnouncementModal() {
+  await ensureOrgLookupLoaded();
+  openGenericModal('Send Announcement', `
+    <div class="form-group"><label class="form-label">Audience</label>
+      <select class="form-control" id="announcement-audience">
+        <option value="all">All Users</option>
+        <option value="internal">Internal Staff</option>
+        <option value="clients">Clients</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Organization (optional)</label><input class="form-control" id="announcement-org" list="announcement-org-list" placeholder="Search organization" /><datalist id="announcement-org-list">${buildOrgOptions(ORG_LOOKUP_CACHE)}</datalist></div>
+    <div class="form-group"><label class="form-label">Role filter (optional)</label>
+      <select class="form-control" id="announcement-role">
+        <option value="">All roles</option>
+        <option value="Super Admin">Super Admin</option>
+        <option value="Admin">Admin</option>
+        <option value="Galvanizer">Galvanizer</option>
+        <option value="Staff">Staff</option>
+        <option value="Attorney">Attorney</option>
+        <option value="Client Admin">Client Admin</option>
+        <option value="Client Employee">Client Employee</option>
+        <option value="Individual Client">Individual Client</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Title</label><input class="form-control" id="announcement-title" placeholder="Announcement title" /></div>
+    <div class="form-group"><label class="form-label">Message</label><textarea class="form-control" id="announcement-body" rows="5" placeholder="Type the announcement message"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAnnouncementModal()">Send Announcement</button>
+    </div>`);
+}
+
+async function submitAnnouncementModal() {
+  await API.sendAnnouncement({
+    audience: document.getElementById('announcement-audience').value,
+    orgId: document.getElementById('announcement-org').value.trim(),
+    role: document.getElementById('announcement-role').value,
+    title: document.getElementById('announcement-title').value.trim(),
+    body: document.getElementById('announcement-body').value.trim()
+  });
+  closeModal('modal-generic');
   loadNotifications();
 }
 
@@ -2810,8 +2919,9 @@ async function loadExpenses() {
     const period = document.getElementById('expense-period')?.value || 'month';
     const fromDate = document.getElementById('expense-from-date')?.value || '';
     const toDate = document.getElementById('expense-to-date')?.value || '';
-    const claims = await API.getExpenseClaims({ period, fromDate, toDate });
-    const rows = claims.map(c => `
+    EXPENSES_CACHE = await API.getExpenseClaims({ period, fromDate, toDate });
+    const paged = paginateItems(EXPENSES_CACHE, 'expenses-history', 10);
+    const rows = paged.items.map(c => `
       <tr>
         <td>${c.CLAIM_ID}</td>
         <td>${c.CLAIM_DATE}</td>
@@ -2850,6 +2960,7 @@ async function loadExpenses() {
             <thead><tr><th>ID</th><th>Date</th><th>Category</th><th>Amount</th><th>Status</th><th>User</th><th>Bill</th></tr></thead>
             <tbody>${rows || '<tr><td colspan="7" class="text-muted" style="padding:20px;text-align:center">No expense claims yet.</td></tr>'}</tbody>
           </table></div>
+          ${buildPagerControls('expenses-history', paged, 'loadExpenses', 'claims')}
         </div>
       </div>
     </div>`;
@@ -2860,6 +2971,7 @@ async function loadExpenses() {
 
 async function loadGalvanizerQueue() {
   destroyCharts();
+  CASE_FILTER_TARGET = 'galvanizer';
   if (!sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer'])) {
     document.getElementById('page-content').innerHTML = err('Galvanizer queue is restricted.');
     return;
@@ -2987,16 +3099,29 @@ function syncClientCodeSelection() {
   }
 }
 
+function normalizeCaseWorkflowStageForSave(status, stage) {
+  const derived = deriveWorkflowStageFromStatus(status, stage);
+  if (!stage || stage === 'Drafting' || stage === 'Filed' || stage === 'Under Examination' || stage === 'Granted' || stage === 'Closed') {
+    return derived;
+  }
+  return stage;
+}
+
 async function openCaseModal(jsonStr) {
   await ensureOrgLookupLoaded();
+  CASE_MODAL_RETURN_PAGE = CURRENT_PAGE || 'cases';
   const c = jsonStr ? JSON.parse(jsonStr) : null;
   const staffOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Staff');
   const galvanizerOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Galvanizer');
   const attorneyOptions = buildUserOptions(USER_LOOKUP_CACHE, 'Attorney');
   const orgOptions = buildOrgOptions(ORG_LOOKUP_CACHE);
+  const canEditCaseId = canAccessManagement();
   document.getElementById('modal-case-title').textContent = c ? 'Edit Case' : 'New Case';
   document.getElementById('modal-case-body').innerHTML = `
     ${clientSearchBlock(c?.CLIENT_ID || '')}
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Case ID</label><input class="form-control" id="mc-case-id" value="${c?.CASE_ID||''}" ${canEditCaseId ? '' : 'readonly'} placeholder="${canEditCaseId ? 'Editable for management only' : ''}" /></div>
+    </div>
     <div class="form-group"><label class="form-label">Patent Title *</label><input class="form-control" id="mc-title" value="${c?.PATENT_TITLE||''}" /></div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Application Number</label><input class="form-control" id="mc-appno" value="${c?.APPLICATION_NUMBER||''}" /></div>
@@ -3007,7 +3132,7 @@ async function openCaseModal(jsonStr) {
       <div class="form-group"><label class="form-label">Next Deadline</label><input type="date" class="form-control" id="mc-deadline" value="${toInputDate(c?.NEXT_DEADLINE)}" /></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="mc-status">${['Drafted','Filed','Published','Under Examination','Granted','Abandoned','Lapsed','Refused'].map(x=>`<option${c?.CURRENT_STATUS===x?' selected':''}>${x}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="mc-status" onchange="document.getElementById('mc-stage').value = normalizeCaseWorkflowStageForSave(this.value, document.getElementById('mc-stage').value)">${['Drafted','Filed','Published','Under Examination','Granted','Abandoned','Lapsed','Refused'].map(x=>`<option${c?.CURRENT_STATUS===x?' selected':''}>${x}</option>`).join('')}</select></div>
       <div class="form-group"><label class="form-label">Patent Type</label><select class="form-control" id="mc-type">${['Utility','Design','PCT','Provisional'].map(x=>`<option${c?.PATENT_TYPE===x?' selected':''}>${x}</option>`).join('')}</select></div>
     </div>
     <div class="form-row">
@@ -3016,14 +3141,11 @@ async function openCaseModal(jsonStr) {
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Attorney</label><input class="form-control" id="mc-atty" list="mc-atty-list" value="${c?.ATTORNEY||''}" placeholder="Search attorney" /><datalist id="mc-atty-list">${attorneyOptions}</datalist></div>
-      <div class="form-group"><label class="form-label">Workflow Stage</label><select class="form-control" id="mc-stage">${['Drafting','Ready for Attorney','Under Attorney Review','Filed'].map(x=>`<option${(c?.WORKFLOW_STAGE||'Drafting')===x?' selected':''}>${x}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Workflow Stage</label><select class="form-control" id="mc-stage">${['Drafting','Ready for Attorney','Under Attorney Review','Filed','Under Examination','Granted','Closed'].map(x=>`<option${(deriveWorkflowStageFromStatus(c?.CURRENT_STATUS, c?.WORKFLOW_STAGE||'Drafting'))===x?' selected':''}>${x}</option>`).join('')}</select></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Organization ID</label><input class="form-control" id="mc-org" list="mc-org-list" value="${c?.ORG_ID || ''}" placeholder="Search organization" /><datalist id="mc-org-list">${orgOptions}</datalist></div>
       <div class="form-group"><label class="form-label">Priority</label><select class="form-control" id="mc-priority">${['Normal','High','Urgent'].map(x=>`<option${(c?.PRIORITY||'Normal')===x?' selected':''}>${x}</option>`).join('')}</select></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Case ID Preview</label><input class="form-control" id="mc-preview" value="${c?.CASE_ID||''}" readonly /></div>
     </div>
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="mc-notes">${c?.NOTES||''}</textarea></div>
     <div class="modal-footer">
@@ -3032,6 +3154,22 @@ async function openCaseModal(jsonStr) {
     </div>`;
   openModal('modal-case');
   syncClientCodeSelection();
+}
+
+async function refreshAfterCaseSave() {
+  const targetPage = CASE_MODAL_RETURN_PAGE || CURRENT_PAGE || 'cases';
+  if (targetPage === 'management' && _mgmtTab === 'cases') {
+    await loadMgmtCases();
+  } else if (targetPage === 'galvanizer') {
+    await loadGalvanizerQueue();
+  } else if (targetPage === 'workflow') {
+    await loadWorkflowBoard();
+  } else if (targetPage === 'attorney') {
+    await loadAttorneyWorkspace();
+  } else {
+    await loadCases();
+  }
+  loadDashboard().catch(() => {});
 }
 
 async function saveCase(existingId) {
@@ -3045,7 +3183,8 @@ async function saveCase(existingId) {
     return;
   }
   const data = {
-    CASE_ID: existingId || undefined,
+    CASE_ID: document.getElementById('mc-case-id')?.value.trim() || existingId || undefined,
+    ORIGINAL_CASE_ID: existingId || '',
     CLIENT_ID: client.CLIENT_ID || clientCode,
     PATENT_TITLE: document.getElementById('mc-title').value.trim(),
     APPLICATION_NUMBER: document.getElementById('mc-appno').value.trim(),
@@ -3057,15 +3196,18 @@ async function saveCase(existingId) {
     ASSIGNED_STAFF_EMAIL: document.getElementById('mc-staff').value.trim(),
     GALVANIZER_EMAIL: document.getElementById('mc-galvanizer').value.trim(),
     ATTORNEY: document.getElementById('mc-atty').value.trim(),
-    WORKFLOW_STAGE: document.getElementById('mc-stage').value,
+    WORKFLOW_STAGE: normalizeCaseWorkflowStageForSave(document.getElementById('mc-status').value, document.getElementById('mc-stage').value),
     PRIORITY: document.getElementById('mc-priority').value,
     ORG_ID: client.ORG_ID || '',
     NOTES: document.getElementById('mc-notes').value.trim(),
   };
-  if (!existingId) delete data.CASE_ID;
+  if (!existingId) {
+    delete data.CASE_ID;
+    delete data.ORIGINAL_CASE_ID;
+  }
   try {
     const r = await API.saveCase(data);
-    if (r.success) { closeModal('modal-case'); loadCases(); loadDashboard(); }
+    if (r.success) { closeModal('modal-case'); await refreshAfterCaseSave(); }
     else throw new Error(r.error || r.message);
   } catch(e) {
     showPageError('saveCase', e);
@@ -3085,7 +3227,8 @@ async function saveCaseV2(existingId) {
     return;
   }
   const data = {
-    CASE_ID: existingId || undefined,
+    CASE_ID: document.getElementById('mc-case-id')?.value.trim() || existingId || undefined,
+    ORIGINAL_CASE_ID: existingId || '',
     CLIENT_ID: client.CLIENT_ID || clientCode,
     PATENT_TITLE: document.getElementById('mc-title').value.trim(),
     APPLICATION_NUMBER: document.getElementById('mc-appno').value.trim(),
@@ -3097,15 +3240,18 @@ async function saveCaseV2(existingId) {
     ASSIGNED_STAFF_EMAIL: document.getElementById('mc-staff').value.trim(),
     GALVANIZER_EMAIL: document.getElementById('mc-galvanizer').value.trim(),
     ATTORNEY: document.getElementById('mc-atty').value.trim(),
-    WORKFLOW_STAGE: document.getElementById('mc-stage').value,
+    WORKFLOW_STAGE: normalizeCaseWorkflowStageForSave(document.getElementById('mc-status').value, document.getElementById('mc-stage').value),
     PRIORITY: document.getElementById('mc-priority').value,
     ORG_ID: org?.ORG_ID || client.ORG_ID || '',
     NOTES: document.getElementById('mc-notes').value.trim(),
   };
-  if (!existingId) delete data.CASE_ID;
+  if (!existingId) {
+    delete data.CASE_ID;
+    delete data.ORIGINAL_CASE_ID;
+  }
   try {
     const r = await API.saveCase(data);
-    if (r.success) { closeModal('modal-case'); loadCases(); loadDashboard(); }
+    if (r.success) { closeModal('modal-case'); await refreshAfterCaseSave(); }
     else throw new Error(r.error || r.message);
   } catch (e) {
     showPageError('saveCaseV2', e);
@@ -3770,7 +3916,7 @@ async function saveCaseLegacyV0(existingId) {
   if (!existingId) delete data.CASE_ID;
   try {
     const r = await API.saveCase(data);
-    if (r.success) { closeModal('modal-case'); loadCases(); loadDashboard(); }
+    if (r.success) { closeModal('modal-case'); await refreshAfterCaseSave(); }
     else throw new Error(r.error || r.message);
   } catch(e) {
     alert('Error: ' + e.message);

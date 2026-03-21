@@ -320,6 +320,11 @@ async function reviewExpenseClaim(claimId, reviewData) {
   return result;
 }
 async function getNotifications() { return callGASCached('getNotifications', {}, 30000); }
+async function sendAnnouncement(announcementData) {
+  const result = await callGAS('sendAnnouncement', { announcementData });
+  clearClientCache(['getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  return result;
+}
 async function markNotificationRead(notificationId) {
   const result = await callGAS('markNotificationRead', { notificationId });
   clearClientCache(['getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
@@ -448,22 +453,22 @@ async function deleteClient(clientId) {
 
 async function saveCase(caseData) {
   const result = await callGAS('saveCase', { caseData });
-  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getAttorneyWorkspace', 'getSmartSearch']);
   return result;
 }
 async function bulkUpdateCases(bulkData) {
   const result = await callGAS('bulkUpdateCases', { bulkData });
-  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getAttorneyWorkspace', 'getSmartSearch']);
   return result;
 }
 async function bulkImportDocketTrakRows(importData) {
   const result = await callGAS('bulkImportDocketTrakRows', { importData });
-  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getSmartSearch']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getAttorneyWorkspace', 'getSmartSearch']);
   return result;
 }
 async function deleteCase(caseId) {
   const result = await callGAS('deleteCase', { caseId });
-  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getAttorneyWorkspace', 'getSmartSearch']);
   return result;
 }
 
@@ -555,6 +560,7 @@ window.API = {
   getExpenseClaims,
   reviewExpenseClaim,
   getNotifications,
+  sendAnnouncement,
   markNotificationRead,
   deleteNotification,
   clearNotifications,
