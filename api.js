@@ -6,7 +6,7 @@
  */
 
 const API_BASE = (window.APP_CONFIG && window.APP_CONFIG.apiBase) || '';
-const API_CACHE_PREFIX = 'mg_api_cache_v1';
+const API_CACHE_PREFIX = 'mg_api_cache_v2';
 const API_MEMORY_CACHE = new Map();
 const SAFE_LOOKUP_TTL_MS = 5 * 24 * 60 * 60 * 1000;
 
@@ -197,6 +197,27 @@ async function callGAS(action, params = {}) {
   const data = await requestJson({ action, params: { ...params, token, activeViewRole } }, `callGAS:${action}`);
 
   if (data.sessionExpired) {
+    const originalRaw = (() => {
+      try { return sessionStorage.getItem('mg_original_session'); } catch { return null; }
+    })();
+    const originalSession = originalRaw ? JSON.parse(originalRaw) : null;
+    if (
+      session?.impersonatedByUserId &&
+      session?.userId &&
+      originalSession?.token &&
+      typeof restoreImpersonation === 'function'
+    ) {
+      try {
+        const restored = await restoreImpersonation(originalSession.token, session.userId);
+        const nextSession = { ...(restored.session || {}), token: restored.token };
+        window.Auth.setGasSession(nextSession);
+        location.reload();
+        throw new Error('session_restored');
+      } catch (restoreError) {
+        reportError('restoreImpersonation', restoreError, { userId: session.userId });
+      }
+    }
+
     window.Auth.clearGasSession();
     showGlobalError('Session expired. Please sign in again.');
     setTimeout(() => location.reload(), 2000);
@@ -256,6 +277,10 @@ async function callGASPersistentCached(action, params = {}, ttlMs = 15 * 60 * 10
 
 async function clerkLogin(email) {
   return callGASPublic('clerklogin', { email });
+}
+
+async function restoreImpersonation(originalToken, userId) {
+  return callGASPublic('restoreImpersonation', { originalToken, userId });
 }
 
 async function getUserInfo() {

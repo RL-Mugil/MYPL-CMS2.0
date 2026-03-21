@@ -151,8 +151,12 @@ function sessionMatchesAllowedRoles(session, allowedRoles) {
 }
 
 async function requireAuth(allowedRoles) {
-  const Clerk = await initClerk();
   const existing = getGasSession();
+  if (existing && existing.impersonatedByUserId && sessionMatchesAllowedRoles(existing, allowedRoles)) {
+    return existing;
+  }
+
+  const Clerk = await initClerk();
   if (!Clerk.user) {
     if (existing && existing.impersonatedByUserId && sessionMatchesAllowedRoles(existing, allowedRoles)) {
       return existing;
