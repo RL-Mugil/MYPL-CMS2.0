@@ -2996,6 +2996,14 @@ async function createStreamConversation() {
   const client = await ensureStreamMessagingClient();
   const selfId = STREAM_STATE.auth.user.id;
   const recipientId = buildStreamUserIdForDirectory(recipient);
+  await API.ensureStreamUsers([{
+    id: recipientId,
+    name: recipient.FULL_NAME || recipient.EMAIL || recipientId,
+    email: recipient.EMAIL || '',
+    role: recipient.ROLE || '',
+    additionalRoles: recipient.ADDITIONAL_ROLES || '',
+    userId: recipient.USER_ID || '',
+  }]);
   const memberIds = [selfId, recipientId].sort();
   const channelId = `dm_${memberIds.join('__')}`;
   const channel = client.channel('messaging', channelId, {

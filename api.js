@@ -278,6 +278,27 @@ async function getStreamAuth() {
   }
 }
 
+async function ensureStreamUsers(users = []) {
+  ensureApiBase();
+  const session = window.Auth.getGasSession();
+  const token = session?.token || '';
+  if (!token) throw new Error('Session expired. Please sign in again.');
+  const endpoint = `${String(API_BASE).replace(/\/$/, '')}/stream-ensure-users`;
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, users }),
+    });
+    const data = sanitizePayload(await res.json());
+    if (!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`);
+    return data;
+  } catch (error) {
+    reportError('ensureStreamUsers', error, { endpoint });
+    throw error;
+  }
+}
+
 async function getDashboard(filters = {}) { return callGASCached('getDashboard', { filters }, 30000); }
 async function getDashboardSummary(filters = {}) { return callGASPersistentCached('getDashboardSummary', { filters }, 15 * 60 * 1000); }
 async function getDashboardDetails(filters = {}) { return callGASPersistentCached('getDashboardDetails', { filters }, 15 * 60 * 1000); }
@@ -550,6 +571,7 @@ window.API = {
   callGASPublic,
   clerkLogin,
   getStreamAuth,
+  ensureStreamUsers,
   getDashboard,
   getDashboardSummary,
   getDashboardDetails,
