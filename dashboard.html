@@ -3137,8 +3137,18 @@ async function ensureStreamMessagingClient() {
   }
   STREAM_STATE.unsubscribe = client.on((event) => {
     if (CURRENT_PAGE !== 'stream') return;
-    if (['message.new', 'notification.message_new', 'channel.updated', 'channel.deleted', 'notification.added_to_channel', 'message.updated', 'message.deleted', 'reaction.new', 'reaction.deleted', 'typing.start', 'typing.stop', 'message.read', 'channel.truncated'].includes(event.type)) {
+    if (['message.new', 'notification.message_new', 'channel.updated', 'channel.deleted', 'notification.added_to_channel', 'message.updated', 'message.deleted', 'reaction.new', 'reaction.deleted', 'message.read', 'channel.truncated'].includes(event.type)) {
       refreshStreamChannelList(false);
+    }
+    if (STREAM_STATE.activeChannel && event.cid === STREAM_STATE.activeChannel.cid && ['typing.start', 'typing.stop'].includes(event.type)) {
+      const typingLabel = Object.values(STREAM_STATE.activeChannel.state?.typing || {})
+        .filter((entry) => entry?.user?.id && entry.user.id !== STREAM_STATE.auth?.user?.id)
+        .map((entry) => entry.user?.name || entry.user?.email || 'User')
+        .join(', ');
+      const labelNode = document.getElementById('stream-typing-label');
+      if (labelNode) {
+        labelNode.textContent = typingLabel ? `${typingLabel} typing…` : '';
+      }
     }
     if (STREAM_STATE.activeChannel && event.cid === STREAM_STATE.activeChannel.cid && !['typing.start', 'typing.stop'].includes(event.type)) {
       renderStreamActiveChannel();
@@ -3253,7 +3263,7 @@ function renderStreamActiveChannel() {
       <div class="inbox-chat-head">
         <div>
           <div class="card-title" style="margin-bottom:2px">${meta.title}</div>
-          <div class="text-muted" style="font-size:12px">${typingLabel}</div>
+          <div class="text-muted" id="stream-typing-label" style="font-size:12px">${typingLabel}</div>
         </div>
         <div class="stream-header-actions">
           <button class="btn btn-ghost btn-sm" onclick="startStreamCall('audio')">Audio Call</button>
