@@ -2295,6 +2295,37 @@ function invoiceFieldValue(inv, key) {
   return inv && inv[key] != null ? String(inv[key]) : '';
 }
 
+function encodeInlinePayload(value) {
+  return encodeURIComponent(JSON.stringify(value || {}));
+}
+
+function decodeInlinePayload(encoded) {
+  try {
+    return JSON.parse(decodeURIComponent(encoded || ''));
+  } catch (e) {
+    return null;
+  }
+}
+
+function openInvoiceModalFromEncoded(encoded) {
+  const inv = decodeInlinePayload(encoded);
+  return openInvoiceModal(inv ? JSON.stringify(inv) : '');
+}
+
+function openInvoicePaymentModalFromEncoded(encoded) {
+  const inv = decodeInlinePayload(encoded);
+  return openInvoicePaymentModal(inv ? JSON.stringify(inv) : '');
+}
+
+function previewInvoiceByLink(link) {
+  const target = String(link || '').trim();
+  if (!target) {
+    alert('PDF link not found for this invoice.');
+    return;
+  }
+  window.open(target, '_blank');
+}
+
 function renderFinance(invoices, canEdit) {
   let paid=0, unpaid=0, paidSum=0, unpaidSum=0;
   invoices.forEach(inv => {
@@ -2306,6 +2337,7 @@ function renderFinance(invoices, canEdit) {
 
   const rows = invoices.map(inv => {
     const isPaid = inv.PAYMENT_STATUS === 'Paid';
+    const encoded = encodeInlinePayload(inv);
     return `<tr>
       <td class="text-em" style="font-family:'Syne',sans-serif;font-size:12px">${escapeHtml(getInvoiceUiId(inv))}</td>
       <td>${fmt(inv['Invoice Date'])}</td>
@@ -2318,10 +2350,10 @@ function renderFinance(invoices, canEdit) {
       <td>${statusBadge(inv.PAYMENT_STATUS)}</td>
       ${canEdit ? `<td><div class="action-row">
         ${!isPaid ? `<button class="btn btn-success btn-sm" onclick="markPaid('${escapeAttr(getInvoiceUiId(inv))}',this)">Paid</button>` : ''}
-        ${inv.INVOICE_PDF_LINK ? `<button class="btn btn-ghost btn-sm" onclick="window.open('${escapeAttr(inv.INVOICE_PDF_LINK)}','_blank')">Preview</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="previewInvoiceByLink('${escapeAttr(inv.INVOICE_PDF_LINK || '')}')">Preview</button>
         <button class="btn btn-ghost btn-sm" onclick="sendInvoiceNow('${escapeAttr(getInvoiceUiId(inv))}', this)">Send</button>
-        <button class="btn btn-ghost btn-sm" onclick='openInvoicePaymentModal(${JSON.stringify(JSON.stringify(inv))})'>Payment</button>
-        <button class="btn btn-ghost btn-sm" onclick='openInvoiceModal(${JSON.stringify(JSON.stringify(inv))})'>Edit</button>
+        <button class="btn btn-ghost btn-sm" onclick="openInvoicePaymentModalFromEncoded('${encoded}')">Payment</button>
+        <button class="btn btn-ghost btn-sm" onclick="openInvoiceModalFromEncoded('${encoded}')">Edit</button>
         <button class="btn btn-danger btn-sm" onclick="deleteItem('Invoice','${escapeAttr(getInvoiceUiId(inv))}')">Del</button>
       </div></td>` : ''}
     </tr>`;
@@ -2417,7 +2449,18 @@ async function sendInvoiceNow(invoiceId, btn) {
   btn.disabled = true;
   btn.textContent = 'Sending…';
   try {
-    const result = await API.sendInvoice(invoiceId);
+    let result;
+    try {
+      result = await API.sendInvoice(invoiceId);
+    } catch (e) {
+      if (String(e.message || '').toLowerCase().includes('client email not found')) {
+        const manualEmail = prompt('Client email not found. Enter email to send this invoice manually:');
+        if (!manualEmail) throw new Error('Invoice send cancelled.');
+        result = await API.sendInvoice(invoiceId, manualEmail.trim());
+      } else {
+        throw e;
+      }
+    }
     alert(result.message || 'Invoice sent.');
   } catch (e) {
     alert('Error: ' + e.message);

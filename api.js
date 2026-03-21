@@ -512,8 +512,8 @@ async function markInvoicePaid(invoiceId) {
 async function updateInvoicePayment(invoiceId, paymentData) {
   return callGAS('updateInvoicePayment', { invoiceId, paymentData });
 }
-async function sendInvoice(invoiceId) {
-  return callGAS('sendInvoice', { invoiceId });
+async function sendInvoice(invoiceId, overrideEmail = '') {
+  return callGAS('sendInvoice', { invoiceId, overrideEmail });
 }
 
 async function getUsers(filters = {}) {
