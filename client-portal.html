@@ -131,6 +131,8 @@ const PAGE_TITLES = {
   contact: 'Contact Firm'
 };
 
+let __suppressHashRouting = false;
+
 const STATE = {
   currentPage: 'dashboard',
   clients: [],
@@ -164,7 +166,7 @@ const STATE = {
   document.getElementById('sidebar-role').textContent = SESSION.role || 'Client';
 
   await ensureAccessibleClientsLoaded();
-  showPage('dashboard');
+  showPage(getValidPageFromHash(), true);
 })();
 
 function esc(value) {
@@ -350,8 +352,30 @@ function buildClientOptions(selectedValue, includeBlankLabel) {
   return options.join('');
 }
 
-function showPage(page) {
+function getValidPageFromHash() {
+  var raw = String(window.location.hash || '').replace(/^#/, '').trim().toLowerCase();
+  if (!raw) return 'dashboard';
+  return Object.prototype.hasOwnProperty.call(PAGE_TITLES, raw) ? raw : 'dashboard';
+}
+
+function syncHashToPage(page, replace) {
+  var targetHash = '#' + page;
+  if (window.location.hash === targetHash) return;
+  __suppressHashRouting = true;
+  if (replace) {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search + targetHash);
+  } else {
+    window.location.hash = targetHash;
+  }
+  setTimeout(function() { __suppressHashRouting = false; }, 0);
+}
+
+function showPage(page, replaceHash) {
+  if (!Object.prototype.hasOwnProperty.call(PAGE_TITLES, page)) {
+    page = 'dashboard';
+  }
   STATE.currentPage = page;
+  syncHashToPage(page, !!replaceHash);
   document.querySelectorAll('.nav-item').forEach(function(item) {
     item.classList.toggle('active', item.dataset.page === page);
   });
@@ -375,6 +399,14 @@ function showPage(page) {
 
   if (loader) loader();
 }
+
+window.addEventListener('hashchange', function() {
+  if (__suppressHashRouting) return;
+  var page = getValidPageFromHash();
+  if (page !== STATE.currentPage) {
+    showPage(page, true);
+  }
+});
 
 function fileToDataUrl(file) {
   return new Promise(function(resolve, reject) {
