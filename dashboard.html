@@ -2275,29 +2275,49 @@ async function loadFinance() {
   }
 }
 
+function getInvoiceUiId(inv) {
+  return String(inv?.['Docket# [Invoice UIN]'] || inv?.['Tax Invoice Number'] || inv?.INVOICE_ID || '');
+}
+
+function getInvoiceUiTotal(inv) {
+  return parseFloat(inv?.InvAmount || inv?.TOTAL || 0) || 0;
+}
+
+function getInvoiceUiDue(inv) {
+  if (inv?.['Amount due'] != null && String(inv['Amount due']) !== '') return parseFloat(inv['Amount due']) || 0;
+  return inv?.PAYMENT_STATUS === 'Paid' ? 0 : getInvoiceUiTotal(inv);
+}
+
+function invoiceFieldValue(inv, key) {
+  return inv && inv[key] != null ? String(inv[key]) : '';
+}
+
 function renderFinance(invoices, canEdit) {
   let paid=0, unpaid=0, paidSum=0, unpaidSum=0;
   invoices.forEach(inv => {
-    const a = parseFloat(inv.TOTAL)||0;
-    if (inv.PAYMENT_STATUS === 'Paid') { paid++; paidSum += a; }
-    else { unpaid++; unpaidSum += a; }
+    const total = getInvoiceUiTotal(inv);
+    const due = getInvoiceUiDue(inv);
+    if (inv.PAYMENT_STATUS === 'Paid') { paid++; paidSum += total; }
+    else { unpaid++; unpaidSum += due; }
   });
 
   const rows = invoices.map(inv => {
     const isPaid = inv.PAYMENT_STATUS === 'Paid';
     return `<tr>
-      <td class="text-em" style="font-family:'Syne',sans-serif;font-size:12px">${inv.INVOICE_ID}</td>
-      <td>${fmt(inv.INVOICE_DATE)}</td>
-      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${inv.SERVICE_TYPE}</td>
-      <td>${money(inv.AMOUNT)}</td>
-      <td>${money(inv.GST_AMOUNT)}</td>
-      <td style="font-weight:600">${money(inv.TOTAL)}</td>
+      <td class="text-em" style="font-family:'Syne',sans-serif;font-size:12px">${escapeHtml(getInvoiceUiId(inv))}</td>
+      <td>${fmt(inv['Invoice Date'])}</td>
+      <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(inv.ClientCode || inv.CLIENT_ID || '')}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(inv['Name of Client'] || inv.CLIENT_NAME || '')}</td>
+      <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(inv['Docket Number'] || '')}</td>
+      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(inv['Main ServiceCode'] || '')}</td>
+      <td>${money(getInvoiceUiTotal(inv))}</td>
+      <td style="font-weight:600">${money(getInvoiceUiDue(inv))}</td>
       <td>${statusBadge(inv.PAYMENT_STATUS)}</td>
       <td>${inv.INVOICE_PDF_LINK ? `<a href="${inv.INVOICE_PDF_LINK}" target="_blank" style="font-size:12px">View PDF</a>` : '—'}</td>
       ${canEdit ? `<td><div class="action-row">
-        ${!isPaid ? `<button class="btn btn-success btn-sm" onclick="markPaid('${inv.INVOICE_ID}',this)">Paid</button>` : ''}
+        ${!isPaid ? `<button class="btn btn-success btn-sm" onclick="markPaid('${escapeAttr(getInvoiceUiId(inv))}',this)">Paid</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick='openInvoiceModal(${JSON.stringify(JSON.stringify(inv))})'>Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteItem('Invoice','${inv.INVOICE_ID}')">Del</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteItem('Invoice','${escapeAttr(getInvoiceUiId(inv))}')">Del</button>
       </div></td>` : ''}
     </tr>`;
   }).join('');
@@ -2314,8 +2334,8 @@ function renderFinance(invoices, canEdit) {
     <div class="card">
       <div class="card-title">Invoice Ledger</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Invoice #</th><th>Date</th><th>Service</th><th>Amount</th><th>GST</th><th>Total</th><th>Status</th><th>PDF</th>${canEdit?'<th>Actions</th>':''}</tr></thead>
-        <tbody>${rows}</tbody>
+        <thead><tr><th>Invoice UIN</th><th>Date</th><th>Client Code</th><th>Client</th><th>Docket</th><th>Service Code</th><th>Invoice Amount</th><th>Amount Due</th><th>Status</th><th>PDF</th>${canEdit?'<th>Actions</th>':''}</tr></thead>
+        <tbody>${rows || `<tr><td colspan="${canEdit ? 11 : 10}" class="text-muted" style="padding:20px;text-align:center">No invoices found.</td></tr>`}</tbody>
       </table></div>
     </div>
   </div>`;
@@ -4822,41 +4842,188 @@ async function saveUserV2(existingId) {
 }
 
 // ── Invoice Modal ─────────────────────────────────────────────────────────────
-function openInvoiceModal(jsonStr) {
+async function openInvoiceModal(jsonStr) {
   const inv = jsonStr ? JSON.parse(jsonStr) : null;
+  await ensureClientLookupLoaded();
   document.getElementById('modal-invoice-title').textContent = inv ? 'Edit Invoice' : 'New Invoice';
   document.getElementById('modal-invoice-body').innerHTML = `
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Client ID *</label><input class="form-control" id="mi-cid" value="${inv?.CLIENT_ID||''}" /></div>
-      <div class="form-group"><label class="form-label">Case ID</label><input class="form-control" id="mi-case" value="${inv?.CASE_ID||''}" /></div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">Invoice Identity</div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Client Manager</label><input class="form-control" id="mi-client-manager" value="${escapeAttr(invoiceFieldValue(inv,'Client Manager'))}" /></div>
+        <div class="form-group"><label class="form-label">Docket# [Invoice UIN]</label><input class="form-control" id="mi-uin" value="${escapeAttr(getInvoiceUiId(inv))}" placeholder="Auto if blank" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Invoice Date</label><input type="date" class="form-control" id="mi-invoice-date" value="${inv?.['Invoice Date'] ? new Date(inv['Invoice Date']).toISOString().split('T')[0] : ''}" /></div>
+        <div class="form-group"><label class="form-label">Tax Invoice Date</label><input type="date" class="form-control" id="mi-tax-date" value="${inv?.['Tax Invoice Date'] ? new Date(inv['Tax Invoice Date']).toISOString().split('T')[0] : ''}" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Tax Serial Number</label><input class="form-control" id="mi-tax-serial" value="${escapeAttr(invoiceFieldValue(inv,'Tax Serial Number'))}" /></div>
+        <div class="form-group"><label class="form-label">Tax Invoice Number</label><input class="form-control" id="mi-tax-number" value="${escapeAttr(invoiceFieldValue(inv,'Tax Invoice Number'))}" /></div>
+      </div>
     </div>
-    <div class="form-group"><label class="form-label">Service Type</label>
-      <select class="form-control" id="mi-svc">${['Patent Filing','Patent Prosecution','Patent Search','Legal Opinion','Drafting Fees','Government Fees','Consultation','Annual Maintenance','Other'].map(x=>`<option${inv?.SERVICE_TYPE===x?' selected':''}>${x}</option>`).join('')}</select>
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">Client & Matter</div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Client Code *</label><input class="form-control" id="mi-client-code" list="mi-client-list" value="${escapeAttr(inv?.ClientCode || inv?.CLIENT_ID || '')}" placeholder="Search client code" onchange="syncInvoiceClientSelection()" /><datalist id="mi-client-list">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist></div>
+        <div class="form-group"><label class="form-label">Name of Client</label><input class="form-control" id="mi-client-name" value="${escapeAttr(inv?.['Name of Client'] || inv?.CLIENT_NAME || '')}" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Invention#</label><input class="form-control" id="mi-case-id" value="${escapeAttr(inv?.['Invention#'] || inv?.CASE_ID || '')}" /></div>
+        <div class="form-group"><label class="form-label">Docket Number</label><input class="form-control" id="mi-docket-number" value="${escapeAttr(invoiceFieldValue(inv,'Docket Number'))}" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Client Reference</label><input class="form-control" id="mi-client-reference" value="${escapeAttr(invoiceFieldValue(inv,'Client Reference'))}" /></div>
+        <div class="form-group"><label class="form-label">Patent Office</label><input class="form-control" id="mi-patent-office" value="${escapeAttr(invoiceFieldValue(inv,'Patent Office'))}" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">First Inventor</label><input class="form-control" id="mi-first-inventor" value="${escapeAttr(invoiceFieldValue(inv,'First Inventor'))}" /></div>
+        <div class="form-group"><label class="form-label">PO Application #</label><input class="form-control" id="mi-po-application" value="${escapeAttr(invoiceFieldValue(inv,'PO Application # e.g., US 15339876'))}" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Entity Status</label><input class="form-control" id="mi-entity-status" value="${escapeAttr(invoiceFieldValue(inv,'Entity Status'))}" /></div>
+        <div class="form-group"><label class="form-label">State of Supply</label><input class="form-control" id="mi-state-supply" value="${escapeAttr(invoiceFieldValue(inv,'State of Supply'))}" /></div>
+      </div>
+      <div class="form-group"><label class="form-label">Title Identification</label><input class="form-control" id="mi-title-keywords" value="${escapeAttr(invoiceFieldValue(inv,'Title Identfication (Only key words, Enter in lower case}'))}" /></div>
     </div>
-    <div class="form-group"><label class="form-label">Description</label><textarea class="form-control" id="mi-desc">${inv?.DESCRIPTION||''}</textarea></div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Amount (₹) *</label><input type="number" class="form-control" id="mi-amt" value="${inv?.AMOUNT||''}" /></div>
-      <div class="form-group"><label class="form-label">GST Rate (%)</label><input type="number" class="form-control" id="mi-gst" value="${inv?.GST_RATE||18}" /></div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">Service Codes</div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Main ServiceCode</label><input class="form-control" id="mi-main-service" value="${escapeAttr(invoiceFieldValue(inv,'Main ServiceCode'))}" /></div>
+        <div class="form-group"><label class="form-label">Service Code 2</label><input class="form-control" id="mi-service-2" value="${escapeAttr(invoiceFieldValue(inv,'Service Code 2'))}" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Service Code 3</label><input class="form-control" id="mi-service-3" value="${escapeAttr(invoiceFieldValue(inv,'Service Code 3'))}" /></div>
+        <div class="form-group"><label class="form-label">POFeeAck</label><input class="form-control" id="mi-pofee-ack" value="${escapeAttr(invoiceFieldValue(inv,'POFeeAck'))}" /></div>
+      </div>
+      <div class="form-group"><label class="form-label">Additional information on service</label><textarea class="form-control" id="mi-service-info">${escapeHtml(invoiceFieldValue(inv,'Additional information on service (Do not repeat what is in code description)'))}</textarea></div>
     </div>
-    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="mi-notes">${inv?.NOTES||''}</textarea></div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">Fees & Revenue</div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">POFee</label><input type="number" step="0.01" class="form-control" id="mi-pofee" value="${invoiceFieldValue(inv,'POFee')}" oninput="refreshInvoiceCalculatedFields()" /></div>
+        <div class="form-group"><label class="form-label">ServFee</label><input type="number" step="0.01" class="form-control" id="mi-servfee" value="${invoiceFieldValue(inv,'ServFee')}" oninput="refreshInvoiceCalculatedFields()" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">IGST</label><input type="number" step="0.01" class="form-control" id="mi-igst" value="${invoiceFieldValue(inv,'IGST')}" oninput="refreshInvoiceCalculatedFields()" /></div>
+        <div class="form-group"><label class="form-label">SGST</label><input type="number" step="0.01" class="form-control" id="mi-sgst" value="${invoiceFieldValue(inv,'SGST')}" oninput="refreshInvoiceCalculatedFields()" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">CGST</label><input type="number" step="0.01" class="form-control" id="mi-cgst" value="${invoiceFieldValue(inv,'CGST')}" oninput="refreshInvoiceCalculatedFields()" /></div>
+        <div class="form-group"><label class="form-label">Expenses</label><input type="number" step="0.01" class="form-control" id="mi-expenses" value="${invoiceFieldValue(inv,'Expenses')}" oninput="refreshInvoiceCalculatedFields()" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Attorney Fee</label><input type="number" step="0.01" class="form-control" id="mi-attorney-fee" value="${invoiceFieldValue(inv,'Attorney Fee')}" oninput="refreshInvoiceCalculatedFields()" /></div>
+        <div class="form-group"><label class="form-label">Consultant fee</label><input type="number" step="0.01" class="form-control" id="mi-consultant-fee" value="${invoiceFieldValue(inv,'Consultant fee')}" oninput="refreshInvoiceCalculatedFields()" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Referral fee</label><input type="number" step="0.01" class="form-control" id="mi-referral-fee" value="${invoiceFieldValue(inv,'Referral fee')}" oninput="refreshInvoiceCalculatedFields()" /></div>
+        <div class="form-group"><label class="form-label">Payment Status</label><select class="form-control" id="mi-payment-status" onchange="refreshInvoiceCalculatedFields()">${['Unpaid','Paid','Partially Paid','Cancelled'].map(x=>`<option value="${x}"${(inv?.PAYMENT_STATUS||'Unpaid')===x?' selected':''}>${x}</option>`).join('')}</select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">InvAmount</label><input class="form-control" id="mi-inv-amount" value="${money(getInvoiceUiTotal(inv)).replace('₹','')}" readonly /></div>
+        <div class="form-group"><label class="form-label">Amount due</label><input class="form-control" id="mi-amount-due" value="${money(getInvoiceUiDue(inv)).replace('₹','')}" readonly /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Net Revenue</label><input class="form-control" id="mi-net-revenue" value="${money(parseFloat(inv?.['Net Revenue'] || 0) || 0).replace('₹','')}" readonly /></div>
+        <div class="form-group"><label class="form-label">Payment Mode</label><input class="form-control" id="mi-payment-mode" value="${escapeAttr(inv?.PAYMENT_MODE || '')}" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Payment Date</label><input type="date" class="form-control" id="mi-payment-date" value="${inv?.PAYMENT_DATE ? new Date(inv.PAYMENT_DATE).toISOString().split('T')[0] : ''}" /></div>
+        <div class="form-group"><label class="form-label">Notes</label><input class="form-control" id="mi-notes" value="${escapeAttr(inv?.NOTES || '')}" /></div>
+      </div>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-invoice')">Cancel</button>
-      <button class="btn btn-primary" id="mi-save" onclick="saveInvoice('${inv?.INVOICE_ID||''}')">Save Invoice</button>
+      <button class="btn btn-primary" id="mi-save" onclick="saveInvoice('${escapeAttr(getInvoiceUiId(inv))}')">Save Invoice</button>
     </div>`;
+  refreshInvoiceCalculatedFields();
+  syncInvoiceClientSelection();
   openModal('modal-invoice');
+}
+
+function syncInvoiceClientSelection() {
+  const client = resolveClientByCode(document.getElementById('mi-client-code')?.value.trim() || '');
+  if (client && document.getElementById('mi-client-name')) {
+    document.getElementById('mi-client-name').value = client.CLIENT_NAME || '';
+  }
+}
+
+function getInvoiceNumberInputValue(id) {
+  return parseFloat(document.getElementById(id)?.value || 0) || 0;
+}
+
+function refreshInvoiceCalculatedFields() {
+  const invAmount = getInvoiceNumberInputValue('mi-pofee') +
+    getInvoiceNumberInputValue('mi-servfee') +
+    getInvoiceNumberInputValue('mi-igst') +
+    getInvoiceNumberInputValue('mi-sgst') +
+    getInvoiceNumberInputValue('mi-cgst') +
+    getInvoiceNumberInputValue('mi-expenses');
+  const netRevenue = getInvoiceNumberInputValue('mi-servfee') -
+    getInvoiceNumberInputValue('mi-attorney-fee') -
+    getInvoiceNumberInputValue('mi-consultant-fee') -
+    getInvoiceNumberInputValue('mi-referral-fee');
+  const paymentStatus = document.getElementById('mi-payment-status')?.value || 'Unpaid';
+  const amountDue = paymentStatus === 'Paid' ? 0 : invAmount;
+  const amountField = document.getElementById('mi-inv-amount');
+  const dueField = document.getElementById('mi-amount-due');
+  const revenueField = document.getElementById('mi-net-revenue');
+  if (amountField) amountField.value = invAmount.toFixed(2);
+  if (dueField) dueField.value = amountDue.toFixed(2);
+  if (revenueField) revenueField.value = netRevenue.toFixed(2);
 }
 
 async function saveInvoice(existingId) {
   const btn = document.getElementById('mi-save');
   btn.disabled = true; btn.textContent = 'Saving…';
+  const selectedClient = resolveClientByCode(document.getElementById('mi-client-code').value.trim());
+  if (!selectedClient) {
+    alert('Select a valid client code.');
+    btn.disabled = false; btn.textContent = 'Save Invoice';
+    return;
+  }
+  refreshInvoiceCalculatedFields();
   const data = {
     INVOICE_ID: existingId || undefined,
-    CLIENT_ID: document.getElementById('mi-cid').value.trim(),
-    CASE_ID: document.getElementById('mi-case').value.trim(),
-    SERVICE_TYPE: document.getElementById('mi-svc').value,
-    DESCRIPTION: document.getElementById('mi-desc').value.trim(),
-    AMOUNT: document.getElementById('mi-amt').value,
-    GST_RATE: document.getElementById('mi-gst').value,
+    "Client Manager": document.getElementById('mi-client-manager').value.trim(),
+    "Docket# [Invoice UIN]": document.getElementById('mi-uin').value.trim(),
+    "Invoice Date": document.getElementById('mi-invoice-date').value,
+    "Tax Invoice Date": document.getElementById('mi-tax-date').value,
+    "Tax Serial Number": document.getElementById('mi-tax-serial').value.trim(),
+    "Tax Invoice Number": document.getElementById('mi-tax-number').value.trim(),
+    ClientCode: document.getElementById('mi-client-code').value.trim(),
+    "Name of Client": document.getElementById('mi-client-name').value.trim(),
+    "Invention#": document.getElementById('mi-case-id').value.trim(),
+    "Docket Number": document.getElementById('mi-docket-number').value.trim(),
+    "Client Reference": document.getElementById('mi-client-reference').value.trim(),
+    "Patent Office": document.getElementById('mi-patent-office').value.trim(),
+    "First Inventor": document.getElementById('mi-first-inventor').value.trim(),
+    "PO Application # e.g., US 15339876": document.getElementById('mi-po-application').value.trim(),
+    "Entity Status": document.getElementById('mi-entity-status').value.trim(),
+    "State of Supply": document.getElementById('mi-state-supply').value.trim(),
+    "Title Identfication (Only key words, Enter in lower case}": document.getElementById('mi-title-keywords').value.trim(),
+    "Main ServiceCode": document.getElementById('mi-main-service').value.trim(),
+    "Service Code 2": document.getElementById('mi-service-2').value.trim(),
+    "Service Code 3": document.getElementById('mi-service-3').value.trim(),
+    "Additional information on service (Do not repeat what is in code description)": document.getElementById('mi-service-info').value.trim(),
+    POFeeAck: document.getElementById('mi-pofee-ack').value.trim(),
+    POFee: document.getElementById('mi-pofee').value,
+    ServFee: document.getElementById('mi-servfee').value,
+    IGST: document.getElementById('mi-igst').value,
+    SGST: document.getElementById('mi-sgst').value,
+    CGST: document.getElementById('mi-cgst').value,
+    Expenses: document.getElementById('mi-expenses').value,
+    "Attorney Fee": document.getElementById('mi-attorney-fee').value,
+    "Consultant fee": document.getElementById('mi-consultant-fee').value,
+    "Referral fee": document.getElementById('mi-referral-fee').value,
+    PAYMENT_STATUS: document.getElementById('mi-payment-status').value,
+    PAYMENT_MODE: document.getElementById('mi-payment-mode').value.trim(),
+    PAYMENT_DATE: document.getElementById('mi-payment-date').value,
+    CLIENT_ID: selectedClient.CLIENT_ID || '',
+    CLIENT_NAME: selectedClient.CLIENT_NAME || '',
+    CASE_ID: document.getElementById('mi-case-id').value.trim(),
+    ORG_ID: selectedClient.ORG_ID || '',
     NOTES: document.getElementById('mi-notes').value.trim(),
   };
   if (!existingId) delete data.INVOICE_ID;
