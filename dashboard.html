@@ -5228,10 +5228,9 @@ function roundInvoiceAmount(value) {
 
 function refreshInvoiceCalculatedFields() {
   const taxType = document.getElementById('mi-tax-type')?.value || 'CGST_SGST';
-  const taxableBase = roundInvoiceAmount(
-    getInvoiceNumberInputValue('mi-pofee') +
-    getInvoiceNumberInputValue('mi-servfee')
-  );
+  const poFee = getInvoiceNumberInputValue('mi-pofee');
+  const servFee = getInvoiceNumberInputValue('mi-servfee');
+  const taxableBase = roundInvoiceAmount(servFee);
   const igst = taxType === 'IGST' ? roundInvoiceAmount(taxableBase * 0.18) : 0;
   const sgst = taxType === 'IGST' ? 0 : roundInvoiceAmount(taxableBase * 0.09);
   const cgst = taxType === 'IGST' ? 0 : roundInvoiceAmount(taxableBase * 0.09);
@@ -5242,7 +5241,8 @@ function refreshInvoiceCalculatedFields() {
   if (sgstField) sgstField.value = sgst.toFixed(2);
   if (cgstField) cgstField.value = cgst.toFixed(2);
   const invAmount = roundInvoiceAmount(
-    taxableBase +
+    poFee +
+    servFee +
     igst +
     sgst +
     cgst +
