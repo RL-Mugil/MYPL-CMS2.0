@@ -124,10 +124,6 @@
           <span class="nav-section-chevron">▾</span>
         </button>
         <div class="nav-section-content" data-section-content="operations">
-        <button class="nav-item" data-page="inbox" onclick="showPage('inbox')">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 3.5h11v7h-7l-3 2v-2h-1z"/><path d="M5 6h6M5 8.5h4"/></svg>
-          Inbox
-        </button>
         <button class="nav-item" id="nav-stream" data-page="stream" onclick="showPage('stream')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4.5h11v6h-4l-2.5 2-2.5-2h-2z"/><path d="M5 6.5h6M5 8.5h4"/></svg>
           Stream
@@ -481,7 +477,6 @@ const PAGE_TITLES = {
   dashboard: 'Dashboard',
   cases: 'Cases',
   documents: 'Documents',
-  inbox: 'Inbox',
   stream: 'Stream Messaging',
   workflow: 'Workflow Board',
   attorney: 'Attorney Workspace',
@@ -516,7 +511,6 @@ function showPage(page) {
     dashboard: loadDashboard,
     cases: loadCases,
     documents: loadDocuments,
-    inbox: loadInbox,
     stream: loadStreamMessaging,
     workflow: loadWorkflowBoard,
     attorney: loadAttorneyWorkspace,
@@ -2925,15 +2919,15 @@ function renderStreamActiveChannel() {
       </div>`;
   }).join('');
   target.innerHTML = `
-    <div class="inbox-panel">
+    <div class="stream-panel-inner">
       <div class="inbox-chat-head">
         <div>
           <div class="card-title" style="margin-bottom:2px">${title}</div>
           <div class="text-muted" style="font-size:12px">${otherMembers.length ? otherMembers.map((member) => member.user?.email || member.user?.id).join(', ') : 'Direct stream conversation'}</div>
         </div>
       </div>
-      <div class="chat-thread" id="stream-message-thread">${items || '<div class="text-muted" style="padding:12px">No messages yet.</div>'}</div>
-      <div style="display:flex;gap:8px;margin-top:12px">
+      <div class="stream-thread" id="stream-message-thread">${items || '<div class="text-muted" style="padding:12px">No messages yet.</div>'}</div>
+      <div class="stream-composer">
         <textarea class="form-control" id="stream-message-input" rows="3" placeholder="Type a message"></textarea>
         <button class="btn btn-primary" style="align-self:flex-end" onclick="sendStreamMessage()">Send</button>
       </div>
@@ -3027,8 +3021,8 @@ async function loadStreamMessaging() {
     setTopbarActions(`<button class="btn btn-ghost btn-sm" onclick="refreshStreamChannelList(false)">Refresh</button><button class="btn btn-primary btn-sm" onclick="openStreamNewChatModal()">+ New Stream Chat</button>`);
     document.getElementById('page-content').innerHTML = `
       <div class="page">
-        <div class="inbox-layout">
-          <div class="card inbox-sidebar">
+        <div class="stream-layout">
+          <div class="card stream-sidebar">
             <div class="inbox-sidebar-head">
               <div class="card-title">Stream Channels</div>
               <button class="btn btn-ghost btn-sm" onclick="openStreamNewChatModal()">New</button>
@@ -3036,9 +3030,9 @@ async function loadStreamMessaging() {
             <div class="form-group" style="margin-bottom:12px">
               <input class="form-control" id="stream-channel-search" placeholder="Search channels or people" oninput="filterStreamChannels()" />
             </div>
-            <div class="chat-list" id="stream-channel-list"><div class="loading-wrap"><div class="spinner"></div><span>Loading…</span></div></div>
+            <div class="stream-channel-list" id="stream-channel-list"><div class="loading-wrap"><div class="spinner"></div><span>Loading…</span></div></div>
           </div>
-          <div class="card" id="stream-active-panel"><div class="text-muted" style="padding:24px">Loading Stream conversations…</div></div>
+          <div class="card stream-panel" id="stream-active-panel"><div class="text-muted" style="padding:24px">Loading Stream conversations…</div></div>
         </div>
       </div>`;
     await refreshStreamChannelList(false);
@@ -3390,7 +3384,7 @@ async function submitDirectMessageModal() {
   const title = document.getElementById('direct-title').value.trim() || 'Direct conversation';
   const result = await API.createDirectThread({ recipientEmail, title });
   closeModal('modal-generic');
-  showPage('inbox');
+  showPage('stream');
   setTimeout(() => openInboxChat(result.threadId), 50);
 }
 
