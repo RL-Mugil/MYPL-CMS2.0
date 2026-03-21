@@ -521,6 +521,11 @@ async function deleteUser(userId) {
   clearClientCache(['getUsers', 'getOrganizations', 'getCircles', 'getCircleMembers', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage']);
   return result;
 }
+async function impersonateUser(userId) {
+  const result = await callGAS('impersonateUser', { userId });
+  clearClientCache([]);
+  return result;
+}
 
 async function getClients() { return callGASLookupCached('getClients', {}, SAFE_LOOKUP_TTL_MS); }
 async function getAccessibleClients() { return callGASLookupCached('getAccessibleClients', {}, SAFE_LOOKUP_TTL_MS); }
@@ -679,6 +684,7 @@ window.API = {
   submitContact,
   markInvoicePaid,
   getUsers, saveUser, deleteUser,
+  impersonateUser,
   getClients, getAccessibleClients, saveClient, deleteClient,
   saveCase, deleteCase,
   bulkUpdateCases,

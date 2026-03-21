@@ -534,6 +534,39 @@ function showPage(page) {
   if (loaders[page]) loaders[page]();
 }
 
+async function startImpersonation(userId) {
+  if (!canImpersonateUsers() || !userId) return;
+  if (!confirm('Impersonate this user for testing?')) return;
+  try {
+    const currentSession = Auth.getGasSession();
+    if (currentSession && !currentSession.impersonatedByUserId) {
+      sessionStorage.setItem('mg_original_session', JSON.stringify(currentSession));
+    }
+    const result = await API.impersonateUser(userId);
+    const nextSession = Object.assign({}, result.session || {}, { token: result.token });
+    Auth.setGasSession(nextSession);
+    location.reload();
+  } catch (e) {
+    alert(e.message || 'Unable to impersonate user.');
+  }
+}
+
+function stopImpersonation() {
+  try {
+    const raw = sessionStorage.getItem('mg_original_session');
+    if (!raw) {
+      alert('Original session not found.');
+      return;
+    }
+    const originalSession = JSON.parse(raw);
+    Auth.setGasSession(originalSession);
+    sessionStorage.removeItem('mg_original_session');
+    location.reload();
+  } catch (e) {
+    alert('Unable to restore original session.');
+  }
+}
+
 // ── Sign out ──────────────────────────────────────────────────────────────────
 async function handleSignOut() {
   await Auth.signOut();
@@ -2328,6 +2361,7 @@ function renderMgmtUsers() {
       <td>${statusBadge(u.STATUS)}</td>
       <td><div class="action-row">
         ${String(u.EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase() ? '' : `<button class="btn btn-ghost btn-sm" onclick="openDirectMessageForUser('${escapeAttr(u.EMAIL)}','${escapeAttr(u.FULL_NAME)}')">Message</button>`}
+        ${canImpersonateUsers() && String(u.USER_ID || '') !== String(SESSION.userId || '') ? `<button class="btn btn-ghost btn-sm" onclick="startImpersonation('${u.USER_ID}')">Impersonate</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick='openUserModal(${JSON.stringify(JSON.stringify(u))})'>Edit</button>
         <button class="btn btn-danger btn-sm" onclick="deleteItem('User','${u.USER_ID}')">Del</button>
       </div></td>
