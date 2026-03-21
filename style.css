@@ -1,6 +1,6 @@
 /* ── Metayage IP Portal ── Dark Modern Theme ───────────────────────────── */
 
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -831,6 +831,21 @@ body.sidebar-hidden .sidebar-collapse-btn svg {
 /* ── Action rows ─────────────────────────────────────────────────────────── */
 .action-row { display: flex; gap: 6px; }
 .icon-btn { min-width: 36px; width: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+}
 .icon-btn .material-symbols-outlined { font-size: 18px; line-height: 1; }
 
 /* ── Inline text muted ───────────────────────────────────────────────────── */
