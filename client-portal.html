@@ -117,6 +117,7 @@
 let SESSION = null;
 let CHARTS = {};
 const CLIENT_ROLES = ['Client', 'Client Admin', 'Client Employee', 'Individual Client'];
+const INTERNAL_ROLES = ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'];
 const THEME_KEY = 'mg_client_theme';
 const DOC_CATEGORIES = ['APPLICATIONS', 'OFFICE_ACTIONS', 'RESPONSES', 'CERTIFICATES', 'INVOICES', 'COMMUNICATION'];
 const PAGE_TITLES = {
@@ -145,9 +146,13 @@ const STATE = {
 
 (async function bootstrap() {
   applyTheme(loadTheme());
-  SESSION = await Auth.requireAuth(CLIENT_ROLES);
+  SESSION = await Auth.requireAuth([...CLIENT_ROLES, ...INTERNAL_ROLES]);
   if (!SESSION) {
     window.location.href = 'client-login.html';
+    return;
+  }
+  if (Auth.getEffectiveSessionRoles(SESSION).some(function(role) { return INTERNAL_ROLES.includes(role); })) {
+    window.location.href = 'dashboard.html';
     return;
   }
 
@@ -224,7 +229,11 @@ function readCssVar(name) {
 }
 
 function setTopbarActions(html) {
-  document.getElementById('topbar-actions').innerHTML = html || '';
+  var impersonationControls = '';
+  if (SESSION && SESSION.isImpersonating) {
+    impersonationControls = '<span class="badge badge-exam">Impersonating ' + esc(SESSION.name || SESSION.email || 'User') + '</span><button class="btn btn-ghost btn-sm" onclick="stopImpersonation()">Stop Impersonation</button>';
+  }
+  document.getElementById('topbar-actions').innerHTML = impersonationControls + (html || '');
 }
 
 function destroyCharts() {
@@ -267,6 +276,17 @@ function toggleTheme() {
 async function handleSignOut() {
   await Auth.signOut();
   window.location.href = 'client-login.html';
+}
+
+async function stopImpersonation() {
+  try {
+    var result = await API.stopImpersonation();
+    if (!result || !result.success) throw new Error((result && (result.error || result.message)) || 'Failed to stop impersonation.');
+    SESSION = Auth.getGasSession();
+    window.location.href = Auth.getEffectiveSessionRoles(SESSION).some(function(role) { return INTERNAL_ROLES.includes(role); }) ? 'dashboard.html' : 'client-portal.html';
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
 }
 
 async function ensureAccessibleClientsLoaded() {

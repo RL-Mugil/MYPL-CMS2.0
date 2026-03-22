@@ -280,6 +280,13 @@ a:hover { color: #a5b4fc; }
 }
 .topbar-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
+#topbar-actions,
+.topbar-actions-extra {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .sidebar-desktop-toggle {
   background: var(--card);
   border: 1px solid var(--border);

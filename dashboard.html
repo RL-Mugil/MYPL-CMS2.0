@@ -261,6 +261,8 @@ let NOTICES_VISIBLE_COUNT = 25;
 let SAFE_PREFETCH_STARTED = false;
 let CURRENT_THEME = 'dark';
 let CURRENT_PAGE = 'dashboard';
+const INTERNAL_ROLES = ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'];
+const CLIENT_SIDE_ROLES = ['Client', 'Client Admin', 'Client Employee', 'Individual Client'];
 let CASE_IMPORT_STATE = { parsedRows: [], importableRows: [], skippedRows: [], fileName: '' };
 const NAV_SECTION_STORAGE_KEY = 'mg_sidebar_sections_v1';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'mg_sidebar_collapsed_v1';
@@ -316,12 +318,32 @@ function isInternalUser() {
   return sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney']);
 }
 
+function hasInternalAccessForSession(session) {
+  return Auth.getEffectiveSessionRoles(session).some((role) => INTERNAL_ROLES.includes(role));
+}
+
+function hasClientAccessForSession(session) {
+  return Auth.getEffectiveSessionRoles(session).some((role) => CLIENT_SIDE_ROLES.includes(role));
+}
+
+function canImpersonateUsers() {
+  return String(SESSION?.userId || '').toUpperCase() === 'USR001';
+}
+
+function isImpersonatingSession() {
+  return !!SESSION?.isImpersonating;
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
   applyTheme(getStoredTheme());
-  SESSION = await Auth.requireAuth();
+  SESSION = await Auth.requireAuth([...INTERNAL_ROLES, ...CLIENT_SIDE_ROLES]);
   if (!SESSION) {
     window.location.href = 'index.html';
+    return;
+  }
+  if (!hasInternalAccessForSession(SESSION) && hasClientAccessForSession(SESSION)) {
+    window.location.href = 'client-portal.html';
     return;
   }
 
@@ -477,6 +499,33 @@ function showPage(page) {
 async function handleSignOut() {
   await Auth.signOut();
   window.location.href = 'index.html';
+}
+
+async function startImpersonation(userId) {
+  if (!canImpersonateUsers()) return;
+  try {
+    const result = await API.impersonateUser(userId);
+    if (!result || !result.success) throw new Error(result?.error || result?.message || 'Failed to impersonate user.');
+    SESSION = Auth.getGasSession();
+    if (hasClientAccessForSession(SESSION) && !hasInternalAccessForSession(SESSION)) {
+      window.location.href = 'client-portal.html';
+      return;
+    }
+    window.location.reload();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function stopImpersonation() {
+  try {
+    const result = await API.stopImpersonation();
+    if (!result || !result.success) throw new Error(result?.error || result?.message || 'Failed to stop impersonation.');
+    SESSION = Auth.getGasSession();
+    window.location.href = hasInternalAccessForSession(SESSION) ? 'dashboard.html' : 'client-portal.html';
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
 }
 
 // ── Modal helpers ─────────────────────────────────────────────────────────────
@@ -887,11 +936,20 @@ function getThemeToggleHtml() {
   return `<button class="btn btn-ghost btn-sm" onclick="toggleTheme()">${CURRENT_THEME === 'light' ? 'Dark' : 'Light'} Theme</button>`;
 }
 
+function getImpersonationControlsHtml() {
+  if (!isImpersonatingSession()) return '';
+  return `
+    <span class="badge badge-exam">Impersonating ${escapeHtml(SESSION?.name || SESSION?.email || 'User')}</span>
+    <button class="btn btn-ghost btn-sm" onclick="stopImpersonation()">Stop Impersonation</button>
+  `;
+}
+
 function setTopbarActions(extraHtml = '') {
   window.__lastTopbarExtra = extraHtml || '';
   const right = document.getElementById('topbar-right');
   if (!right) return;
-  right.innerHTML = `${getThemeToggleHtml()}${extraHtml ? `<span class="topbar-actions-extra">${extraHtml}</span>` : ''}`;
+  const impersonationControls = getImpersonationControlsHtml();
+  right.innerHTML = `${getThemeToggleHtml()}${impersonationControls ? `<span class="topbar-actions-extra">${impersonationControls}</span>` : ''}${extraHtml ? `<span class="topbar-actions-extra">${extraHtml}</span>` : ''}`;
 }
 
 function toggleTheme() {
@@ -1992,6 +2050,7 @@ async function loadMgmtUsers() {
       <td>${statusBadge(u.STATUS)}</td>
       <td><div class="action-row">
         ${String(u.EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase() ? '' : `<button class="btn btn-ghost btn-sm" onclick="openDirectMessageForUser('${escapeAttr(u.EMAIL)}','${escapeAttr(u.FULL_NAME)}')">Message</button>`}
+        ${canImpersonateUsers() && String(u.USER_ID || '').toUpperCase() !== String(SESSION?.userId || '').toUpperCase() ? `<button class="btn btn-ghost btn-sm" onclick="startImpersonation('${u.USER_ID}')">Impersonate</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick='openUserModal(${JSON.stringify(JSON.stringify(u))})'>Edit</button>
         <button class="btn btn-danger btn-sm" onclick="deleteItem('User','${u.USER_ID}')">Del</button>
       </div></td>

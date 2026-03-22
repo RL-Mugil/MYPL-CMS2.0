@@ -6,6 +6,7 @@
  */
 
 const CLERK_PUBLISHABLE_KEY = (window.APP_CONFIG && window.APP_CONFIG.clerkPublishableKey) || '';
+const CACHE_PREFIX_PATTERN = /^mg_api_cache_v\d+:/;
 
 let _clerkInstance = null;
 let _gasSession = null;
@@ -40,8 +41,9 @@ async function initClerk() {
   const Clerk = await loadClerk();
   const currentUrl = getCurrentPageUrl();
   await Clerk.load({
-    afterSignInUrl: currentUrl,
-    afterSignUpUrl: currentUrl,
+    fallbackRedirectUrl: currentUrl,
+    signInFallbackRedirectUrl: currentUrl,
+    signUpFallbackRedirectUrl: currentUrl,
   });
   _clerkInstance = Clerk;
   return Clerk;
@@ -61,7 +63,7 @@ function getGasSession() {
   const stored = sessionStorage.getItem('mg_session');
   if (stored) {
     try {
-      _gasSession = JSON.parse(stored);
+      _gasSession = normalizePortalSession(JSON.parse(stored));
       return _gasSession;
     } catch {
       return null;
@@ -71,8 +73,8 @@ function getGasSession() {
 }
 
 function setGasSession(session) {
-  _gasSession = session;
-  sessionStorage.setItem('mg_session', JSON.stringify(session));
+  _gasSession = normalizePortalSession(session);
+  sessionStorage.setItem('mg_session', JSON.stringify(_gasSession));
 }
 
 function clearGasSession() {
@@ -80,18 +82,80 @@ function clearGasSession() {
   sessionStorage.removeItem('mg_session');
   try {
     Object.keys(sessionStorage).forEach((key) => {
-      if (key.startsWith('mg_api_cache_v1:')) {
+      if (CACHE_PREFIX_PATTERN.test(key)) {
         sessionStorage.removeItem(key);
       }
     });
   } catch {}
   try {
     Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith('mg_api_cache_v1:')) {
+      if (CACHE_PREFIX_PATTERN.test(key)) {
         localStorage.removeItem(key);
       }
     });
   } catch {}
+}
+
+function normalizePortalSession(session) {
+  if (!session || typeof session !== 'object') return null;
+  return {
+    ...session,
+    email: session.email || '',
+    role: session.role || '',
+    additionalRoles: session.additionalRoles || '',
+    name: session.name || session.email || '',
+    clientId: session.clientId || '',
+    orgId: session.orgId || '',
+    userId: session.userId || '',
+    canViewFinance: session.canViewFinance || '',
+    reportsTo: session.reportsTo || '',
+    isImpersonating: !!session.isImpersonating,
+    originalEmail: session.originalEmail || '',
+    originalUserId: session.originalUserId || '',
+    originalName: session.originalName || '',
+    impersonatedByUserId: session.impersonatedByUserId || '',
+    impersonatedByEmail: session.impersonatedByEmail || '',
+  };
+}
+
+function getEffectiveSessionRoles(session = getGasSession()) {
+  const roles = [];
+  if (session && session.role) roles.push(session.role);
+  String(session && session.additionalRoles || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .forEach((role) => {
+      if (!roles.includes(role)) roles.push(role);
+    });
+  return roles;
+}
+
+function sessionMatchesClerkIdentity(session, clerkEmail) {
+  const normalizedClerkEmail = String(clerkEmail || '').trim().toLowerCase();
+  if (!session || !normalizedClerkEmail) return false;
+  if (String(session.email || '').trim().toLowerCase() === normalizedClerkEmail) return true;
+  return !!session.isImpersonating && String(session.originalEmail || '').trim().toLowerCase() === normalizedClerkEmail;
+}
+
+function sessionAllowsRoles(session, allowedRoles) {
+  if (!allowedRoles || !allowedRoles.length) return true;
+  const effectiveRoles = getEffectiveSessionRoles(session);
+  return effectiveRoles.some((role) => allowedRoles.includes(role));
+}
+
+async function hydrateStoredSession(session) {
+  if (!session || !window.API || typeof window.API.getUserInfo !== 'function') return session;
+  if (session.userId && typeof session.additionalRoles === 'string') return session;
+  try {
+    const live = await window.API.getUserInfo();
+    if (!live || live.error) return session;
+    const merged = normalizePortalSession({ ...session, ...live, token: session.token });
+    setGasSession(merged);
+    return merged;
+  } catch {
+    return session;
+  }
 }
 
 async function requireAuth(allowedRoles) {
@@ -103,21 +167,22 @@ async function requireAuth(allowedRoles) {
   if (!email) return null;
 
   const existing = getGasSession();
-  if (existing && existing.email === email) {
-    if (allowedRoles && !allowedRoles.includes(existing.role)) {
+  if (existing && sessionMatchesClerkIdentity(existing, email)) {
+    const hydrated = await hydrateStoredSession(existing);
+    if (!sessionAllowsRoles(hydrated, allowedRoles)) {
       return null;
     }
-    return existing;
+    return hydrated;
   }
 
   try {
     const result = await window.API.clerkLogin(email);
     if (!result.success) return null;
 
-    const session = { ...result, email };
+    const session = normalizePortalSession({ ...result, email: result.email || email });
     setGasSession(session);
 
-    if (allowedRoles && !allowedRoles.includes(session.role)) {
+    if (!sessionAllowsRoles(session, allowedRoles)) {
       return null;
     }
     return session;
@@ -178,4 +243,5 @@ window.Auth = {
   getGasSession,
   setGasSession,
   clearGasSession,
+  getEffectiveSessionRoles,
 };

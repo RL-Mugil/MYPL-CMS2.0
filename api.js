@@ -257,6 +257,10 @@ async function clerkLogin(email) {
   return callGASPublic('clerklogin', { email });
 }
 
+async function getUserInfo() {
+  return callGAS('getUserInfo', {});
+}
+
 async function getDashboard(filters = {}) { return callGASCached('getDashboard', { filters }, 30000); }
 async function getDashboardSummary(filters = {}) { return callGASPersistentCached('getDashboardSummary', { filters }, 15 * 60 * 1000); }
 async function getDashboardDetails(filters = {}) { return callGASPersistentCached('getDashboardDetails', { filters }, 15 * 60 * 1000); }
@@ -441,6 +445,22 @@ async function saveUser(userData) {
   clearClientCache(['getUsers', 'getOrganizations', 'getCircles', 'getCircleMembers', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage']);
   return result;
 }
+async function impersonateUser(userId) {
+  const result = await callGAS('impersonateUser', { userId });
+  clearClientCache([]);
+  if (result && result.success) {
+    window.Auth.setGasSession(result);
+  }
+  return result;
+}
+async function stopImpersonation() {
+  const result = await callGAS('stopImpersonation', {});
+  clearClientCache([]);
+  if (result && result.success) {
+    window.Auth.setGasSession(result);
+  }
+  return result;
+}
 async function deleteUser(userId) {
   const result = await callGAS('deleteUser', { userId });
   clearClientCache(['getUsers', 'getOrganizations', 'getCircles', 'getCircleMembers', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage']);
@@ -545,6 +565,7 @@ window.API = {
   callGAS,
   callGASPublic,
   clerkLogin,
+  getUserInfo,
   getDashboard,
   getDashboardSummary,
   getDashboardDetails,
@@ -608,7 +629,7 @@ window.API = {
   markInvoicePaid,
   updateInvoicePayment,
   sendInvoice,
-  getUsers, saveUser, deleteUser,
+  getUsers, saveUser, impersonateUser, stopImpersonation, deleteUser,
   getClients, getAccessibleClients, saveClient, deleteClient,
   saveCase, deleteCase,
   bulkUpdateCases,
