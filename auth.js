@@ -10,6 +10,7 @@ const CACHE_PREFIX_PATTERN = /^mg_api_cache_v\d+:/;
 
 let _clerkInstance = null;
 let _gasSession = null;
+let _authPromise = null;
 
 function getCurrentPageUrl() {
   const url = new URL(window.location.href);
@@ -163,7 +164,11 @@ async function fetchSessionInfo(token) {
   }
 }
 
-async function requireAuth(allowedRoles) {
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function resolveAuthSession(allowedRoles) {
   const Clerk = await initClerk();
 
   const existing = getGasSession();
@@ -204,6 +209,23 @@ async function requireAuth(allowedRoles) {
   } catch (e) {
     console.error('App session exchange failed:', e);
     return null;
+  }
+}
+
+async function requireAuth(allowedRoles) {
+  if (!_authPromise) {
+    _authPromise = (async () => {
+      let session = await resolveAuthSession(allowedRoles);
+      if (session) return session;
+      await delay(350);
+      session = await resolveAuthSession(allowedRoles);
+      return session;
+    })();
+  }
+  try {
+    return await _authPromise;
+  } finally {
+    _authPromise = null;
   }
 }
 
