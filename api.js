@@ -191,9 +191,18 @@ async function requestJson(payload, context) {
 }
 
 async function callGAS(action, params = {}, options = {}) {
-  const session = window.Auth.getGasSession();
-  const token = session?.token || null;
-  const data = await requestJson({ action, params: { ...params, token } }, `callGAS:${action}`);
+  async function executeRequest() {
+    const session = window.Auth.getGasSession();
+    const token = session?.token || null;
+    return requestJson({ action, params: { ...params, token } }, `callGAS:${action}`);
+  }
+
+  let data = await executeRequest();
+
+  if (data.sessionExpired && !options.skipSessionRetry) {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    data = await executeRequest();
+  }
 
   if (data.sessionExpired) {
     if (!options.suppressSessionExpiredHandling) {
