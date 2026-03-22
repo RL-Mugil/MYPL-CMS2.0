@@ -336,6 +336,18 @@ function isImpersonatingSession() {
   return !!SESSION?.isImpersonating;
 }
 
+async function hydrateSessionFromBackend() {
+  if (!SESSION?.token) return SESSION;
+  try {
+    const live = await API.getUserInfo();
+    if (live && !live.error) {
+      SESSION = { ...SESSION, ...live, token: SESSION.token };
+      Auth.setGasSession(SESSION);
+    }
+  } catch (e) {}
+  return SESSION;
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
   applyTheme(getStoredTheme());
@@ -349,6 +361,7 @@ function isImpersonatingSession() {
     window.location.href = 'index.html';
     return;
   }
+  await hydrateSessionFromBackend();
 
   if (!canAccessManagement()) {
     document.getElementById('nav-mgmt-section').style.display = 'none';

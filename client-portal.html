@@ -156,6 +156,7 @@ const STATE = {
     window.location.href = 'client-login.html';
     return;
   }
+  await hydrateSessionFromBackend();
 
   const initials = (SESSION.name || 'C').split(' ').map(function(part) { return part ? part[0] : ''; }).join('').slice(0, 2).toUpperCase();
   document.getElementById('sidebar-avatar').textContent = initials || 'C';
@@ -235,6 +236,18 @@ function setTopbarActions(html) {
     impersonationControls = '<span class="badge badge-exam">Impersonating ' + esc(SESSION.name || SESSION.email || 'User') + '</span><button class="btn btn-ghost btn-sm" onclick="stopImpersonation()">Stop Impersonation</button>';
   }
   document.getElementById('topbar-actions').innerHTML = impersonationControls + (html || '');
+}
+
+async function hydrateSessionFromBackend() {
+  if (!SESSION || !SESSION.token) return SESSION;
+  try {
+    var live = await API.getUserInfo();
+    if (live && !live.error) {
+      SESSION = Object.assign({}, SESSION, live, { token: SESSION.token });
+      Auth.setGasSession(SESSION);
+    }
+  } catch (e) {}
+  return SESSION;
 }
 
 function destroyCharts() {
