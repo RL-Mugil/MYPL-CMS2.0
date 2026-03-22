@@ -38,9 +38,6 @@
     const CLIENT_SIDE_ROLES = ['Client', 'Client Admin', 'Client Employee', 'Individual Client'];
 
     function getEffectiveSessionRoles(session) {
-      if (typeof Auth !== 'undefined' && Auth && typeof Auth.getEffectiveSessionRoles === 'function') {
-        return Auth.getEffectiveSessionRoles(session);
-      }
       const roles = [];
       if (session && session.role) roles.push(session.role);
       String(session && session.additionalRoles || '')
@@ -75,7 +72,8 @@
           if (hasInternalAccess(session)) {
             window.location.href = 'dashboard.html';
           } else if (hasClientAccess(session)) {
-            window.location.href = 'client-portal.html';
+            await Auth.signOut();
+            window.location.href = 'client-login.html';
           } else {
             status.textContent = 'This account is authenticated but has no portal role mapping.';
             status.className = 'alert alert-error';
@@ -84,7 +82,7 @@
         }
 
         if (Auth.getClerkEmail()) {
-          status.textContent = 'Your Clerk login succeeded, but this email is not found in USERS or the account is inactive.';
+          status.textContent = 'Your Clerk login succeeded, but this email is not mapped in USER_ROLES yet.';
           status.className = 'alert alert-error';
         }
 

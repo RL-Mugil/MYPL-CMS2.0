@@ -117,7 +117,6 @@
 let SESSION = null;
 let CHARTS = {};
 const CLIENT_ROLES = ['Client', 'Client Admin', 'Client Employee', 'Individual Client'];
-const INTERNAL_ROLES = ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'];
 const THEME_KEY = 'mg_client_theme';
 const DOC_CATEGORIES = ['APPLICATIONS', 'OFFICE_ACTIONS', 'RESPONSES', 'CERTIFICATES', 'INVOICES', 'COMMUNICATION'];
 const PAGE_TITLES = {
@@ -131,6 +130,8 @@ const PAGE_TITLES = {
   search: 'Search',
   contact: 'Contact Firm'
 };
+
+let __suppressHashRouting = false;
 
 const STATE = {
   currentPage: 'dashboard',
@@ -148,24 +149,24 @@ const STATE = {
   applyTheme(loadTheme());
   SESSION = await Auth.requireAuth(CLIENT_ROLES);
   if (!SESSION) {
-    var existing = Auth.getGasSession();
-    if (existing && Auth.getEffectiveSessionRoles(existing).some(function(role) { return INTERNAL_ROLES.includes(role); })) {
-      window.location.href = 'dashboard.html';
-      return;
-    }
     window.location.href = 'client-login.html';
     return;
   }
-  await hydrateSessionFromBackend();
+  const effectiveRoles = (window.Auth && typeof window.Auth.getEffectiveSessionRoles === 'function')
+    ? window.Auth.getEffectiveSessionRoles(SESSION)
+    : [SESSION.role].filter(Boolean);
+  if (effectiveRoles.some((role) => ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'].includes(role))) {
+    window.location.href = 'dashboard.html';
+    return;
+  }
 
-  const displayName = getSessionDisplayName(SESSION);
-  const initials = (displayName || 'C').split(' ').map(function(part) { return part ? part[0] : ''; }).join('').slice(0, 2).toUpperCase();
+  const initials = (SESSION.name || 'C').split(' ').map(function(part) { return part ? part[0] : ''; }).join('').slice(0, 2).toUpperCase();
   document.getElementById('sidebar-avatar').textContent = initials || 'C';
-  document.getElementById('sidebar-name').textContent = displayName;
+  document.getElementById('sidebar-name').textContent = SESSION.name || SESSION.email || 'Client';
   document.getElementById('sidebar-role').textContent = SESSION.role || 'Client';
 
   await ensureAccessibleClientsLoaded();
-  showPage('dashboard');
+  showPage(getValidPageFromHash(), true);
 })();
 
 function esc(value) {
@@ -219,8 +220,6 @@ function statusBadge(status) {
     'Refused': 'badge-abandoned',
     'Paid': 'badge-paid',
     'Unpaid': 'badge-unpaid',
-    'Partially Paid': 'badge-exam',
-    'Deleted': 'badge-abandoned',
     'Approved': 'badge-granted',
     'Rejected': 'badge-unpaid'
   };
@@ -232,41 +231,10 @@ function readCssVar(name) {
 }
 
 function setTopbarActions(html) {
-  var impersonationControls = '';
-  if (SESSION && SESSION.isImpersonating) {
-    impersonationControls = '<span class="badge badge-exam">Impersonating ' + esc(SESSION.name || SESSION.email || 'User') + '</span><button class="btn btn-ghost btn-sm" onclick="stopImpersonation()">Stop Impersonation</button>';
-  }
-  document.getElementById('topbar-actions').innerHTML = impersonationControls + (html || '');
-}
-
-function getSessionDisplayName(session) {
-  var baseName = (session && (session.name || session.email || session.originalName)) || 'Client';
-  if (session && session.isImpersonating && session.originalName) {
-    return baseName + ' (as ' + session.originalName + ')';
-  }
-  return baseName;
-}
-
-async function hydrateSessionFromBackend() {
-  if (!SESSION || !SESSION.token) return SESSION;
-  try {
-    var apiBase = (window.APP_CONFIG && window.APP_CONFIG.apiBase) || '';
-    if (!apiBase) return SESSION;
-    var response = await fetch(apiBase, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'getUserInfo', params: { token: SESSION.token } }),
-      redirect: 'follow'
-    });
-    if (!response.ok) return SESSION;
-    var live = await response.json();
-    if (live && live.sessionExpired) return SESSION;
-    if (live && !live.error) {
-      SESSION = Object.assign({}, SESSION, live, { token: SESSION.token });
-      Auth.setGasSession(SESSION);
-    }
-  } catch (e) {}
-  return SESSION;
+  var impersonationHtml = SESSION && SESSION.impersonatedByUserId
+    ? '<span class="topbar-actions-extra"><span class="stream-chip">Impersonating ' + esc(SESSION.name || SESSION.email || 'Client') + '</span><button class="btn btn-ghost btn-sm" onclick="stopImpersonation()">Stop Impersonation</button></span>'
+    : '';
+  document.getElementById('topbar-actions').innerHTML = impersonationHtml + (html || '');
 }
 
 function destroyCharts() {
@@ -290,6 +258,22 @@ function toggleSidebarDesktop() {
   document.body.classList.toggle('sidebar-hidden');
 }
 
+function stopImpersonation() {
+  try {
+    var raw = sessionStorage.getItem('mg_original_session');
+    if (!raw) {
+      alert('Original session not found.');
+      return;
+    }
+    var originalSession = JSON.parse(raw);
+    Auth.setGasSession(originalSession);
+    sessionStorage.removeItem('mg_original_session');
+    window.location.href = 'dashboard.html';
+  } catch (e) {
+    alert('Unable to restore original session.');
+  }
+}
+
 function loadTheme() {
   return localStorage.getItem(THEME_KEY) || 'dark';
 }
@@ -309,17 +293,6 @@ function toggleTheme() {
 async function handleSignOut() {
   await Auth.signOut();
   window.location.href = 'client-login.html';
-}
-
-async function stopImpersonation() {
-  try {
-    var result = await API.stopImpersonation();
-    if (!result || !result.success) throw new Error((result && (result.error || result.message)) || 'Failed to stop impersonation.');
-    SESSION = Auth.getGasSession();
-    window.location.href = Auth.getEffectiveSessionRoles(SESSION).some(function(role) { return INTERNAL_ROLES.includes(role); }) ? 'dashboard.html' : 'client-portal.html';
-  } catch (e) {
-    alert('Error: ' + e.message);
-  }
 }
 
 async function ensureAccessibleClientsLoaded() {
@@ -379,8 +352,30 @@ function buildClientOptions(selectedValue, includeBlankLabel) {
   return options.join('');
 }
 
-function showPage(page) {
+function getValidPageFromHash() {
+  var raw = String(window.location.hash || '').replace(/^#/, '').trim().toLowerCase();
+  if (!raw) return 'dashboard';
+  return Object.prototype.hasOwnProperty.call(PAGE_TITLES, raw) ? raw : 'dashboard';
+}
+
+function syncHashToPage(page, replace) {
+  var targetHash = '#' + page;
+  if (window.location.hash === targetHash) return;
+  __suppressHashRouting = true;
+  if (replace) {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search + targetHash);
+  } else {
+    window.location.hash = targetHash;
+  }
+  setTimeout(function() { __suppressHashRouting = false; }, 0);
+}
+
+function showPage(page, replaceHash) {
+  if (!Object.prototype.hasOwnProperty.call(PAGE_TITLES, page)) {
+    page = 'dashboard';
+  }
   STATE.currentPage = page;
+  syncHashToPage(page, !!replaceHash);
   document.querySelectorAll('.nav-item').forEach(function(item) {
     item.classList.toggle('active', item.dataset.page === page);
   });
@@ -404,6 +399,14 @@ function showPage(page) {
 
   if (loader) loader();
 }
+
+window.addEventListener('hashchange', function() {
+  if (__suppressHashRouting) return;
+  var page = getValidPageFromHash();
+  if (page !== STATE.currentPage) {
+    showPage(page, true);
+  }
+});
 
 function fileToDataUrl(file) {
   return new Promise(function(resolve, reject) {
@@ -900,43 +903,86 @@ function loadMoreFinance() {
   applyFinanceFilters();
 }
 
+function getClientInvoiceUiId(item) {
+  return String(item && (item['Docket# [Invoice UIN]'] || item['Tax Invoice Number'] || item.INVOICE_ID || '') || '');
+}
+
+function getClientInvoiceUiTotal(item) {
+  return parseFloat(item && (item.InvAmount || item.TOTAL || 0) || 0) || 0;
+}
+
+function getClientInvoiceUiDue(item) {
+  if (item && item['Amount due'] != null && String(item['Amount due']) !== '') return parseFloat(item['Amount due']) || 0;
+  if (String(item && item.PAYMENT_STATUS || '') === 'Partially Paid') {
+    return Math.max(getClientInvoiceUiTotal(item) - (parseFloat(item && item.PAYMENT_AMOUNT || 0) || 0), 0);
+  }
+  return String(item && item.PAYMENT_STATUS || '') === 'Paid' ? 0 : getClientInvoiceUiTotal(item);
+}
+
+function getClientInvoiceSearchFields(item) {
+  return [
+    getClientInvoiceUiId(item),
+    item && item.ClientCode,
+    item && item.CLIENT_ID,
+    item && item['Name of Client'],
+    item && item.CLIENT_NAME,
+    item && item['Docket Number'],
+    item && item.CASE_ID,
+    item && item['Invention#'],
+    item && item['Main ServiceCode'],
+    item && item['Service Code 2'],
+    item && item['Service Code 3'],
+    item && item['First Inventor'],
+    item && item['Title Identfication (Only key words, Enter in lower case}'],
+    item && item['Patent Office'],
+    item && item.PAYMENT_STATUS,
+    item && item.TAX_TYPE,
+    item && item.NOTES
+  ].join(' ');
+}
+
 function applyFinanceFilters(resetLimit) {
   if (resetLimit) STATE.finance.limit = 20;
   var filters = STATE.finance.filters;
   var filtered = STATE.finance.all.filter(function(item) {
-    var invoiceDate = item.INVOICE_DATE || item.CREATED_AT;
+    var invoiceDate = item['Invoice Date'] || item.INVOICE_DATE || item.CREATED_AT;
     var invoiceMonth = invoiceDate ? new Date(invoiceDate).toISOString().slice(0, 7) : '';
-    if (filters.client && String(item.CLIENT_ID || '').trim().toUpperCase() !== String(filters.client || '').trim().toUpperCase()) return false;
+    var clientCode = String(item.ClientCode || item.CLIENT_ID || '').trim().toUpperCase();
+    if (filters.client && clientCode !== String(filters.client || '').trim().toUpperCase()) return false;
     if (filters.status && String(item.PAYMENT_STATUS || '') !== filters.status) return false;
     if (filters.month && invoiceMonth !== filters.month) return false;
     if (!matchesDateRange(invoiceDate, filters.fromDate, filters.toDate)) return false;
-    return csvContains([item.INVOICE_ID, item.CLIENT_ID, item.SERVICE_TYPE, item.DESCRIPTION, item.PAYMENT_STATUS], filters.query);
+    return csvContains([getClientInvoiceSearchFields(item)], filters.query);
   });
 
   filtered.sort(function(a, b) {
-    return new Date(b.INVOICE_DATE || b.CREATED_AT || 0) - new Date(a.INVOICE_DATE || a.CREATED_AT || 0);
+    return new Date(b['Invoice Date'] || b.INVOICE_DATE || b.CREATED_AT || 0) - new Date(a['Invoice Date'] || a.INVOICE_DATE || a.CREATED_AT || 0);
   });
 
   STATE.finance.filtered = filtered;
   var visible = filtered.slice(0, STATE.finance.limit);
-  var pendingAmount = filtered.filter(function(item) { return String(item.PAYMENT_STATUS || '') !== 'Paid'; }).reduce(function(sum, item) { return sum + (parseFloat(item.TOTAL) || 0); }, 0);
-  var paidAmount = filtered.filter(function(item) { return String(item.PAYMENT_STATUS || '') === 'Paid'; }).reduce(function(sum, item) { return sum + (parseFloat(item.TOTAL) || 0); }, 0);
+  var pendingAmount = filtered.filter(function(item) { return String(item.PAYMENT_STATUS || '') !== 'Paid'; }).reduce(function(sum, item) { return sum + getClientInvoiceUiDue(item); }, 0);
+  var paidAmount = filtered.filter(function(item) { return String(item.PAYMENT_STATUS || '') === 'Paid'; }).reduce(function(sum, item) { return sum + getClientInvoiceUiTotal(item); }, 0);
+  var paidCount = filtered.filter(function(item) { return String(item.PAYMENT_STATUS || '') === 'Paid'; }).length;
+  var pendingCount = filtered.length - paidCount;
 
   document.getElementById('page-content').innerHTML = `
     <div class="page">
       <div class="stats-grid">
-        <div class="stat-card accent-rose"><div class="stat-label">Pending Amount</div><div class="stat-value">${money(pendingAmount)}</div><div class="stat-sub">outstanding</div></div>
+        <div class="stat-card accent-primary"><div class="stat-label">Total Invoices</div><div class="stat-value">${filtered.length}</div><div class="stat-sub">matching filters</div></div>
+        <div class="stat-card accent-rose"><div class="stat-label">Pending Count</div><div class="stat-value">${pendingCount}</div><div class="stat-sub">open invoices</div></div>
+        <div class="stat-card accent-emerald"><div class="stat-label">Paid Count</div><div class="stat-value">${paidCount}</div><div class="stat-sub">closed invoices</div></div>
+        <div class="stat-card accent-amber"><div class="stat-label">Pending Amount</div><div class="stat-value">${money(pendingAmount)}</div><div class="stat-sub">outstanding</div></div>
         <div class="stat-card accent-emerald"><div class="stat-label">Paid Amount</div><div class="stat-value">${money(paidAmount)}</div><div class="stat-sub">received</div></div>
-        <div class="stat-card accent-primary"><div class="stat-label">Invoices</div><div class="stat-value">${filtered.length}</div><div class="stat-sub">matching filters</div></div>
       </div>
       <div class="card filter-panel" style="margin-bottom:16px">
         <div class="filter-toggle-row"><button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer('finance')">${STATE.finance.filtersOpen ? 'Hide Filters' : 'Show Filters'}</button></div>
         <div class="filter-drawer ${STATE.finance.filtersOpen ? 'open' : ''}">
           <div class="filter-head"><div class="card-title">Invoice Filters</div><div class="filter-actions"><button class="btn btn-ghost btn-sm" onclick="resetFinanceFilters()">Reset</button></div></div>
           <div class="filter-grid">
-            <div><label class="form-label">Search</label><input class="form-control" value="${esc(filters.query)}" placeholder="Invoice ID or service type" oninput="handleFinanceFilterChange('query', this.value)" /></div>
+            <div><label class="form-label">Search</label><input class="form-control" value="${esc(filters.query)}" placeholder="Invoice, client, inventor, docket, service code" oninput="handleFinanceFilterChange('query', this.value)" /></div>
             <div><label class="form-label">Client</label><select class="form-control" onchange="handleFinanceFilterChange('client', this.value)">${buildClientOptions(filters.client, 'All Clients')}</select></div>
-            <div><label class="form-label">Status</label><select class="form-control" onchange="handleFinanceFilterChange('status', this.value)"><option value="">All Statuses</option><option value="Paid"${filters.status === 'Paid' ? ' selected' : ''}>Paid</option><option value="Unpaid"${filters.status === 'Unpaid' ? ' selected' : ''}>Unpaid</option></select></div>
+            <div><label class="form-label">Status</label><select class="form-control" onchange="handleFinanceFilterChange('status', this.value)"><option value="">All Statuses</option><option value="Paid"${filters.status === 'Paid' ? ' selected' : ''}>Paid</option><option value="Unpaid"${filters.status === 'Unpaid' ? ' selected' : ''}>Unpaid</option><option value="Partially Paid"${filters.status === 'Partially Paid' ? ' selected' : ''}>Partially Paid</option></select></div>
             <div><label class="form-label">Month</label><input class="form-control" type="month" value="${esc(filters.month)}" onchange="handleFinanceFilterChange('month', this.value)" /></div>
             <div><label class="form-label">From Date</label><input class="form-control" type="date" value="${esc(filters.fromDate)}" onchange="handleFinanceFilterChange('fromDate', this.value)" /></div>
             <div><label class="form-label">To Date</label><input class="form-control" type="date" value="${esc(filters.toDate)}" onchange="handleFinanceFilterChange('toDate', this.value)" /></div>
@@ -947,11 +993,11 @@ function applyFinanceFilters(resetLimit) {
         <div class="card-title">Invoice Ledger</div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Invoice ID</th><th>Date</th><th>Service</th><th>Total</th><th>Status</th><th>PDF</th></tr></thead>
+            <thead><tr><th>Invoice UIN</th><th>Date</th><th>Client Code</th><th>Client</th><th>Docket</th><th>Service Code</th><th>Invoice Amount</th><th>Amount Due</th><th>Status</th><th>PDF</th></tr></thead>
             <tbody>
               ${visible.map(function(item) {
-                return '<tr><td class="text-em">' + esc(item.INVOICE_ID || '') + '</td><td>' + esc(fmt(item.INVOICE_DATE)) + '</td><td><div class="text-em">' + esc(item.SERVICE_TYPE || '') + '</div><div class="text-muted" style="font-size:11px">' + esc(item.DESCRIPTION || '') + '</div></td><td>' + esc(money(item.TOTAL)) + '</td><td>' + statusBadge(item.PAYMENT_STATUS || 'Unpaid') + '</td><td>' + (item.INVOICE_PDF_LINK ? '<a href="' + esc(item.INVOICE_PDF_LINK) + '" target="_blank">Open</a>' : '-') + '</td></tr>';
-              }).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No invoices found.</td></tr>'}
+                return '<tr><td class="text-em">' + esc(getClientInvoiceUiId(item)) + '</td><td>' + esc(fmt(item['Invoice Date'] || item.INVOICE_DATE)) + '</td><td>' + esc(item.ClientCode || item.CLIENT_ID || '') + '</td><td><div class="text-em">' + esc(item['Name of Client'] || item.CLIENT_NAME || '') + '</div><div class="text-muted" style="font-size:11px">' + esc(item['First Inventor'] || '') + '</div></td><td>' + esc(item['Docket Number'] || item.CASE_ID || '') + '</td><td><div class="text-em">' + esc(item['Main ServiceCode'] || '') + '</div><div class="text-muted" style="font-size:11px">' + esc(item['Service Code 2'] || item['Service Code 3'] || '') + '</div></td><td>' + esc(money(getClientInvoiceUiTotal(item))) + '</td><td>' + esc(money(getClientInvoiceUiDue(item))) + '</td><td>' + statusBadge(item.PAYMENT_STATUS || 'Unpaid') + '</td><td>' + (item.INVOICE_PDF_LINK ? '<a href="' + esc(item.INVOICE_PDF_LINK) + '" target="_blank">Open</a>' : '-') + '</td></tr>';
+              }).join('') || '<tr><td colspan="10" class="text-muted" style="padding:20px;text-align:center">No invoices found.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -1246,220 +1292,6 @@ window.addEventListener('click', function(event) {
     closeThreadModal();
   }
 });
-
-function clientFinanceNumber(value) {
-  var amount = parseFloat(String(value == null ? '' : value).replace(/,/g, '').replace(/[^\d.-]/g, '')) || 0;
-  return Math.round(amount * 100) / 100;
-}
-
-function clientFinanceAmount(value) {
-  return 'Rs ' + clientFinanceNumber(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function clientInvoiceVisibleId(invoice) {
-  return String(invoice['Docket# [Invoice UIN]'] || invoice['Tax Invoice Number'] || invoice.INVOICE_ID || '').trim();
-}
-
-function clientInvoiceDate(invoice) {
-  return invoice['Invoice Date'] || invoice['Tax Invoice Date'] || invoice.INVOICE_DATE || '';
-}
-
-function clientInvoiceClientCode(invoice) {
-  return String(invoice.ClientCode || invoice.CLIENT_ID || '').trim();
-}
-
-function clientInvoiceClientName(invoice) {
-  return String(invoice['Name of Client'] || invoice.CLIENT_NAME || '').trim();
-}
-
-function clientInvoiceDocket(invoice) {
-  return String(invoice['Docket Number'] || invoice.CASE_ID || '').trim();
-}
-
-function clientInvoiceService(invoice) {
-  return [
-    invoice['Main ServiceCode'],
-    invoice['Service Code 2'],
-    invoice['Service Code 3']
-  ].filter(Boolean).join(' / ');
-}
-
-function clientInvoiceTaxType(invoice) {
-  return String(invoice.TAX_TYPE || 'IGST').trim() || 'IGST';
-}
-
-function clientInvoicePaymentAmount(invoice) {
-  return clientFinanceNumber(invoice.PAYMENT_AMOUNT || 0);
-}
-
-function clientInvoiceTotal(invoice) {
-  return clientFinanceNumber(invoice.InvAmount || invoice.TOTAL || 0);
-}
-
-function clientInvoiceAmountDue(invoice) {
-  if (Object.prototype.hasOwnProperty.call(invoice, 'Amount due')) {
-    return clientFinanceNumber(invoice['Amount due']);
-  }
-  return Math.max(clientInvoiceTotal(invoice) - clientInvoicePaymentAmount(invoice), 0);
-}
-
-function clientInvoiceStatus(invoice) {
-  var status = String(invoice.PAYMENT_STATUS || '').trim();
-  if (status) return status;
-  return clientInvoiceAmountDue(invoice) > 0 ? 'Unpaid' : 'Paid';
-}
-
-function clientInvoiceSearchText(invoice) {
-  return [
-    clientInvoiceVisibleId(invoice),
-    clientInvoiceClientCode(invoice),
-    clientInvoiceClientName(invoice),
-    clientInvoiceDocket(invoice),
-    clientInvoiceService(invoice),
-    invoice['Title Identfication (Only key words, Enter in lower case}'],
-    invoice['First Inventor'],
-    invoice['Patent Office'],
-    invoice['Client Reference'],
-    invoice.NOTES
-  ].join(' ').toLowerCase();
-}
-
-async function loadFinance() {
-  setTopbarActions('<button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer(\'finance\')">Filters</button>');
-  try {
-    STATE.finance.all = await API.getInvoices();
-    if (!Array.isArray(STATE.finance.all)) STATE.finance.all = [];
-    if (!STATE.finance.pageSize) STATE.finance.pageSize = 10;
-    if (!STATE.finance.page) STATE.finance.page = 1;
-    STATE.finance.filters = Object.assign({ query: '', client: '', status: '', taxType: '', sort: 'date_desc' }, STATE.finance.filters || {});
-    applyFinanceFilters(true);
-  } catch (e) {
-    document.getElementById('page-content').innerHTML = renderError(e.message);
-  }
-}
-
-function handleFinanceFilterChange(key, value) {
-  STATE.finance.filters[key] = value;
-  applyFinanceFilters(true);
-}
-
-function resetFinanceFilters() {
-  STATE.finance.filters = { query: '', client: '', status: '', taxType: '', sort: 'date_desc' };
-  STATE.finance.page = 1;
-  STATE.finance.pageSize = 10;
-  applyFinanceFilters(true);
-}
-
-function setFinancePage(page) {
-  STATE.finance.page = Math.max(1, parseInt(page, 10) || 1);
-  applyFinanceFilters();
-}
-
-function setFinancePageSize(value) {
-  STATE.finance.pageSize = Math.max(1, parseInt(value, 10) || 10);
-  STATE.finance.page = 1;
-  applyFinanceFilters();
-}
-
-function applyFinanceFilters(resetPage) {
-  if (resetPage) STATE.finance.page = 1;
-  var filters = STATE.finance.filters || {};
-  var query = String(filters.query || '').trim().toLowerCase();
-  var client = String(filters.client || '').trim().toUpperCase();
-  var status = String(filters.status || '').trim();
-  var taxType = String(filters.taxType || '').trim();
-  var sort = String(filters.sort || 'date_desc');
-
-  var filtered = (STATE.finance.all || []).filter(function(item) {
-    if (clientInvoiceStatus(item) === 'Deleted') return false;
-    if (client && clientInvoiceClientCode(item).toUpperCase() !== client) return false;
-    if (status && clientInvoiceStatus(item) !== status) return false;
-    if (taxType && clientInvoiceTaxType(item) !== taxType) return false;
-    if (query && clientInvoiceSearchText(item).indexOf(query) === -1) return false;
-    return true;
-  });
-
-  filtered.sort(function(a, b) {
-    if (sort === 'client_az') return clientInvoiceClientCode(a).localeCompare(clientInvoiceClientCode(b));
-    if (sort === 'client_za') return clientInvoiceClientCode(b).localeCompare(clientInvoiceClientCode(a));
-    if (sort === 'amount_asc') return clientInvoiceTotal(a) - clientInvoiceTotal(b);
-    if (sort === 'amount_desc') return clientInvoiceTotal(b) - clientInvoiceTotal(a);
-    if (sort === 'date_asc') return new Date(clientInvoiceDate(a) || 0) - new Date(clientInvoiceDate(b) || 0);
-    return new Date(clientInvoiceDate(b) || 0) - new Date(clientInvoiceDate(a) || 0);
-  });
-
-  STATE.finance.filtered = filtered;
-  var pageSize = STATE.finance.pageSize || 10;
-  var totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  var currentPage = Math.min(STATE.finance.page || 1, totalPages);
-  STATE.finance.page = currentPage;
-  var start = (currentPage - 1) * pageSize;
-  var visible = filtered.slice(start, start + pageSize);
-  var pendingCount = filtered.filter(function(item) { return clientInvoiceAmountDue(item) > 0; }).length;
-  var paidCount = filtered.filter(function(item) { return clientInvoiceStatus(item) === 'Paid'; }).length;
-  var pendingAmount = filtered.reduce(function(sum, item) { return sum + clientInvoiceAmountDue(item); }, 0);
-  var paidAmount = filtered.reduce(function(sum, item) { return sum + clientInvoicePaymentAmount(item); }, 0);
-  var pageOptions = [10, 20, 50].map(function(option) {
-    return '<option value="' + option + '"' + (pageSize === option ? ' selected' : '') + '>' + option + ' rows per page</option>';
-  }).join('');
-  var pagerButtons = Array.from({ length: totalPages }, function(_, index) {
-    var page = index + 1;
-    var cls = page === currentPage ? 'btn-primary' : 'btn-ghost';
-    return '<button class="btn ' + cls + ' btn-sm" onclick="setFinancePage(' + page + ')">' + page + '</button>';
-  }).join('');
-
-  document.getElementById('page-content').innerHTML = `
-    <div class="page">
-      <div class="stats-grid">
-        <div class="stat-card accent-primary"><div class="stat-label">Total Invoices</div><div class="stat-value">${filtered.length}</div><div class="stat-sub">matching filters</div></div>
-        <div class="stat-card accent-rose"><div class="stat-label">Pending Count</div><div class="stat-value">${pendingCount}</div><div class="stat-sub">open invoices</div></div>
-        <div class="stat-card accent-emerald"><div class="stat-label">Paid Count</div><div class="stat-value">${paidCount}</div><div class="stat-sub">closed invoices</div></div>
-        <div class="stat-card accent-amber finance-stat-amount"><div class="stat-label">Pending Amount</div><div class="stat-value">${esc(clientFinanceAmount(pendingAmount))}</div><div class="stat-sub">outstanding</div></div>
-        <div class="stat-card accent-emerald finance-stat-amount"><div class="stat-label">Paid Amount</div><div class="stat-value">${esc(clientFinanceAmount(paidAmount))}</div><div class="stat-sub">received</div></div>
-      </div>
-      <div class="card filter-panel" style="margin-bottom:16px">
-        <div class="filter-toggle-row"><button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer('finance')">${STATE.finance.filtersOpen ? 'Hide Filters' : 'Show Filters'}</button></div>
-        <div class="filter-drawer ${STATE.finance.filtersOpen ? 'open' : ''}">
-          <div class="filter-head"><div class="card-title">Invoice Filters</div><div class="filter-actions"><button class="btn btn-ghost btn-sm" onclick="resetFinanceFilters()">Reset</button></div></div>
-          <div class="filter-grid">
-            <div><label class="form-label">Search</label><input class="form-control" value="${esc(filters.query || '')}" placeholder="UIN, client, docket, inventor, service" oninput="handleFinanceFilterChange('query', this.value)" /></div>
-            <div><label class="form-label">Client</label><select class="form-control" onchange="handleFinanceFilterChange('client', this.value)">${buildClientOptions(filters.client, 'All Clients')}</select></div>
-            <div><label class="form-label">Status</label><select class="form-control" onchange="handleFinanceFilterChange('status', this.value)"><option value="">All Statuses</option><option value="Unpaid"${filters.status === 'Unpaid' ? ' selected' : ''}>Unpaid</option><option value="Partially Paid"${filters.status === 'Partially Paid' ? ' selected' : ''}>Partially Paid</option><option value="Paid"${filters.status === 'Paid' ? ' selected' : ''}>Paid</option></select></div>
-            <div><label class="form-label">Tax Type</label><select class="form-control" onchange="handleFinanceFilterChange('taxType', this.value)"><option value="">All Tax Types</option><option value="IGST"${filters.taxType === 'IGST' ? ' selected' : ''}>IGST</option><option value="CGST/SGST"${filters.taxType === 'CGST/SGST' ? ' selected' : ''}>CGST/SGST</option></select></div>
-            <div><label class="form-label">Sort</label><select class="form-control" onchange="handleFinanceFilterChange('sort', this.value)">
-              <option value="date_desc"${filters.sort === 'date_desc' ? ' selected' : ''}>Newest first</option>
-              <option value="date_asc"${filters.sort === 'date_asc' ? ' selected' : ''}>Oldest first</option>
-              <option value="client_az"${filters.sort === 'client_az' ? ' selected' : ''}>Client A-Z</option>
-              <option value="client_za"${filters.sort === 'client_za' ? ' selected' : ''}>Client Z-A</option>
-              <option value="amount_desc"${filters.sort === 'amount_desc' ? ' selected' : ''}>Amount high-low</option>
-              <option value="amount_asc"${filters.sort === 'amount_asc' ? ' selected' : ''}>Amount low-high</option>
-            </select></div>
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Invoice Ledger</div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Invoice UIN</th><th>Date</th><th>Client Code</th><th>Client</th><th>Docket</th><th>Service Code</th><th>Invoice Amount</th><th>Amount Due</th><th>Status</th><th>PDF</th></tr></thead>
-            <tbody>
-              ${visible.map(function(item) {
-                return '<tr><td class="text-em">' + esc(clientInvoiceVisibleId(item) || '-') + '</td><td>' + esc(fmt(clientInvoiceDate(item))) + '</td><td>' + esc(clientInvoiceClientCode(item) || '-') + '</td><td><div class="text-em">' + esc(clientInvoiceClientName(item) || '-') + '</div><div class="finance-table-muted">' + esc(item['Client Reference'] || '') + '</div></td><td>' + esc(clientInvoiceDocket(item) || '-') + '</td><td><div class="text-em">' + esc(clientInvoiceService(item) || '-') + '</div><div class="finance-table-muted">' + esc(clientInvoiceTaxType(item)) + '</div></td><td>' + esc(clientFinanceAmount(clientInvoiceTotal(item))) + '</td><td>' + esc(clientFinanceAmount(clientInvoiceAmountDue(item))) + '</td><td>' + statusBadge(clientInvoiceStatus(item)) + '</td><td>' + (item.INVOICE_PDF_LINK ? '<a href="' + esc(item.INVOICE_PDF_LINK) + '" target="_blank">Open</a>' : '-') + '</td></tr>';
-              }).join('') || '<tr><td colspan="10" class="text-muted" style="padding:20px;text-align:center">No invoices found.</td></tr>'}
-            </tbody>
-          </table>
-        </div>
-        <div class="pagination-row">
-          <div class="text-muted">Showing ${filtered.length ? start + 1 : 0} to ${Math.min(start + pageSize, filtered.length)} of ${filtered.length} invoices</div>
-          <div class="pagination-actions">
-            <label class="text-muted">Show:</label>
-            <select class="form-control" style="width:auto;min-width:160px" onchange="setFinancePageSize(this.value)">${pageOptions}</select>
-            ${pagerButtons}
-          </div>
-        </div>
-      </div>
-    </div>`;
-}
 </script>
 </body>
 </html>

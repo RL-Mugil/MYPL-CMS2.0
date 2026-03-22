@@ -6,11 +6,9 @@
  */
 
 const CLERK_PUBLISHABLE_KEY = (window.APP_CONFIG && window.APP_CONFIG.clerkPublishableKey) || '';
-const CACHE_PREFIX_PATTERN = /^mg_api_cache_v\d+:/;
 
 let _clerkInstance = null;
 let _gasSession = null;
-let _authPromise = null;
 
 function getCurrentPageUrl() {
   const url = new URL(window.location.href);
@@ -42,9 +40,8 @@ async function initClerk() {
   const Clerk = await loadClerk();
   const currentUrl = getCurrentPageUrl();
   await Clerk.load({
-    fallbackRedirectUrl: currentUrl,
-    signInFallbackRedirectUrl: currentUrl,
-    signUpFallbackRedirectUrl: currentUrl,
+    afterSignInUrl: currentUrl,
+    afterSignUpUrl: currentUrl,
   });
   _clerkInstance = Clerk;
   return Clerk;
@@ -64,7 +61,7 @@ function getGasSession() {
   const stored = sessionStorage.getItem('mg_session');
   if (stored) {
     try {
-      _gasSession = normalizePortalSession(JSON.parse(stored));
+      _gasSession = JSON.parse(stored);
       return _gasSession;
     } catch {
       return null;
@@ -74,8 +71,8 @@ function getGasSession() {
 }
 
 function setGasSession(session) {
-  _gasSession = normalizePortalSession(session);
-  sessionStorage.setItem('mg_session', JSON.stringify(_gasSession));
+  _gasSession = session;
+  sessionStorage.setItem('mg_session', JSON.stringify(session));
 }
 
 function clearGasSession() {
@@ -83,46 +80,24 @@ function clearGasSession() {
   sessionStorage.removeItem('mg_session');
   try {
     Object.keys(sessionStorage).forEach((key) => {
-      if (CACHE_PREFIX_PATTERN.test(key)) {
+      if (key.startsWith('mg_api_cache_v1:')) {
         sessionStorage.removeItem(key);
       }
     });
   } catch {}
   try {
     Object.keys(localStorage).forEach((key) => {
-      if (CACHE_PREFIX_PATTERN.test(key)) {
+      if (key.startsWith('mg_api_cache_v1:')) {
         localStorage.removeItem(key);
       }
     });
   } catch {}
 }
 
-function normalizePortalSession(session) {
-  if (!session || typeof session !== 'object') return null;
-  return {
-    ...session,
-    email: session.email || '',
-    role: session.role || '',
-    additionalRoles: session.additionalRoles || '',
-    name: session.name || session.email || '',
-    clientId: session.clientId || '',
-    orgId: session.orgId || '',
-    userId: session.userId || '',
-    canViewFinance: session.canViewFinance || '',
-    reportsTo: session.reportsTo || '',
-    isImpersonating: !!session.isImpersonating,
-    originalEmail: session.originalEmail || '',
-    originalUserId: session.originalUserId || '',
-    originalName: session.originalName || '',
-    impersonatedByUserId: session.impersonatedByUserId || '',
-    impersonatedByEmail: session.impersonatedByEmail || '',
-  };
-}
-
-function getEffectiveSessionRoles(session = getGasSession()) {
+function getEffectiveSessionRoles(session) {
   const roles = [];
-  if (session && session.role) roles.push(session.role);
-  String(session && session.additionalRoles || '')
+  if (session?.role) roles.push(session.role);
+  String(session?.additionalRoles || '')
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean)
@@ -132,118 +107,57 @@ function getEffectiveSessionRoles(session = getGasSession()) {
   return roles;
 }
 
-function sessionMatchesClerkIdentity(session, clerkEmail) {
-  const normalizedClerkEmail = String(clerkEmail || '').trim().toLowerCase();
-  if (!session || !normalizedClerkEmail) return false;
-  if (String(session.email || '').trim().toLowerCase() === normalizedClerkEmail) return true;
-  return !!session.isImpersonating && String(session.originalEmail || '').trim().toLowerCase() === normalizedClerkEmail;
-}
-
-function sessionAllowsRoles(session, allowedRoles) {
+function sessionMatchesAllowedRoles(session, allowedRoles) {
   if (!allowedRoles || !allowedRoles.length) return true;
   const effectiveRoles = getEffectiveSessionRoles(session);
   return effectiveRoles.some((role) => allowedRoles.includes(role));
 }
 
-async function fetchSessionInfo(token) {
-  const apiBase = (window.APP_CONFIG && window.APP_CONFIG.apiBase) || '';
-  if (!apiBase || !token) return null;
-  try {
-    const response = await fetch(apiBase, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'getUserInfo', params: { token } }),
-      redirect: 'follow',
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (!data || data.error || data.sessionExpired) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function withTimeout(promise, ms) {
-  let timeoutId = null;
-  const timeoutPromise = new Promise((resolve) => {
-    timeoutId = setTimeout(() => resolve(null), ms);
-  });
-  const result = await Promise.race([promise, timeoutPromise]);
-  if (timeoutId) clearTimeout(timeoutId);
-  return result;
-}
-
-async function enrichSessionIfNeeded(session) {
-  if (!session || !session.token) return session;
-  if (session.role && session.name && session.userId) return session;
-  const live = await withTimeout(fetchSessionInfo(session.token), 1200);
-  if (!live) return session;
-  const hydrated = normalizePortalSession({ ...session, ...live, token: session.token });
-  setGasSession(hydrated);
-  return hydrated;
-}
-
-async function resolveAuthSession(allowedRoles) {
+async function requireAuth(allowedRoles) {
   const Clerk = await initClerk();
-
-  const existing = getGasSession();
-  if (existing && existing.token && sessionAllowsRoles(existing, allowedRoles)) {
-    return enrichSessionIfNeeded(existing);
-  }
 
   if (!Clerk.user) return null;
 
   const email = getClerkEmail();
   if (!email) return null;
 
-  const current = getGasSession();
-  if (current && current.isImpersonating && sessionMatchesClerkIdentity(current, email)) {
-    return null;
-  }
-  if (current && sessionMatchesClerkIdentity(current, email)) {
-    if (sessionAllowsRoles(current, allowedRoles)) {
-      return enrichSessionIfNeeded(current);
+  const existing = getGasSession();
+  const matchesRealUser = existing && existing.email === email;
+  const matchesImpersonationOwner = existing
+    && existing.impersonatedByUserId
+    && String(existing.originalEmail || '').toLowerCase() === String(email || '').toLowerCase();
+  if (existing && (matchesRealUser || matchesImpersonationOwner)) {
+    if (!existing.userId && window.API && typeof window.API.getUserInfo === 'function') {
+      try {
+        const info = await window.API.getUserInfo();
+        const hydrated = { ...existing, ...info };
+        setGasSession(hydrated);
+        if (!sessionMatchesAllowedRoles(hydrated, allowedRoles)) {
+          return null;
+        }
+        return hydrated;
+      } catch {}
     }
-    return null;
+    if (!sessionMatchesAllowedRoles(existing, allowedRoles)) {
+      return null;
+    }
+    return existing;
   }
 
   try {
     const result = await window.API.clerkLogin(email);
     if (!result.success) return null;
 
-    let session = normalizePortalSession({ ...result, email: result.email || email });
+    const session = { ...result, email };
     setGasSession(session);
-    session = await enrichSessionIfNeeded(session);
 
-    if (!sessionAllowsRoles(session, allowedRoles)) {
+    if (!sessionMatchesAllowedRoles(session, allowedRoles)) {
       return null;
     }
     return session;
   } catch (e) {
     console.error('App session exchange failed:', e);
     return null;
-  }
-}
-
-async function requireAuth(allowedRoles) {
-  if (!_authPromise) {
-    _authPromise = (async () => {
-      let session = await resolveAuthSession(allowedRoles);
-      if (session) return session;
-      await delay(350);
-      session = await resolveAuthSession(allowedRoles);
-      return session;
-    })();
-  }
-  try {
-    return await _authPromise;
-  } finally {
-    _authPromise = null;
   }
 }
 
@@ -282,6 +196,9 @@ async function mountSignIn(containerId, options = {}) {
 }
 
 async function signOut() {
+  if (window.StreamMessaging && typeof window.StreamMessaging.disconnect === 'function') {
+    try { await window.StreamMessaging.disconnect(); } catch {}
+  }
   clearGasSession();
   if (_clerkInstance) {
     await _clerkInstance.signOut();
@@ -295,8 +212,8 @@ window.Auth = {
   signOut,
   getClerkUser,
   getClerkEmail,
+  getEffectiveSessionRoles,
   getGasSession,
   setGasSession,
   clearGasSession,
-  getEffectiveSessionRoles,
 };

@@ -190,26 +190,15 @@ async function requestJson(payload, context) {
   }
 }
 
-async function callGAS(action, params = {}, options = {}) {
-  async function executeRequest() {
-    const session = window.Auth.getGasSession();
-    const token = session?.token || null;
-    return requestJson({ action, params: { ...params, token } }, `callGAS:${action}`);
-  }
-
-  let data = await executeRequest();
-
-  if (data.sessionExpired && !options.skipSessionRetry) {
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    data = await executeRequest();
-  }
+async function callGAS(action, params = {}) {
+  const session = window.Auth.getGasSession();
+  const token = session?.token || null;
+  const data = await requestJson({ action, params: { ...params, token } }, `callGAS:${action}`);
 
   if (data.sessionExpired) {
-    if (!options.suppressSessionExpiredHandling) {
-      window.Auth.clearGasSession();
-      showGlobalError('Session expired. Please sign in again.');
-      setTimeout(() => location.reload(), 2000);
-    }
+    window.Auth.clearGasSession();
+    showGlobalError('Session expired. Please sign in again.');
+    setTimeout(() => location.reload(), 2000);
     throw new Error('session_expired');
   }
 
@@ -269,7 +258,91 @@ async function clerkLogin(email) {
 }
 
 async function getUserInfo() {
-  return callGAS('getUserInfo', {}, { suppressSessionExpiredHandling: true });
+  return callGAS('getUserInfo', {});
+}
+
+async function getStreamAuth() {
+  ensureApiBase();
+  const session = window.Auth.getGasSession();
+  const token = session?.token || '';
+  if (!token) throw new Error('Session expired. Please sign in again.');
+  const endpoint = `${String(API_BASE).replace(/\/$/, '')}/stream-token`;
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const data = sanitizePayload(await res.json());
+    if (!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`);
+    return data;
+  } catch (error) {
+    reportError('getStreamAuth', error, { endpoint });
+    throw error;
+  }
+}
+
+async function ensureStreamUsers(users = []) {
+  ensureApiBase();
+  const session = window.Auth.getGasSession();
+  const token = session?.token || '';
+  if (!token) throw new Error('Session expired. Please sign in again.');
+  const endpoint = `${String(API_BASE).replace(/\/$/, '')}/stream-ensure-users`;
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, users }),
+    });
+    const data = sanitizePayload(await res.json());
+    if (!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`);
+    return data;
+  } catch (error) {
+    reportError('ensureStreamUsers', error, { endpoint });
+    throw error;
+  }
+}
+
+async function clearStreamChannel(cid) {
+  ensureApiBase();
+  const session = window.Auth.getGasSession();
+  const token = session?.token || '';
+  if (!token) throw new Error('Session expired. Please sign in again.');
+  const endpoint = `${String(API_BASE).replace(/\/$/, '')}/stream-truncate-channel`;
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, cid }),
+    });
+    const data = sanitizePayload(await res.json());
+    if (!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`);
+    return data;
+  } catch (error) {
+    reportError('clearStreamChannel', error, { endpoint, cid });
+    throw error;
+  }
+}
+
+async function deleteStreamMessage(messageId) {
+  ensureApiBase();
+  const session = window.Auth.getGasSession();
+  const token = session?.token || '';
+  if (!token) throw new Error('Session expired. Please sign in again.');
+  const endpoint = `${String(API_BASE).replace(/\/$/, '')}/stream-delete-message`;
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, messageId }),
+    });
+    const data = sanitizePayload(await res.json());
+    if (!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`);
+    return data;
+  } catch (error) {
+    reportError('deleteStreamMessage', error, { endpoint, messageId });
+    throw error;
+  }
 }
 
 async function getDashboard(filters = {}) { return callGASCached('getDashboard', { filters }, 30000); }
@@ -335,6 +408,11 @@ async function reviewExpenseClaim(claimId, reviewData) {
   return result;
 }
 async function getNotifications() { return callGASCached('getNotifications', {}, 30000); }
+async function sendAnnouncement(announcementData) {
+  const result = await callGAS('sendAnnouncement', { announcementData });
+  clearClientCache(['getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  return result;
+}
 async function markNotificationRead(notificationId) {
   const result = await callGAS('markNotificationRead', { notificationId });
   clearClientCache(['getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
@@ -428,21 +506,14 @@ async function submitContact(subject, caseId, message) {
 }
 
 async function markInvoicePaid(invoiceId) {
-  const result = await callGAS('markInvoicePaid', { invoiceId });
-  clearClientCache(['getInvoices', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
-  return result;
+  return callGAS('markInvoicePaid', { invoiceId });
 }
 
 async function updateInvoicePayment(invoiceId, paymentData) {
-  const result = await callGAS('updateInvoicePayment', { invoiceId, paymentData });
-  clearClientCache(['getInvoices', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
-  return result;
+  return callGAS('updateInvoicePayment', { invoiceId, paymentData });
 }
-
-async function sendInvoice(invoiceId, email = '') {
-  const result = await callGAS('sendInvoice', { invoiceId, email });
-  clearClientCache(['getInvoices', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
-  return result;
+async function sendInvoice(invoiceId, overrideEmail = '') {
+  return callGAS('sendInvoice', { invoiceId, overrideEmail });
 }
 
 async function getUsers(filters = {}) {
@@ -456,25 +527,14 @@ async function saveUser(userData) {
   clearClientCache(['getUsers', 'getOrganizations', 'getCircles', 'getCircleMembers', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage']);
   return result;
 }
-async function impersonateUser(userId) {
-  const result = await callGAS('impersonateUser', { userId });
-  clearClientCache([]);
-  if (result && result.success) {
-    window.Auth.setGasSession(result);
-  }
-  return result;
-}
-async function stopImpersonation() {
-  const result = await callGAS('stopImpersonation', {});
-  clearClientCache([]);
-  if (result && result.success) {
-    window.Auth.setGasSession(result);
-  }
-  return result;
-}
 async function deleteUser(userId) {
   const result = await callGAS('deleteUser', { userId });
   clearClientCache(['getUsers', 'getOrganizations', 'getCircles', 'getCircleMembers', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getCases', 'getCasesPage']);
+  return result;
+}
+async function impersonateUser(userId) {
+  const result = await callGAS('impersonateUser', { userId });
+  clearClientCache([]);
   return result;
 }
 
@@ -493,35 +553,27 @@ async function deleteClient(clientId) {
 
 async function saveCase(caseData) {
   const result = await callGAS('saveCase', { caseData });
-  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getAttorneyWorkspace', 'getSmartSearch']);
   return result;
 }
 async function bulkUpdateCases(bulkData) {
   const result = await callGAS('bulkUpdateCases', { bulkData });
-  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getAttorneyWorkspace', 'getSmartSearch']);
   return result;
 }
 async function bulkImportDocketTrakRows(importData) {
   const result = await callGAS('bulkImportDocketTrakRows', { importData });
-  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getSmartSearch']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getAttorneyWorkspace', 'getSmartSearch']);
   return result;
 }
 async function deleteCase(caseId) {
   const result = await callGAS('deleteCase', { caseId });
-  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments']);
+  clearClientCache(['getCases', 'getCasesPage', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getGalvanizerQueue', 'getDocuments', 'getWorkflowBoard', 'getAttorneyWorkspace', 'getSmartSearch']);
   return result;
 }
 
-async function saveInvoice(invoiceData) {
-  const result = await callGAS('saveInvoice', { invoiceData });
-  clearClientCache(['getInvoices', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
-  return result;
-}
-async function deleteInvoice(invoiceId) {
-  const result = await callGAS('deleteInvoice', { invoiceId });
-  clearClientCache(['getInvoices', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
-  return result;
-}
+async function saveInvoice(invoiceData) { return callGAS('saveInvoice', { invoiceData }); }
+async function deleteInvoice(invoiceId) { return callGAS('deleteInvoice', { invoiceId }); }
 
 function showGlobalError(msg) {
   let el = document.getElementById('global-error');
@@ -577,6 +629,10 @@ window.API = {
   callGASPublic,
   clerkLogin,
   getUserInfo,
+  getStreamAuth,
+  ensureStreamUsers,
+  clearStreamChannel,
+  deleteStreamMessage,
   getDashboard,
   getDashboardSummary,
   getDashboardDetails,
@@ -609,6 +665,7 @@ window.API = {
   getExpenseClaims,
   reviewExpenseClaim,
   getNotifications,
+  sendAnnouncement,
   markNotificationRead,
   deleteNotification,
   clearNotifications,
@@ -640,7 +697,8 @@ window.API = {
   markInvoicePaid,
   updateInvoicePayment,
   sendInvoice,
-  getUsers, saveUser, impersonateUser, stopImpersonation, deleteUser,
+  getUsers, saveUser, deleteUser,
+  impersonateUser,
   getClients, getAccessibleClients, saveClient, deleteClient,
   saveCase, deleteCase,
   bulkUpdateCases,
