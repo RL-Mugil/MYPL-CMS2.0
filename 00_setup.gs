@@ -54,10 +54,19 @@ var CONFIG = {
       name: "INVOICE_DATABASE",
       folder: "04_INVOICE_SYSTEM",
       headers: [
-        "INVOICE_ID", "CLIENT_ID", "CLIENT_NAME", "CASE_ID", "INVOICE_DATE",
-        "DUE_DATE", "SERVICE_TYPE", "DESCRIPTION", "AMOUNT", "GST_RATE",
-        "GST_AMOUNT", "TOTAL", "PAYMENT_STATUS", "PAYMENT_DATE",
-        "PAYMENT_MODE", "INVOICE_PDF_LINK", "ORG_ID", "NOTES"
+        "Client Manager", "Docket Number", "Docket# [Invoice UIN]", "Invoice Date",
+        "Tax Invoice Date", "Tax Serial Number", "Tax Invoice Number",
+        "Client Reference", "ClientCode", "Invention#", "Patent Office",
+        "First Inventor", "Title Identfication (Only key words, Enter in lower case}",
+        "Entity Status", "PO Application # e.g., US 15339876", "Main ServiceCode",
+        "Service Code 2", "Service Code 3",
+        "Additional information on service (Do not repeat what is in code description)",
+        "State of Supply", "Name of Client", "POFeeAck", "POFee", "ServFee",
+        "TAX_TYPE", "IGST", "SGST", "CGST", "Expenses", "InvAmount",
+        "Amount due", "Attorney Fee", "Consultant fee", "Referral fee",
+        "Net Revenue", "PAYMENT_STATUS", "PAYMENT_DATE", "PAYMENT_MODE",
+        "PAYMENT_AMOUNT", "INVOICE_PDF_LINK", "CLIENT_ID", "CLIENT_NAME",
+        "CASE_ID", "ORG_ID", "NOTES", "INVOICE_ID"
       ]
     },
     USERS: {
@@ -517,4 +526,10 @@ function hashPassword_(password) {
     var v = (byte < 0) ? byte + 256 : byte;
     return ("0" + v.toString(16)).slice(-2);
   }).join("");
+}
+
+function updateInvoiceHeadersOnly() {
+  var sheet = getSheet_("INVOICE");
+  ensureHeaders_(sheet, CONFIG.SHEETS.INVOICE.headers);
+  SpreadsheetApp.getUi().alert("INVOICE headers updated.");
 }

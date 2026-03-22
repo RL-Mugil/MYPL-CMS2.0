@@ -266,7 +266,13 @@ function getPortalData(action, params) {
         return changePassword(params.token, params.oldPassword, params.newPassword);
       case "markInvoicePaid":
         if (!canViewFinance_(userRole) || !hasRoleAtLeast_(getEffectiveRoles_(userRole), "Admin")) return { error: "Access denied. Admin only." };
-        return updatePaymentStatus(params.invoiceId, "Paid", new Date(), "Portal Admin (Manual)");
+        return updatePaymentStatus(params.invoiceId, "Paid", new Date(), "Portal Admin");
+      case "updateInvoicePayment":
+        if (!canViewFinance_(userRole) || !hasRoleAtLeast_(getEffectiveRoles_(userRole), "Admin")) return { error: "Access denied. Admin only." };
+        return updateInvoicePayment_(params.invoiceId, params.paymentData || {});
+      case "sendInvoice":
+        if (!canViewFinance_(userRole) || !hasRoleAtLeast_(getEffectiveRoles_(userRole), "Admin")) return { error: "Access denied. Admin only." };
+        return sendInvoiceById_(params.invoiceId, params.email || "");
       
       // --- Management API (Admin Only) ---
       case "getUsers":
@@ -672,58 +678,21 @@ function deletePortalCase_(caseId) {
 }
 
 function savePortalInvoice_(invoiceData) {
-  if (invoiceData.INVOICE_ID) {
-    // Update
-    var sheet = getSheet_("INVOICE");
-    var data = sheet.getDataRange().getValues();
-    var headers = data[0];
-    for (var i = 1; i < data.length; i++) {
-      if (data[i][0] === invoiceData.INVOICE_ID) {
-        var keys = Object.keys(invoiceData);
-        for (var k = 0; k < keys.length; k++) {
-          var colIdx = headers.indexOf(keys[k]);
-          if (colIdx > 0) { // skip ID
-            var val = invoiceData[keys[k]];
-            sheet.getRange(i + 1, colIdx + 1).setValue(val);
-          }
-        }
-        clearPortalCaches_(["invoices", "dashboard", "dashboardSummary", "dashboardDetails"]);
-        return { success: true, message: "Invoice updated successfully" };
-      }
-    }
-    return { error: "Invoice not found" };
-  } else {
-    // Create new
-    var res = generateInvoice({
-      clientId: invoiceData.CLIENT_ID,
-      caseId: invoiceData.CASE_ID,
-      amount: invoiceData.AMOUNT,
-      gstRate: invoiceData.GST_RATE,
-      serviceType: invoiceData.SERVICE_TYPE,
-      description: invoiceData.DESCRIPTION,
-      notes: invoiceData.NOTES
-    });
-    if(res.success) {
-      clearPortalCaches_(["invoices", "dashboard", "dashboardSummary", "dashboardDetails"]);
-      return { success: true, message: "Invoice generated successfully" };
-    }
-    return res;
+  var result = upsertCompanyInvoice_(invoiceData || {});
+  if (result && result.success) {
+    clearPortalCaches_(["invoices", "dashboard", "dashboardSummary", "dashboardDetails"]);
   }
+  return result;
 }
 
 function deletePortalInvoice_(invoiceId) {
-  var sheet = getSheet_("INVOICE");
-  var data = sheet.getDataRange().getValues();
-  var statusCol = data[0].indexOf("PAYMENT_STATUS");
-  if (statusCol === -1) statusCol = 12;
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === invoiceId) {
-      sheet.getRange(i + 1, statusCol + 1).setValue("Deleted");
-      clearPortalCaches_(["invoices", "dashboard", "dashboardSummary", "dashboardDetails"]);
-      return { success: true, message: "Invoice deleted" };
-    }
-  }
-  return { error: "Invoice not found" };
+  var existing = getInvoiceById_(invoiceId);
+  if (!existing) return { error: "Invoice not found" };
+  var ok = updateRecordById_("INVOICE", "INVOICE_ID", existing.INVOICE_ID, {
+    PAYMENT_STATUS: "Deleted"
+  });
+  if (ok) clearPortalCaches_(["invoices", "dashboard", "dashboardSummary", "dashboardDetails"]);
+  return ok ? { success: true, message: "Invoice deleted" } : { error: "Invoice not found" };
 }
 
 // ── Register User Dialog (Admin) ────────────────────────────
@@ -924,12 +893,12 @@ function getPortalDashboard_(email, userRole, filters) {
   var pendingInvoicesList = [];
   if (Array.isArray(invoices) && invoices.length > 0) {
     invoices.forEach(function(inv) {
-      if (inv && inv.PAYMENT_STATUS !== "Paid") {
-        var invDate = inv.INVOICE_DATE ? new Date(inv.INVOICE_DATE) : new Date(0);
+      if (inv && isInvoiceOutstanding_(inv)) {
+        var invDate = getInvoiceDateValue_(inv) ? new Date(getInvoiceDateValue_(inv)) : new Date(0);
         pendingInvoicesList.push({
-          docket: inv.INVOICE_ID,
+          docket: getInvoiceDisplayNumber_(inv),
           dateStr: isNaN(invDate.getTime()) ? "-" : Utilities.formatDate(invDate, Session.getScriptTimeZone(), "dd MMM yy"),
-          amount: parseFloat(inv.TOTAL) || 0,
+          amount: getInvoiceAmountDueValue_(inv),
           rawDate: invDate.getTime()
         });
       }
@@ -987,7 +956,7 @@ function buildDashboardSummaryPayload_(userRole, data) {
   });
 
   var pendingInvoicesCount = invoices.filter(function(inv) {
-    return inv && inv.PAYMENT_STATUS !== "Paid";
+    return inv && isInvoiceOutstanding_(inv);
   }).length;
 
   return {
@@ -1089,12 +1058,13 @@ function buildDashboardDetailsPayload_(data) {
   recentActiveCases.sort(function(a, b) { return b.rawDate - a.rawDate; });
 
   invoices.forEach(function(inv) {
-    if (inv && inv.PAYMENT_STATUS !== "Paid") {
-      var invDate = inv.INVOICE_DATE ? new Date(inv.INVOICE_DATE) : new Date(0);
+    if (inv && isInvoiceOutstanding_(inv)) {
+      var invDateValue = getInvoiceDateValue_(inv);
+      var invDate = invDateValue ? new Date(invDateValue) : new Date(0);
       pendingInvoicesList.push({
-        docket: inv.INVOICE_ID,
+        docket: getInvoiceDisplayNumber_(inv),
         dateStr: isNaN(invDate.getTime()) ? "-" : Utilities.formatDate(invDate, Session.getScriptTimeZone(), "dd MMM yy"),
-        amount: parseFloat(inv.TOTAL) || 0,
+        amount: getInvoiceAmountDueValue_(inv),
         rawDate: invDate.getTime()
       });
     }
@@ -1201,6 +1171,39 @@ function getPortalCasesPage_(email, userRole, filters, limit, offset) {
     nextOffset: safeOffset + items.length,
     hasMore: (safeOffset + items.length) < total
   }), 60);
+}
+
+function getInvoiceDateValue_(invoice) {
+  return invoice["Invoice Date"] || invoice["Tax Invoice Date"] || invoice.INVOICE_DATE || "";
+}
+
+function getInvoiceDisplayNumber_(invoice) {
+  return invoice["Docket# [Invoice UIN]"] || invoice["Tax Invoice Number"] || invoice.INVOICE_ID || "";
+}
+
+function getInvoiceClientCode_(invoice) {
+  return invoice.ClientCode || invoice.CLIENT_ID || "";
+}
+
+function getInvoiceServiceSummary_(invoice) {
+  return [
+    invoice["Main ServiceCode"],
+    invoice["Service Code 2"],
+    invoice["Service Code 3"]
+  ].filter(function(item) { return !!String(item || "").trim(); }).join(" / ");
+}
+
+function getInvoiceTotalValue_(invoice) {
+  return parseFloat(invoice.InvAmount || invoice.TOTAL || 0) || 0;
+}
+
+function getInvoiceAmountDueValue_(invoice) {
+  if (invoice.hasOwnProperty("Amount due")) return parseFloat(invoice["Amount due"] || 0) || 0;
+  return String(invoice.PAYMENT_STATUS || "") === "Paid" ? 0 : getInvoiceTotalValue_(invoice);
+}
+
+function isInvoiceOutstanding_(invoice) {
+  return String(invoice.PAYMENT_STATUS || "") !== "Paid" && String(invoice.PAYMENT_STATUS || "") !== "Deleted" && getInvoiceAmountDueValue_(invoice) > 0;
 }
 
 function getPortalInvoices_(email, userRole) {

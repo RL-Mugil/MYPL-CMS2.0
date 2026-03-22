@@ -34,7 +34,14 @@ function getRecords_(configKey) {
   var headers = data[0];
   var records = [];
   for (var i = 1; i < data.length; i++) {
-    if (!data[i][0]) continue;
+    if (configKey === "INVOICE") {
+      var hasInvoiceData = data[i].some(function(cell) {
+        return String(cell === null || cell === undefined ? "" : cell).trim() !== "";
+      });
+      if (!hasInvoiceData) continue;
+    } else if (!data[i][0]) {
+      continue;
+    }
     var row = {};
     for (var j = 0; j < headers.length; j++) {
       row[headers[j]] = data[i][j];
@@ -455,7 +462,9 @@ function getGalvanizerQueue_(session, filters) {
 
 function getAccessibleInvoicesForUser_(session) {
   if (!canViewFinance_(session)) return [];
-  var invoices = getRecords_("INVOICE");
+  var invoices = getRecords_("INVOICE").filter(function(invoice) {
+    return String(invoice.PAYMENT_STATUS || "") !== "Deleted";
+  });
   if (canManageAllData_(session)) return invoices;
 
   var clientIds = getAccessibleClientIdsForUser_(session);
