@@ -172,17 +172,8 @@ async function resolveAuthSession(allowedRoles) {
   const Clerk = await initClerk();
 
   const existing = getGasSession();
-  if (existing && existing.token) {
-    const live = await fetchSessionInfo(existing.token);
-    if (live) {
-      const hydrated = normalizePortalSession({ ...existing, ...live, token: existing.token });
-      setGasSession(hydrated);
-      if (sessionAllowsRoles(hydrated, allowedRoles)) {
-        return hydrated;
-      }
-    } else {
-      clearGasSession();
-    }
+  if (existing && existing.token && sessionAllowsRoles(existing, allowedRoles)) {
+    return existing;
   }
 
   if (!Clerk.user) return null;
