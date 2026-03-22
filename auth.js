@@ -168,12 +168,32 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function withTimeout(promise, ms) {
+  let timeoutId = null;
+  const timeoutPromise = new Promise((resolve) => {
+    timeoutId = setTimeout(() => resolve(null), ms);
+  });
+  const result = await Promise.race([promise, timeoutPromise]);
+  if (timeoutId) clearTimeout(timeoutId);
+  return result;
+}
+
+async function enrichSessionIfNeeded(session) {
+  if (!session || !session.token) return session;
+  if (session.role && session.name && session.userId) return session;
+  const live = await withTimeout(fetchSessionInfo(session.token), 1200);
+  if (!live) return session;
+  const hydrated = normalizePortalSession({ ...session, ...live, token: session.token });
+  setGasSession(hydrated);
+  return hydrated;
+}
+
 async function resolveAuthSession(allowedRoles) {
   const Clerk = await initClerk();
 
   const existing = getGasSession();
   if (existing && existing.token && sessionAllowsRoles(existing, allowedRoles)) {
-    return existing;
+    return enrichSessionIfNeeded(existing);
   }
 
   if (!Clerk.user) return null;
@@ -183,15 +203,16 @@ async function resolveAuthSession(allowedRoles) {
 
   const current = getGasSession();
   if (current && sessionMatchesClerkIdentity(current, email) && sessionAllowsRoles(current, allowedRoles)) {
-    return current;
+    return enrichSessionIfNeeded(current);
   }
 
   try {
     const result = await window.API.clerkLogin(email);
     if (!result.success) return null;
 
-    const session = normalizePortalSession({ ...result, email: result.email || email });
+    let session = normalizePortalSession({ ...result, email: result.email || email });
     setGasSession(session);
+    session = await enrichSessionIfNeeded(session);
 
     if (!sessionAllowsRoles(session, allowedRoles)) {
       return null;
