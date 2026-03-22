@@ -5320,6 +5320,7 @@ async function saveInvoice(existingId) {
     CASE_ID: document.getElementById('mi-case-id').value.trim(),
     ORG_ID: selectedClient.ORG_ID || '',
     NOTES: document.getElementById('mi-notes').value.trim(),
+    ORIGINAL_INVOICE_KEY: existingId || '',
   };
   try {
     const r = await API.saveInvoice(data);
