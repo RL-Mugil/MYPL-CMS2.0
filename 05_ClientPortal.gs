@@ -130,17 +130,33 @@ function portalLogin(email, password) {
     return { success: false, message: "Incorrect password." };
   }
 
-  var token = Utilities.getUuid();
-  var cache = CacheService.getScriptCache();
-  cache.put("session_" + token, JSON.stringify(buildSessionFromUser_(user)), 21600);
+  var session = buildSessionFromUser_(user);
+  var token = createPortalSessionToken_(session);
   logActivity_("LOGIN", "USER", user.USER_ID, "Login from portal");
 
-  return {
-    success: true,
-    token: token,
-    role: normalizeRole_(user.ROLE),
-    name: user.FULL_NAME || user.EMAIL
-  };
+  return buildPortalSessionResponse_(token, session);
+}
+
+function hydrateValidatedSession_(session) {
+  if (!session || !session.email) return session;
+
+  var user = getUserRecordByEmail_(session.email);
+  if (!user || String(user.STATUS || "") !== "Active") {
+    return null;
+  }
+
+  var rebuilt = buildSessionFromUser_(user);
+
+  if (session.isImpersonating) {
+    rebuilt.isImpersonating = true;
+    rebuilt.originalEmail = session.originalEmail || "";
+    rebuilt.originalUserId = session.originalUserId || "";
+    rebuilt.originalName = session.originalName || "";
+    rebuilt.impersonatedByUserId = session.impersonatedByUserId || "";
+    rebuilt.impersonatedByEmail = session.impersonatedByEmail || "";
+  }
+
+  return rebuilt;
 }
 
 /**
@@ -151,7 +167,19 @@ function validateSession(token) {
   var cache = CacheService.getScriptCache();
   var sessionData = cache.get("session_" + token);
   if (!sessionData) return null;
-  return JSON.parse(sessionData);
+  try {
+    var session = JSON.parse(sessionData);
+    var hydrated = hydrateValidatedSession_(session);
+    if (!hydrated) {
+      cache.remove("session_" + token);
+      return null;
+    }
+    cache.put("session_" + token, JSON.stringify(hydrated), 21600);
+    return hydrated;
+  } catch (e) {
+    cache.remove("session_" + token);
+    return null;
+  }
 }
 
 /**
@@ -189,6 +217,92 @@ function changePassword(token, oldPassword, newPassword) {
 
   updateRecordById_("USERS", "USER_ID", user.USER_ID, { PASSWORD_HASH: newHash });
   return { success: true, message: "Password changed successfully." };
+}
+
+function createPortalSessionToken_(session) {
+  var token = Utilities.getUuid();
+  CacheService.getScriptCache().put("session_" + token, JSON.stringify(session), 21600);
+  return token;
+}
+
+function buildPortalSessionResponse_(token, session) {
+  return {
+    success: true,
+    token: token,
+    email: session.email || "",
+    role: session.role || "",
+    additionalRoles: session.additionalRoles || "",
+    name: session.name || session.email || "",
+    clientId: session.clientId || "",
+    orgId: session.orgId || "",
+    userId: session.userId || "",
+    canViewFinance: session.canViewFinance || "",
+    reportsTo: session.reportsTo || "",
+    isImpersonating: !!session.isImpersonating,
+    originalEmail: session.originalEmail || "",
+    originalUserId: session.originalUserId || "",
+    originalName: session.originalName || "",
+    impersonatedByUserId: session.impersonatedByUserId || "",
+    impersonatedByEmail: session.impersonatedByEmail || ""
+  };
+}
+
+function canImpersonateSession_(session) {
+  if (!session) return false;
+  var userId = String(session.userId || "").toUpperCase();
+  var email = String(session.email || "").trim().toLowerCase();
+  return userId === "USR001" || email === "mugilvannan@ipstrategy.com";
+}
+
+function buildImpersonatedSession_(actorSession, targetUser) {
+  var session = buildSessionFromUser_(targetUser);
+  session.isImpersonating = true;
+  session.originalEmail = actorSession.originalEmail || actorSession.email || "";
+  session.originalUserId = actorSession.originalUserId || actorSession.userId || "";
+  session.originalName = actorSession.originalName || actorSession.name || actorSession.email || "";
+  session.impersonatedByUserId = actorSession.userId || "";
+  session.impersonatedByEmail = actorSession.email || "";
+  return session;
+}
+
+function impersonatePortalUser_(session, targetUserId) {
+  if (!canImpersonateSession_(session)) return { error: "Access denied." };
+  if (!targetUserId) return { error: "Target user is required." };
+
+  var targetUser = getUserRecordById_(targetUserId);
+  if (!targetUser || String(targetUser.STATUS || "") !== "Active") {
+    return { error: "Target user not found or inactive." };
+  }
+
+  var impersonatedSession = buildImpersonatedSession_(session, targetUser);
+  var token = createPortalSessionToken_(impersonatedSession);
+  logActivity_("IMPERSONATE", "USER", targetUser.USER_ID, "Impersonated by " + (session.userId || session.email || "unknown"));
+  return buildPortalSessionResponse_(token, impersonatedSession);
+}
+
+function stopPortalImpersonation_(session) {
+  if (!session || !session.isImpersonating) {
+    return { error: "No impersonation session found." };
+  }
+
+  var originalUser = null;
+  if (session.originalUserId) {
+    originalUser = getUserRecordById_(session.originalUserId);
+  }
+  if (!originalUser && session.originalEmail) {
+    originalUser = getUserRecordByEmail_(session.originalEmail);
+  }
+  if (!originalUser || String(originalUser.STATUS || "") !== "Active") {
+    return { error: "Original user not found or inactive." };
+  }
+  if (String(originalUser.USER_ID || "").toUpperCase() !== "USR001") {
+    return { error: "Access denied." };
+  }
+
+  var restoredSession = buildSessionFromUser_(originalUser);
+  var token = createPortalSessionToken_(restoredSession);
+  logActivity_("STOP_IMPERSONATION", "USER", originalUser.USER_ID, "Stopped impersonating " + (session.userId || session.email || "unknown"));
+  return buildPortalSessionResponse_(token, restoredSession);
 }
 
 /**
@@ -257,13 +371,26 @@ function getPortalData(action, params) {
         return {
           email: session.email,
           role: userRole.role,
+          additionalRoles: userRole.additionalRoles || "",
           name: userRole.name,
           clientId: userRole.clientId || "",
           orgId: userRole.orgId || "",
-          canViewFinance: canViewFinance_(userRole)
+          userId: userRole.userId || "",
+          canViewFinance: canViewFinance_(userRole),
+          reportsTo: userRole.reportsTo || "",
+          isImpersonating: !!userRole.isImpersonating,
+          originalEmail: userRole.originalEmail || "",
+          originalUserId: userRole.originalUserId || "",
+          originalName: userRole.originalName || "",
+          impersonatedByUserId: userRole.impersonatedByUserId || "",
+          impersonatedByEmail: userRole.impersonatedByEmail || ""
         };
       case "changePassword":
         return changePassword(params.token, params.oldPassword, params.newPassword);
+      case "impersonateUser":
+        return impersonatePortalUser_(userRole, params.userId || params.targetUserId);
+      case "stopImpersonation":
+        return stopPortalImpersonation_(userRole);
       case "markInvoicePaid":
         if (!canViewFinance_(userRole) || !hasRoleAtLeast_(getEffectiveRoles_(userRole), "Admin")) return { error: "Access denied. Admin only." };
         return updatePaymentStatus(params.invoiceId, "Paid", new Date(), "Portal Admin");
@@ -2398,18 +2525,12 @@ function clerkLogin_(email) {
 
   var user = getUserRecordByEmail_(email);
   if (user && String(user.STATUS || "") === "Active") {
-    var token = Utilities.getUuid();
-    var cache = CacheService.getScriptCache();
-    cache.put('session_' + token, JSON.stringify(buildSessionFromUser_(user)), 21600);
+    var session = buildSessionFromUser_(user);
+    var token = createPortalSessionToken_(session);
 
     logActivity_('CLERK_LOGIN', 'USER', user.USER_ID, 'Login via Clerk/GitHub Pages');
 
-    return {
-      success: true,
-      token: token,
-      role: normalizeRole_(user.ROLE),
-      name: user.FULL_NAME || user.EMAIL
-    };
+    return buildPortalSessionResponse_(token, session);
   }
 
   return { success: false, message: 'Email not found or account inactive.' };

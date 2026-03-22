@@ -336,10 +336,28 @@ function isImpersonatingSession() {
   return !!SESSION?.isImpersonating;
 }
 
+function getSessionDisplayName(session) {
+  const baseName = session?.name || session?.email || session?.originalName || 'User';
+  if (session?.isImpersonating && session?.originalName) {
+    return `${baseName} (as ${session.originalName})`;
+  }
+  return baseName;
+}
+
 async function hydrateSessionFromBackend() {
   if (!SESSION?.token) return SESSION;
   try {
-    const live = await API.getUserInfo();
+    const apiBase = (window.APP_CONFIG && window.APP_CONFIG.apiBase) || '';
+    if (!apiBase) return SESSION;
+    const response = await fetch(apiBase, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'getUserInfo', params: { token: SESSION.token } }),
+      redirect: 'follow',
+    });
+    if (!response.ok) return SESSION;
+    const live = await response.json();
+    if (live?.sessionExpired) return SESSION;
     if (live && !live.error) {
       SESSION = { ...SESSION, ...live, token: SESSION.token };
       Auth.setGasSession(SESSION);
@@ -377,10 +395,11 @@ async function hydrateSessionFromBackend() {
   }
 
   // Populate sidebar user info
-  const initials = (SESSION.name || 'U').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+  const displayName = getSessionDisplayName(SESSION);
+  const initials = (displayName || 'U').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('sidebar-avatar').textContent = initials;
-  document.getElementById('sidebar-name').textContent = SESSION.name || SESSION.email;
-  document.getElementById('sidebar-role').textContent = SESSION.role;
+  document.getElementById('sidebar-name').textContent = displayName;
+  document.getElementById('sidebar-role').textContent = SESSION.role || 'User';
   applySidebarState();
   applyNavSectionState();
   await populateCircleNav();
@@ -527,7 +546,7 @@ async function startImpersonation(userId) {
       window.location.href = 'client-portal.html';
       return;
     }
-    window.location.reload();
+    window.location.href = 'dashboard.html';
   } catch (e) {
     alert('Error: ' + e.message);
   }

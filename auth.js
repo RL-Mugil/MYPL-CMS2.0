@@ -202,8 +202,14 @@ async function resolveAuthSession(allowedRoles) {
   if (!email) return null;
 
   const current = getGasSession();
-  if (current && sessionMatchesClerkIdentity(current, email) && sessionAllowsRoles(current, allowedRoles)) {
-    return enrichSessionIfNeeded(current);
+  if (current && current.isImpersonating && sessionMatchesClerkIdentity(current, email)) {
+    return null;
+  }
+  if (current && sessionMatchesClerkIdentity(current, email)) {
+    if (sessionAllowsRoles(current, allowedRoles)) {
+      return enrichSessionIfNeeded(current);
+    }
+    return null;
   }
 
   try {

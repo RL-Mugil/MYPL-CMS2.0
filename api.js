@@ -190,15 +190,17 @@ async function requestJson(payload, context) {
   }
 }
 
-async function callGAS(action, params = {}) {
+async function callGAS(action, params = {}, options = {}) {
   const session = window.Auth.getGasSession();
   const token = session?.token || null;
   const data = await requestJson({ action, params: { ...params, token } }, `callGAS:${action}`);
 
   if (data.sessionExpired) {
-    window.Auth.clearGasSession();
-    showGlobalError('Session expired. Please sign in again.');
-    setTimeout(() => location.reload(), 2000);
+    if (!options.suppressSessionExpiredHandling) {
+      window.Auth.clearGasSession();
+      showGlobalError('Session expired. Please sign in again.');
+      setTimeout(() => location.reload(), 2000);
+    }
     throw new Error('session_expired');
   }
 
@@ -258,7 +260,7 @@ async function clerkLogin(email) {
 }
 
 async function getUserInfo() {
-  return callGAS('getUserInfo', {});
+  return callGAS('getUserInfo', {}, { suppressSessionExpiredHandling: true });
 }
 
 async function getDashboard(filters = {}) { return callGASCached('getDashboard', { filters }, 30000); }

@@ -158,9 +158,10 @@ const STATE = {
   }
   await hydrateSessionFromBackend();
 
-  const initials = (SESSION.name || 'C').split(' ').map(function(part) { return part ? part[0] : ''; }).join('').slice(0, 2).toUpperCase();
+  const displayName = getSessionDisplayName(SESSION);
+  const initials = (displayName || 'C').split(' ').map(function(part) { return part ? part[0] : ''; }).join('').slice(0, 2).toUpperCase();
   document.getElementById('sidebar-avatar').textContent = initials || 'C';
-  document.getElementById('sidebar-name').textContent = SESSION.name || SESSION.email || 'Client';
+  document.getElementById('sidebar-name').textContent = displayName;
   document.getElementById('sidebar-role').textContent = SESSION.role || 'Client';
 
   await ensureAccessibleClientsLoaded();
@@ -238,10 +239,28 @@ function setTopbarActions(html) {
   document.getElementById('topbar-actions').innerHTML = impersonationControls + (html || '');
 }
 
+function getSessionDisplayName(session) {
+  var baseName = (session && (session.name || session.email || session.originalName)) || 'Client';
+  if (session && session.isImpersonating && session.originalName) {
+    return baseName + ' (as ' + session.originalName + ')';
+  }
+  return baseName;
+}
+
 async function hydrateSessionFromBackend() {
   if (!SESSION || !SESSION.token) return SESSION;
   try {
-    var live = await API.getUserInfo();
+    var apiBase = (window.APP_CONFIG && window.APP_CONFIG.apiBase) || '';
+    if (!apiBase) return SESSION;
+    var response = await fetch(apiBase, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'getUserInfo', params: { token: SESSION.token } }),
+      redirect: 'follow'
+    });
+    if (!response.ok) return SESSION;
+    var live = await response.json();
+    if (live && live.sessionExpired) return SESSION;
     if (live && !live.error) {
       SESSION = Object.assign({}, SESSION, live, { token: SESSION.token });
       Auth.setGasSession(SESSION);
