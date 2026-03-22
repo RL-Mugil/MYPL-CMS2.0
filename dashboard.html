@@ -327,7 +327,9 @@ function hasClientAccessForSession(session) {
 }
 
 function canImpersonateUsers() {
-  return String(SESSION?.userId || '').toUpperCase() === 'USR001';
+  const userId = String(SESSION?.userId || '').toUpperCase();
+  const email = String(SESSION?.email || '').trim().toLowerCase();
+  return userId === 'USR001' || email === 'mugilvannan@ipstrategy.com';
 }
 
 function isImpersonatingSession() {
