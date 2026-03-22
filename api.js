@@ -413,7 +413,21 @@ async function submitContact(subject, caseId, message) {
 }
 
 async function markInvoicePaid(invoiceId) {
-  return callGAS('markInvoicePaid', { invoiceId });
+  const result = await callGAS('markInvoicePaid', { invoiceId });
+  clearClientCache(['getInvoices', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  return result;
+}
+
+async function updateInvoicePayment(invoiceId, paymentData) {
+  const result = await callGAS('updateInvoicePayment', { invoiceId, paymentData });
+  clearClientCache(['getInvoices', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  return result;
+}
+
+async function sendInvoice(invoiceId, email = '') {
+  const result = await callGAS('sendInvoice', { invoiceId, email });
+  clearClientCache(['getInvoices', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  return result;
 }
 
 async function getUsers(filters = {}) {
@@ -467,8 +481,16 @@ async function deleteCase(caseId) {
   return result;
 }
 
-async function saveInvoice(invoiceData) { return callGAS('saveInvoice', { invoiceData }); }
-async function deleteInvoice(invoiceId) { return callGAS('deleteInvoice', { invoiceId }); }
+async function saveInvoice(invoiceData) {
+  const result = await callGAS('saveInvoice', { invoiceData });
+  clearClientCache(['getInvoices', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  return result;
+}
+async function deleteInvoice(invoiceId) {
+  const result = await callGAS('deleteInvoice', { invoiceId });
+  clearClientCache(['getInvoices', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  return result;
+}
 
 function showGlobalError(msg) {
   let el = document.getElementById('global-error');
@@ -584,6 +606,8 @@ window.API = {
   getGalvanizerCommandCenter,
   submitContact,
   markInvoicePaid,
+  updateInvoicePayment,
+  sendInvoice,
   getUsers, saveUser, deleteUser,
   getClients, getAccessibleClients, saveClient, deleteClient,
   saveCase, deleteCase,

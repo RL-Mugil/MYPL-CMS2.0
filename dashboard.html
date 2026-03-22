@@ -511,13 +511,18 @@ function money(v) {
   const n = parseFloat(v) || 0;
   return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
+function safeHtmlText(value) {
+  return window.Safe && window.Safe.escapeHtml
+    ? window.Safe.escapeHtml(value == null ? '' : String(value))
+    : String(value == null ? '' : value);
+}
 function statusBadge(s) {
   const map = {
     'Filed': 'badge-filed', 'Granted': 'badge-granted',
     'Under Examination': 'badge-exam', 'Published': 'badge-exam',
     'Drafted': 'badge-drafted', 'Abandoned': 'badge-abandoned',
     'Lapsed': 'badge-abandoned', 'Refused': 'badge-abandoned',
-    'Paid': 'badge-paid', 'Unpaid': 'badge-unpaid',
+    'Paid': 'badge-paid', 'Unpaid': 'badge-unpaid', 'Partially Paid': 'badge-exam', 'Deleted': 'badge-abandoned',
     'Active': 'badge-active', 'Inactive': 'badge-inactive',
     'Admin': 'badge-admin', 'Attorney': 'badge-attorney', 'Client': 'badge-client',
   };
@@ -544,6 +549,13 @@ let CIRCLE_LOOKUP_CACHE = [];
 let ORG_LOOKUP_CACHE = [];
 let DASHBOARD_FILTER_OPEN = false;
 let DAILY_AUDIT_FILTER_OPEN = false;
+let FINANCE_STATE = {
+  items: [],
+  filters: { query: '', client: '', status: '', taxType: '', sort: 'date_desc' },
+  filtersOpen: false,
+  page: 1,
+  pageSize: 10,
+};
 
 async function ensureClientLookupLoaded() {
   if (CLIENT_LOOKUP_CACHE.length) return CLIENT_LOOKUP_CACHE;
@@ -1847,15 +1859,23 @@ async function loadFinance() {
     document.getElementById('page-content').innerHTML = err('Finance access is restricted for your role.');
     return;
   }
-  const canEdit = sessionHasRoleAtLeast('Admin');
-  if (canEdit) {
-    setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openInvoiceModal()">+ New Invoice</button>`);
-  } else {
-    setTopbarActions('');
+  try {
+    await ensureClientLookupLoaded();
+  } catch (e) {
+    try {
+      const accessibleClients = await API.getAccessibleClients();
+      CLIENT_LOOKUP_CACHE = Array.isArray(accessibleClients) ? accessibleClients : [];
+    } catch (inner) {}
   }
+  const canEdit = sessionHasRoleAtLeast('Admin');
+  setTopbarActions(`
+    <button class="btn btn-ghost btn-sm" onclick="toggleFinanceFilters()">${FINANCE_STATE.filtersOpen ? 'Hide Filters' : 'Filter'}</button>
+    ${canEdit ? '<button class="btn btn-primary btn-sm" onclick="openInvoiceModal()">+ New Invoice</button>' : ''}
+  `);
   try {
     const invoices = await API.getInvoices();
-    renderFinance(invoices, canEdit);
+    FINANCE_STATE.items = Array.isArray(invoices) ? invoices : [];
+    renderFinance();
   } catch(e) {
     showPageError('loadFinance', e);
   }
@@ -3775,6 +3795,733 @@ async function saveCaseLegacyV0(existingId) {
   } catch(e) {
     alert('Error: ' + e.message);
     btn.disabled = false; btn.textContent = 'Save Case';
+  }
+}
+
+function financeAmount(value) {
+  const amount = parseFloat(value) || 0;
+  return '\u20B9' + amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function financeNumber(value) {
+  const amount = parseFloat(String(value == null ? '' : value).replace(/,/g, '').replace(/[^\d.-]/g, '')) || 0;
+  return Math.round(amount * 100) / 100;
+}
+
+function financeRound(value) {
+  return Math.round((parseFloat(value) || 0) * 100) / 100;
+}
+
+function financeInvoiceVisibleId(invoice) {
+  return String(invoice?.['Docket# [Invoice UIN]'] || invoice?.['Tax Invoice Number'] || invoice?.INVOICE_ID || '').trim();
+}
+
+function financeInvoiceInternalId(invoice) {
+  return String(invoice?.INVOICE_ID || '').trim() || financeInvoiceVisibleId(invoice);
+}
+
+function financeInvoiceDate(invoice) {
+  return invoice?.['Invoice Date'] || invoice?.['Tax Invoice Date'] || invoice?.INVOICE_DATE || '';
+}
+
+function financeInvoiceClientCode(invoice) {
+  return String(invoice?.ClientCode || invoice?.CLIENT_ID || '').trim();
+}
+
+function financeInvoiceClientName(invoice) {
+  return String(invoice?.['Name of Client'] || invoice?.CLIENT_NAME || '').trim();
+}
+
+function financeInvoiceDocket(invoice) {
+  return String(invoice?.['Docket Number'] || invoice?.CASE_ID || '').trim();
+}
+
+function financeInvoiceService(invoice) {
+  return [
+    invoice?.['Main ServiceCode'],
+    invoice?.['Service Code 2'],
+    invoice?.['Service Code 3']
+  ].filter(Boolean).join(' / ');
+}
+
+function financeInvoiceTaxType(invoice) {
+  return String(invoice?.TAX_TYPE || 'IGST').trim() || 'IGST';
+}
+
+function financeInvoicePaymentAmount(invoice) {
+  return financeNumber(invoice?.PAYMENT_AMOUNT || 0);
+}
+
+function financeInvoiceTotal(invoice) {
+  return financeNumber(invoice?.InvAmount || invoice?.TOTAL || 0);
+}
+
+function financeInvoiceAmountDue(invoice) {
+  if (invoice && Object.prototype.hasOwnProperty.call(invoice, 'Amount due')) {
+    return financeNumber(invoice['Amount due']);
+  }
+  return Math.max(financeInvoiceTotal(invoice) - financeInvoicePaymentAmount(invoice), 0);
+}
+
+function financeInvoiceStatus(invoice) {
+  const status = String(invoice?.PAYMENT_STATUS || '').trim();
+  if (status) return status;
+  return financeInvoiceAmountDue(invoice) > 0 ? 'Unpaid' : 'Paid';
+}
+
+function financeInvoiceNetRevenue(invoice) {
+  return financeNumber(invoice?.['Net Revenue'] || 0);
+}
+
+function financeInvoiceSearchText(invoice) {
+  return [
+    financeInvoiceInternalId(invoice),
+    financeInvoiceVisibleId(invoice),
+    financeInvoiceClientCode(invoice),
+    financeInvoiceClientName(invoice),
+    financeInvoiceDocket(invoice),
+    financeInvoiceService(invoice),
+    invoice?.['Title Identfication (Only key words, Enter in lower case}'],
+    invoice?.['First Inventor'],
+    invoice?.['Patent Office'],
+    invoice?.['Tax Invoice Number'],
+    invoice?.['Client Reference'],
+    invoice?.NOTES
+  ].join(' ').toLowerCase();
+}
+
+function findFinanceInvoice(invoiceId) {
+  const lookup = String(invoiceId || '').trim();
+  return (FINANCE_STATE.items || []).find(invoice =>
+    financeInvoiceInternalId(invoice) === lookup || financeInvoiceVisibleId(invoice) === lookup
+  ) || null;
+}
+
+function toggleFinanceFilters() {
+  FINANCE_STATE.filtersOpen = !FINANCE_STATE.filtersOpen;
+  renderFinance();
+}
+
+function setFinanceFilter(key, value) {
+  FINANCE_STATE.filters[key] = value;
+  FINANCE_STATE.page = 1;
+  renderFinance();
+}
+
+function resetFinanceFilters() {
+  FINANCE_STATE.filters = { query: '', client: '', status: '', taxType: '', sort: 'date_desc' };
+  FINANCE_STATE.page = 1;
+  FINANCE_STATE.pageSize = 10;
+  renderFinance();
+}
+
+function setFinancePage(page) {
+  FINANCE_STATE.page = Math.max(1, parseInt(page, 10) || 1);
+  renderFinance();
+}
+
+function setFinancePageSize(value) {
+  FINANCE_STATE.pageSize = Math.max(1, parseInt(value, 10) || 10);
+  FINANCE_STATE.page = 1;
+  renderFinance();
+}
+
+function getFilteredFinanceItems() {
+  const filters = FINANCE_STATE.filters || {};
+  const query = String(filters.query || '').trim().toLowerCase();
+  const client = String(filters.client || '').trim().toUpperCase();
+  const status = String(filters.status || '').trim();
+  const taxType = String(filters.taxType || '').trim();
+  const sort = String(filters.sort || 'date_desc');
+
+  const items = (FINANCE_STATE.items || []).filter(invoice => {
+    if (financeInvoiceStatus(invoice) === 'Deleted') return false;
+    if (client && financeInvoiceClientCode(invoice).toUpperCase() !== client) return false;
+    if (status && financeInvoiceStatus(invoice) !== status) return false;
+    if (taxType && financeInvoiceTaxType(invoice) !== taxType) return false;
+    if (query && financeInvoiceSearchText(invoice).indexOf(query) === -1) return false;
+    return true;
+  });
+
+  items.sort((a, b) => {
+    if (sort === 'client_az') return financeInvoiceClientCode(a).localeCompare(financeInvoiceClientCode(b));
+    if (sort === 'client_za') return financeInvoiceClientCode(b).localeCompare(financeInvoiceClientCode(a));
+    if (sort === 'amount_asc') return financeInvoiceTotal(a) - financeInvoiceTotal(b);
+    if (sort === 'amount_desc') return financeInvoiceTotal(b) - financeInvoiceTotal(a);
+    if (sort === 'date_asc') return new Date(financeInvoiceDate(a) || 0) - new Date(financeInvoiceDate(b) || 0);
+    return new Date(financeInvoiceDate(b) || 0) - new Date(financeInvoiceDate(a) || 0);
+  });
+
+  return items;
+}
+
+async function loadFinance() {
+  destroyCharts();
+  if (!canAccessFinance()) {
+    document.getElementById('page-content').innerHTML = err('Finance access is restricted for your role.');
+    return;
+  }
+  try {
+    await ensureClientLookupLoaded();
+  } catch (e) {
+    try {
+      const accessibleClients = await API.getAccessibleClients();
+      CLIENT_LOOKUP_CACHE = Array.isArray(accessibleClients) ? accessibleClients : [];
+    } catch (inner) {}
+  }
+  const canEdit = sessionHasRoleAtLeast('Admin');
+  setTopbarActions(`
+    <button class="btn btn-ghost btn-sm" onclick="toggleFinanceFilters()">${FINANCE_STATE.filtersOpen ? 'Hide Filters' : 'Filter'}</button>
+    ${canEdit ? '<button class="btn btn-primary btn-sm" onclick="openInvoiceModal()">+ New Invoice</button>' : ''}
+  `);
+  try {
+    FINANCE_STATE.items = await API.getInvoices();
+    if (!Array.isArray(FINANCE_STATE.items)) FINANCE_STATE.items = [];
+    renderFinance();
+  } catch (e) {
+    showPageError('loadFinance', e);
+  }
+}
+
+function renderFinance() {
+  const canEdit = sessionHasRoleAtLeast('Admin');
+  const items = getFilteredFinanceItems();
+  const pageSize = FINANCE_STATE.pageSize || 10;
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const currentPage = Math.min(FINANCE_STATE.page || 1, totalPages);
+  FINANCE_STATE.page = currentPage;
+  const start = (currentPage - 1) * pageSize;
+  const visible = items.slice(start, start + pageSize);
+  const pendingCount = items.filter(invoice => financeInvoiceAmountDue(invoice) > 0).length;
+  const paidCount = items.filter(invoice => financeInvoiceStatus(invoice) === 'Paid').length;
+  const pendingAmount = items.reduce((sum, invoice) => sum + financeInvoiceAmountDue(invoice), 0);
+  const paidAmount = items.reduce((sum, invoice) => sum + financeInvoicePaymentAmount(invoice), 0);
+  const clientOptions = buildClientOptions(CLIENT_LOOKUP_CACHE || []);
+  const pageOptions = [10, 20, 50].map(option => `<option value="${option}"${pageSize === option ? ' selected' : ''}>${option} rows per page</option>`).join('');
+  const rows = visible.map(invoice => {
+    const invoiceId = financeInvoiceInternalId(invoice);
+    const encodedInvoice = encodeURIComponent(JSON.stringify(invoice));
+    return `<tr>
+      <td class="text-em">${safeHtmlText(financeInvoiceVisibleId(invoice) || invoiceId)}</td>
+      <td>${safeHtmlText(fmt(financeInvoiceDate(invoice)))}</td>
+      <td>${safeHtmlText(financeInvoiceClientCode(invoice) || '-')}</td>
+      <td>
+        <div class="text-em">${safeHtmlText(financeInvoiceClientName(invoice) || '-')}</div>
+        <div class="finance-table-muted">${safeHtmlText(invoice['Client Reference'] || '')}</div>
+      </td>
+      <td>${safeHtmlText(financeInvoiceDocket(invoice) || '-')}</td>
+      <td>
+        <div class="text-em">${safeHtmlText(financeInvoiceService(invoice) || '-')}</div>
+        <div class="finance-table-muted">${safeHtmlText(financeInvoiceTaxType(invoice))}</div>
+      </td>
+      <td>${safeHtmlText(financeAmount(financeInvoiceTotal(invoice)))}</td>
+      <td>${safeHtmlText(financeAmount(financeInvoiceAmountDue(invoice)))}</td>
+      <td>${statusBadge(financeInvoiceStatus(invoice))}</td>
+      <td>
+        <div class="finance-actions">
+          <button class="btn btn-ghost btn-sm" onclick="previewInvoice('${invoiceId}')">Preview</button>
+          ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="sendInvoiceAction('${invoiceId}')">Send</button>` : ''}
+          ${canEdit ? `<button class="btn btn-success btn-sm" onclick="openInvoicePaymentModal('${invoiceId}')">Payment</button>` : ''}
+          ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="openInvoiceModal('${encodedInvoice}')">Edit</button>` : ''}
+          ${canEdit ? `<button class="btn btn-danger btn-sm" onclick="deleteItem('Invoice','${invoiceId}')">Del</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const pagerButtons = Array.from({ length: totalPages }, (_, index) => {
+    const page = index + 1;
+    const cls = page === currentPage ? 'btn-primary' : 'btn-ghost';
+    return `<button class="btn ${cls} btn-sm" onclick="setFinancePage(${page})">${page}</button>`;
+  }).join('');
+
+  document.getElementById('page-content').innerHTML = `
+    <div class="page">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total Invoices</div><div class="stat-value">${items.length}</div></div>
+        <div class="stat-card accent-rose"><div class="stat-label">Pending Count</div><div class="stat-value">${pendingCount}</div></div>
+        <div class="stat-card accent-emerald"><div class="stat-label">Paid Count</div><div class="stat-value">${paidCount}</div></div>
+        <div class="stat-card accent-amber finance-stat-amount"><div class="stat-label">Pending Amount</div><div class="stat-value">${safeHtmlText(financeAmount(pendingAmount))}</div></div>
+        <div class="stat-card accent-emerald finance-stat-amount"><div class="stat-label">Paid Amount</div><div class="stat-value">${safeHtmlText(financeAmount(paidAmount))}</div></div>
+      </div>
+      <div class="card filter-panel">
+        <div class="filter-toggle-row"><button class="btn btn-ghost btn-sm" onclick="toggleFinanceFilters()">${FINANCE_STATE.filtersOpen ? 'Hide Filters' : 'Show Filters'}</button></div>
+        <div class="filter-drawer ${FINANCE_STATE.filtersOpen ? 'open' : ''}">
+          <div class="filter-head">
+            <div class="card-title">Invoice Filters</div>
+            <div class="filter-actions"><button class="btn btn-ghost btn-sm" onclick="resetFinanceFilters()">Reset</button></div>
+          </div>
+          <div class="filter-grid">
+            <div><label class="form-label">Search</label><input class="form-control" value="${safeHtmlText(FINANCE_STATE.filters.query || '')}" placeholder="UIN, client, docket, inventor, service" oninput="setFinanceFilter('query', this.value)" /></div>
+            <div><label class="form-label">Client Code</label><select class="form-control" onchange="setFinanceFilter('client', this.value)"><option value="">All Clients</option>${clientOptions}</select></div>
+            <div><label class="form-label">Status</label><select class="form-control" onchange="setFinanceFilter('status', this.value)"><option value="">All Statuses</option>${['Unpaid', 'Partially Paid', 'Paid'].map(status => `<option value="${status}"${FINANCE_STATE.filters.status === status ? ' selected' : ''}>${status}</option>`).join('')}</select></div>
+            <div><label class="form-label">Tax Type</label><select class="form-control" onchange="setFinanceFilter('taxType', this.value)"><option value="">All Tax Types</option>${['IGST', 'CGST/SGST'].map(type => `<option value="${type}"${FINANCE_STATE.filters.taxType === type ? ' selected' : ''}>${type}</option>`).join('')}</select></div>
+            <div><label class="form-label">Sort</label><select class="form-control" onchange="setFinanceFilter('sort', this.value)">
+              <option value="date_desc"${FINANCE_STATE.filters.sort === 'date_desc' ? ' selected' : ''}>Newest first</option>
+              <option value="date_asc"${FINANCE_STATE.filters.sort === 'date_asc' ? ' selected' : ''}>Oldest first</option>
+              <option value="client_az"${FINANCE_STATE.filters.sort === 'client_az' ? ' selected' : ''}>Client A-Z</option>
+              <option value="client_za"${FINANCE_STATE.filters.sort === 'client_za' ? ' selected' : ''}>Client Z-A</option>
+              <option value="amount_desc"${FINANCE_STATE.filters.sort === 'amount_desc' ? ' selected' : ''}>Amount high-low</option>
+              <option value="amount_asc"${FINANCE_STATE.filters.sort === 'amount_asc' ? ' selected' : ''}>Amount low-high</option>
+            </select></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Invoice Ledger</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice UIN</th>
+                <th>Date</th>
+                <th>Client Code</th>
+                <th>Client</th>
+                <th>Docket</th>
+                <th>Service Code</th>
+                <th>Invoice Amount</th>
+                <th>Amount Due</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>${rows || '<tr><td colspan="10" class="text-muted" style="padding:20px;text-align:center">No invoices found.</td></tr>'}</tbody>
+          </table>
+        </div>
+        <div class="pagination-row">
+          <div class="text-muted">Showing ${items.length ? start + 1 : 0} to ${Math.min(start + pageSize, items.length)} of ${items.length} invoices</div>
+          <div class="pagination-actions">
+            <label class="text-muted">Show:</label>
+            <select class="form-control" style="width:auto;min-width:160px" onchange="setFinancePageSize(this.value)">${pageOptions}</select>
+            ${pagerButtons}
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  const clientSelect = document.querySelector('#page-content select[onchange="setFinanceFilter(\'client\', this.value)"]');
+  if (clientSelect) clientSelect.value = FINANCE_STATE.filters.client || '';
+}
+
+function previewInvoice(invoiceId) {
+  const invoice = findFinanceInvoice(invoiceId);
+  if (!invoice || !invoice.INVOICE_PDF_LINK) {
+    alert('Invoice PDF is not available yet.');
+    return;
+  }
+  window.open(invoice.INVOICE_PDF_LINK, '_blank', 'noopener');
+}
+
+async function sendInvoiceAction(invoiceId) {
+  try {
+    let result = await API.sendInvoice(invoiceId);
+    if (result && result.needsEmail) {
+      const manualEmail = prompt('No client email found. Enter recipient email to send this invoice:');
+      if (!manualEmail) return;
+      result = await API.sendInvoice(invoiceId, manualEmail.trim());
+    }
+    alert(result.message || 'Invoice sent successfully.');
+    await loadFinance();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+function openInvoicePaymentModal(invoiceId) {
+  const invoice = findFinanceInvoice(invoiceId);
+  if (!invoice) {
+    alert('Invoice not found.');
+    return;
+  }
+  openGenericModal('Update Payment', `
+    <div class="form-grid-3">
+      <div class="form-group">
+        <label class="form-label">Invoice UIN</label>
+        <input class="form-control" value="${safeHtmlText(financeInvoiceVisibleId(invoice))}" readonly />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Invoice Amount</label>
+        <input class="form-control readonly-money" value="${safeHtmlText(financeAmount(financeInvoiceTotal(invoice)))}" readonly />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Amount Due</label>
+        <input class="form-control readonly-money" value="${safeHtmlText(financeAmount(financeInvoiceAmountDue(invoice)))}" readonly />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Amount Paid</label>
+        <input class="form-control" id="invoice-payment-amount" type="number" min="0" step="0.01" value="${financeInvoicePaymentAmount(invoice)}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payment Date</label>
+        <input class="form-control" id="invoice-payment-date" type="date" value="${toInputDate(invoice.PAYMENT_DATE || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payment Mode</label>
+        <input class="form-control" id="invoice-payment-mode" value="${safeHtmlText(invoice.PAYMENT_MODE || '')}" placeholder="UPI / Bank / Cash / Card" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-generic')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitInvoicePayment('${invoiceId}')">Save Payment</button>
+    </div>
+  `);
+}
+
+async function submitInvoicePayment(invoiceId) {
+  try {
+    const paymentAmount = financeNumber(document.getElementById('invoice-payment-amount')?.value || 0);
+    const paymentDate = document.getElementById('invoice-payment-date')?.value || '';
+    const paymentMode = document.getElementById('invoice-payment-mode')?.value.trim() || '';
+    const result = await API.updateInvoicePayment(invoiceId, { paymentAmount, paymentDate, paymentMode });
+    closeModal('modal-generic');
+    alert(result.message || 'Payment updated successfully.');
+    await loadFinance();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+function readInvoiceModalValue(id) {
+  return document.getElementById(id)?.value || '';
+}
+
+function syncCompanyInvoiceClientFields() {
+  const clientCode = readInvoiceModalValue('invoice-client-code').trim();
+  const client = resolveClientByCode(clientCode);
+  const clientIdField = document.getElementById('invoice-client-id');
+  const orgIdField = document.getElementById('invoice-org-id');
+  const clientNameField = document.getElementById('invoice-client-name');
+  if (clientIdField) clientIdField.value = client?.CLIENT_ID || clientCode;
+  if (orgIdField) orgIdField.value = client?.ORG_ID || '';
+  if (clientNameField && client && !clientNameField.dataset.manual) {
+    clientNameField.value = client.CLIENT_NAME || '';
+  }
+}
+
+function refreshCompanyInvoiceForm() {
+  const poFee = financeNumber(readInvoiceModalValue('invoice-pofee'));
+  const servFee = financeNumber(readInvoiceModalValue('invoice-servfee'));
+  const expenses = financeNumber(readInvoiceModalValue('invoice-expenses'));
+  const attorneyFee = financeNumber(readInvoiceModalValue('invoice-attorney-fee'));
+  const consultantFee = financeNumber(readInvoiceModalValue('invoice-consultant-fee'));
+  const referralFee = financeNumber(readInvoiceModalValue('invoice-referral-fee'));
+  const taxType = readInvoiceModalValue('invoice-tax-type') || 'IGST';
+  let igst = 0;
+  let sgst = 0;
+  let cgst = 0;
+  if (taxType === 'IGST') {
+    igst = financeRound(servFee * 0.18);
+  } else {
+    sgst = financeRound(servFee * 0.09);
+    cgst = financeRound(servFee * 0.09);
+  }
+  const invoiceTotal = financeRound(poFee + servFee + expenses + igst + sgst + cgst);
+  const paymentStatus = readInvoiceModalValue('invoice-payment-status') || 'Unpaid';
+  const paymentAmountField = document.getElementById('invoice-payment-amount');
+  let paymentAmount = financeNumber(paymentAmountField?.value || 0);
+  if (paymentStatus === 'Paid') {
+    paymentAmount = invoiceTotal;
+    if (paymentAmountField) paymentAmountField.value = invoiceTotal.toFixed(2);
+  } else if (paymentStatus === 'Unpaid' && !String(paymentAmountField?.value || '').trim()) {
+    paymentAmount = 0;
+    if (paymentAmountField) paymentAmountField.value = '0.00';
+  }
+  const amountDue = Math.max(invoiceTotal - paymentAmount, 0);
+  const netRevenue = Math.max(servFee - attorneyFee - consultantFee - referralFee, 0);
+
+  const setValue = (id, value) => {
+    const field = document.getElementById(id);
+    if (field) field.value = value.toFixed(2);
+  };
+
+  setValue('invoice-igst', igst);
+  setValue('invoice-sgst', sgst);
+  setValue('invoice-cgst', cgst);
+  setValue('invoice-total', invoiceTotal);
+  setValue('invoice-amount-due', amountDue);
+  setValue('invoice-net-revenue', netRevenue);
+  syncCompanyInvoiceClientFields();
+}
+
+function parseInvoiceModalPayload(jsonStr) {
+  if (!jsonStr) return null;
+  try { return JSON.parse(jsonStr); } catch (e) {}
+  try { return JSON.parse(decodeURIComponent(jsonStr)); } catch (e) {}
+  return null;
+}
+
+function openInvoiceModal(jsonStr) {
+  const invoice = parseInvoiceModalPayload(jsonStr);
+  const modal = document.querySelector('#modal-invoice .modal');
+  if (modal) modal.classList.add('modal-wide');
+  document.getElementById('modal-invoice-title').textContent = invoice ? 'Edit Invoice' : 'New Invoice';
+  const clientOptions = buildClientOptions(CLIENT_LOOKUP_CACHE || []);
+  const taxType = financeInvoiceTaxType(invoice || {});
+  const paymentStatus = financeInvoiceStatus(invoice || {});
+  document.getElementById('modal-invoice-body').innerHTML = `
+    <div class="form-grid-4">
+      <div class="form-group">
+        <label class="form-label">Client Manager</label>
+        <input class="form-control" id="invoice-client-manager" value="${safeHtmlText(invoice?.['Client Manager'] || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Client Code *</label>
+        <input class="form-control" id="invoice-client-code" list="invoice-client-options" value="${safeHtmlText(financeInvoiceClientCode(invoice || {}))}" oninput="syncCompanyInvoiceClientFields()" />
+        <datalist id="invoice-client-options">${clientOptions}</datalist>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Docket Number / Case ID *</label>
+        <input class="form-control" id="invoice-docket-number" value="${safeHtmlText(financeInvoiceDocket(invoice || {}))}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Docket# [Invoice UIN]</label>
+        <input class="form-control" id="invoice-uin" value="${safeHtmlText(invoice?.['Docket# [Invoice UIN]'] || '')}" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Invoice Date</label>
+        <input class="form-control" id="invoice-date" type="date" value="${toInputDate(invoice?.['Invoice Date'] || invoice?.INVOICE_DATE || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tax Invoice Date</label>
+        <input class="form-control" id="invoice-tax-date" type="date" value="${toInputDate(invoice?.['Tax Invoice Date'] || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tax Serial Number</label>
+        <input class="form-control" id="invoice-tax-serial" value="${safeHtmlText(invoice?.['Tax Serial Number'] || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tax Invoice Number</label>
+        <input class="form-control" id="invoice-tax-number" value="${safeHtmlText(invoice?.['Tax Invoice Number'] || '')}" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Client Reference</label>
+        <input class="form-control" id="invoice-client-reference" value="${safeHtmlText(invoice?.['Client Reference'] || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Name of Client</label>
+        <input class="form-control" id="invoice-client-name" value="${safeHtmlText(financeInvoiceClientName(invoice || {}))}" oninput="this.dataset.manual='yes'" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Patent Office</label>
+        <input class="form-control" id="invoice-patent-office" value="${safeHtmlText(invoice?.['Patent Office'] || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">First Inventor</label>
+        <input class="form-control" id="invoice-first-inventor" value="${safeHtmlText(invoice?.['First Inventor'] || '')}" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Invention#</label>
+        <input class="form-control" id="invoice-invention-number" value="${safeHtmlText(invoice?.['Invention#'] || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">PO Application #</label>
+        <input class="form-control" id="invoice-po-application" value="${safeHtmlText(invoice?.['PO Application # e.g., US 15339876'] || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Entity Status</label>
+        <input class="form-control" id="invoice-entity-status" value="${safeHtmlText(invoice?.['Entity Status'] || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">State of Supply</label>
+        <input class="form-control" id="invoice-state-of-supply" value="${safeHtmlText(invoice?.['State of Supply'] || '')}" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Main ServiceCode *</label>
+        <input class="form-control" id="invoice-main-service" value="${safeHtmlText(invoice?.['Main ServiceCode'] || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Service Code 2</label>
+        <input class="form-control" id="invoice-service-2" value="${safeHtmlText(invoice?.['Service Code 2'] || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Service Code 3</label>
+        <input class="form-control" id="invoice-service-3" value="${safeHtmlText(invoice?.['Service Code 3'] || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">POFeeAck</label>
+        <input class="form-control" id="invoice-pofee-ack" value="${safeHtmlText(invoice?.POFeeAck || '')}" />
+      </div>
+
+      <div class="form-group form-span-4">
+        <label class="form-label">Title Identfication</label>
+        <input class="form-control" id="invoice-title-identification" value="${safeHtmlText(invoice?.['Title Identfication (Only key words, Enter in lower case}'] || '')}" />
+      </div>
+      <div class="form-group form-span-4">
+        <label class="form-label">Additional information on service</label>
+        <textarea class="form-control" id="invoice-service-notes" rows="3">${safeHtmlText(invoice?.['Additional information on service (Do not repeat what is in code description)'] || '')}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">POFee</label>
+        <input class="form-control" id="invoice-pofee" type="number" min="0" step="0.01" value="${financeNumber(invoice?.POFee || 0)}" oninput="refreshCompanyInvoiceForm()" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">ServFee</label>
+        <input class="form-control" id="invoice-servfee" type="number" min="0" step="0.01" value="${financeNumber(invoice?.ServFee || 0)}" oninput="refreshCompanyInvoiceForm()" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Expenses</label>
+        <input class="form-control" id="invoice-expenses" type="number" min="0" step="0.01" value="${financeNumber(invoice?.Expenses || 0)}" oninput="refreshCompanyInvoiceForm()" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tax Type</label>
+        <select class="form-control" id="invoice-tax-type" onchange="refreshCompanyInvoiceForm()">
+          <option value="IGST"${taxType === 'IGST' ? ' selected' : ''}>IGST</option>
+          <option value="CGST/SGST"${taxType === 'CGST/SGST' ? ' selected' : ''}>CGST/SGST</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">IGST (18% of ServFee)</label>
+        <input class="form-control readonly-money" id="invoice-igst" readonly value="${financeNumber(invoice?.IGST || 0).toFixed(2)}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">CGST (9% of ServFee)</label>
+        <input class="form-control readonly-money" id="invoice-cgst" readonly value="${financeNumber(invoice?.CGST || 0).toFixed(2)}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">SGST (9% of ServFee)</label>
+        <input class="form-control readonly-money" id="invoice-sgst" readonly value="${financeNumber(invoice?.SGST || 0).toFixed(2)}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">InvAmount</label>
+        <input class="form-control readonly-money" id="invoice-total" readonly value="${financeInvoiceTotal(invoice || {}).toFixed(2)}" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Payment Status</label>
+        <select class="form-control" id="invoice-payment-status" onchange="refreshCompanyInvoiceForm()">
+          ${['Unpaid', 'Partially Paid', 'Paid'].map(status => `<option value="${status}"${paymentStatus === status ? ' selected' : ''}>${status}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payment Amount</label>
+        <input class="form-control" id="invoice-payment-amount" type="number" min="0" step="0.01" value="${financeInvoicePaymentAmount(invoice || {})}" oninput="refreshCompanyInvoiceForm()" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payment Date</label>
+        <input class="form-control" id="invoice-payment-date" type="date" value="${toInputDate(invoice?.PAYMENT_DATE || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payment Mode</label>
+        <input class="form-control" id="invoice-payment-mode" value="${safeHtmlText(invoice?.PAYMENT_MODE || '')}" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Amount due</label>
+        <input class="form-control readonly-money" id="invoice-amount-due" readonly value="${financeInvoiceAmountDue(invoice || {}).toFixed(2)}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Attorney Fee</label>
+        <input class="form-control" id="invoice-attorney-fee" type="number" min="0" step="0.01" value="${financeNumber(invoice?.['Attorney Fee'] || 0)}" oninput="refreshCompanyInvoiceForm()" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Consultant fee</label>
+        <input class="form-control" id="invoice-consultant-fee" type="number" min="0" step="0.01" value="${financeNumber(invoice?.['Consultant fee'] || 0)}" oninput="refreshCompanyInvoiceForm()" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Referral fee</label>
+        <input class="form-control" id="invoice-referral-fee" type="number" min="0" step="0.01" value="${financeNumber(invoice?.['Referral fee'] || 0)}" oninput="refreshCompanyInvoiceForm()" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Net Revenue</label>
+        <input class="form-control readonly-money" id="invoice-net-revenue" readonly value="${financeInvoiceNetRevenue(invoice || {}).toFixed(2)}" />
+      </div>
+      <div class="form-group form-span-3">
+        <label class="form-label">Notes</label>
+        <textarea class="form-control" id="invoice-notes" rows="3">${safeHtmlText(invoice?.NOTES || '')}</textarea>
+      </div>
+    </div>
+    <input type="hidden" id="invoice-client-id" value="${safeHtmlText(invoice?.CLIENT_ID || '')}" />
+    <input type="hidden" id="invoice-org-id" value="${safeHtmlText(invoice?.ORG_ID || '')}" />
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-invoice')">Cancel</button>
+      <button class="btn btn-primary" id="invoice-save-btn" onclick="saveInvoice('${safeHtmlText(invoice?.INVOICE_ID || '')}')">Save Invoice</button>
+    </div>
+  `;
+  openModal('modal-invoice');
+  refreshCompanyInvoiceForm();
+}
+
+async function saveInvoice(existingId) {
+  const saveButton = document.getElementById('invoice-save-btn');
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.textContent = 'Saving...';
+  }
+  try {
+    syncCompanyInvoiceClientFields();
+    const clientCode = readInvoiceModalValue('invoice-client-code').trim();
+    const client = resolveClientByCode(clientCode);
+    const docketNumber = readInvoiceModalValue('invoice-docket-number').trim();
+    const invoiceData = {
+      INVOICE_ID: existingId || undefined,
+      'Client Manager': readInvoiceModalValue('invoice-client-manager').trim(),
+      'Docket Number': docketNumber,
+      'Docket# [Invoice UIN]': readInvoiceModalValue('invoice-uin').trim(),
+      'Invoice Date': readInvoiceModalValue('invoice-date'),
+      'Tax Invoice Date': readInvoiceModalValue('invoice-tax-date'),
+      'Tax Serial Number': readInvoiceModalValue('invoice-tax-serial').trim(),
+      'Tax Invoice Number': readInvoiceModalValue('invoice-tax-number').trim(),
+      'Client Reference': readInvoiceModalValue('invoice-client-reference').trim(),
+      ClientCode: clientCode,
+      'Invention#': readInvoiceModalValue('invoice-invention-number').trim(),
+      'Patent Office': readInvoiceModalValue('invoice-patent-office').trim(),
+      'First Inventor': readInvoiceModalValue('invoice-first-inventor').trim(),
+      'Title Identfication (Only key words, Enter in lower case}': readInvoiceModalValue('invoice-title-identification').trim(),
+      'Entity Status': readInvoiceModalValue('invoice-entity-status').trim(),
+      'PO Application # e.g., US 15339876': readInvoiceModalValue('invoice-po-application').trim(),
+      'Main ServiceCode': readInvoiceModalValue('invoice-main-service').trim(),
+      'Service Code 2': readInvoiceModalValue('invoice-service-2').trim(),
+      'Service Code 3': readInvoiceModalValue('invoice-service-3').trim(),
+      'Additional information on service (Do not repeat what is in code description)': readInvoiceModalValue('invoice-service-notes').trim(),
+      'State of Supply': readInvoiceModalValue('invoice-state-of-supply').trim(),
+      'Name of Client': readInvoiceModalValue('invoice-client-name').trim(),
+      POFeeAck: readInvoiceModalValue('invoice-pofee-ack').trim(),
+      POFee: financeNumber(readInvoiceModalValue('invoice-pofee')),
+      ServFee: financeNumber(readInvoiceModalValue('invoice-servfee')),
+      TAX_TYPE: readInvoiceModalValue('invoice-tax-type'),
+      IGST: financeNumber(readInvoiceModalValue('invoice-igst')),
+      SGST: financeNumber(readInvoiceModalValue('invoice-sgst')),
+      CGST: financeNumber(readInvoiceModalValue('invoice-cgst')),
+      Expenses: financeNumber(readInvoiceModalValue('invoice-expenses')),
+      InvAmount: financeNumber(readInvoiceModalValue('invoice-total')),
+      'Amount due': financeNumber(readInvoiceModalValue('invoice-amount-due')),
+      'Attorney Fee': financeNumber(readInvoiceModalValue('invoice-attorney-fee')),
+      'Consultant fee': financeNumber(readInvoiceModalValue('invoice-consultant-fee')),
+      'Referral fee': financeNumber(readInvoiceModalValue('invoice-referral-fee')),
+      'Net Revenue': financeNumber(readInvoiceModalValue('invoice-net-revenue')),
+      PAYMENT_STATUS: readInvoiceModalValue('invoice-payment-status'),
+      PAYMENT_DATE: readInvoiceModalValue('invoice-payment-date'),
+      PAYMENT_MODE: readInvoiceModalValue('invoice-payment-mode').trim(),
+      PAYMENT_AMOUNT: financeNumber(readInvoiceModalValue('invoice-payment-amount')),
+      CLIENT_ID: readInvoiceModalValue('invoice-client-id').trim() || client?.CLIENT_ID || clientCode,
+      CLIENT_NAME: readInvoiceModalValue('invoice-client-name').trim() || client?.CLIENT_NAME || '',
+      CASE_ID: docketNumber,
+      ORG_ID: readInvoiceModalValue('invoice-org-id').trim() || client?.ORG_ID || '',
+      NOTES: readInvoiceModalValue('invoice-notes').trim()
+    };
+
+    if (!invoiceData.ClientCode) throw new Error('Client code is required.');
+    if (!invoiceData['Main ServiceCode']) throw new Error('Main ServiceCode is required.');
+    if (!invoiceData['Invoice Date']) throw new Error('Invoice Date is required.');
+    if (!existingId) delete invoiceData.INVOICE_ID;
+
+    const result = await API.saveInvoice(invoiceData);
+    if (!result.success) throw new Error(result.error || result.message || 'Failed to save invoice.');
+    closeModal('modal-invoice');
+    await loadFinance();
+  } catch (e) {
+    alert('Error: ' + e.message);
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = 'Save Invoice';
+    }
   }
 }
 

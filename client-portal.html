@@ -211,6 +211,8 @@ function statusBadge(status) {
     'Refused': 'badge-abandoned',
     'Paid': 'badge-paid',
     'Unpaid': 'badge-unpaid',
+    'Partially Paid': 'badge-exam',
+    'Deleted': 'badge-abandoned',
     'Approved': 'badge-granted',
     'Rejected': 'badge-unpaid'
   };
@@ -1191,6 +1193,220 @@ window.addEventListener('click', function(event) {
     closeThreadModal();
   }
 });
+
+function clientFinanceNumber(value) {
+  var amount = parseFloat(String(value == null ? '' : value).replace(/,/g, '').replace(/[^\d.-]/g, '')) || 0;
+  return Math.round(amount * 100) / 100;
+}
+
+function clientFinanceAmount(value) {
+  return 'Rs ' + clientFinanceNumber(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function clientInvoiceVisibleId(invoice) {
+  return String(invoice['Docket# [Invoice UIN]'] || invoice['Tax Invoice Number'] || invoice.INVOICE_ID || '').trim();
+}
+
+function clientInvoiceDate(invoice) {
+  return invoice['Invoice Date'] || invoice['Tax Invoice Date'] || invoice.INVOICE_DATE || '';
+}
+
+function clientInvoiceClientCode(invoice) {
+  return String(invoice.ClientCode || invoice.CLIENT_ID || '').trim();
+}
+
+function clientInvoiceClientName(invoice) {
+  return String(invoice['Name of Client'] || invoice.CLIENT_NAME || '').trim();
+}
+
+function clientInvoiceDocket(invoice) {
+  return String(invoice['Docket Number'] || invoice.CASE_ID || '').trim();
+}
+
+function clientInvoiceService(invoice) {
+  return [
+    invoice['Main ServiceCode'],
+    invoice['Service Code 2'],
+    invoice['Service Code 3']
+  ].filter(Boolean).join(' / ');
+}
+
+function clientInvoiceTaxType(invoice) {
+  return String(invoice.TAX_TYPE || 'IGST').trim() || 'IGST';
+}
+
+function clientInvoicePaymentAmount(invoice) {
+  return clientFinanceNumber(invoice.PAYMENT_AMOUNT || 0);
+}
+
+function clientInvoiceTotal(invoice) {
+  return clientFinanceNumber(invoice.InvAmount || invoice.TOTAL || 0);
+}
+
+function clientInvoiceAmountDue(invoice) {
+  if (Object.prototype.hasOwnProperty.call(invoice, 'Amount due')) {
+    return clientFinanceNumber(invoice['Amount due']);
+  }
+  return Math.max(clientInvoiceTotal(invoice) - clientInvoicePaymentAmount(invoice), 0);
+}
+
+function clientInvoiceStatus(invoice) {
+  var status = String(invoice.PAYMENT_STATUS || '').trim();
+  if (status) return status;
+  return clientInvoiceAmountDue(invoice) > 0 ? 'Unpaid' : 'Paid';
+}
+
+function clientInvoiceSearchText(invoice) {
+  return [
+    clientInvoiceVisibleId(invoice),
+    clientInvoiceClientCode(invoice),
+    clientInvoiceClientName(invoice),
+    clientInvoiceDocket(invoice),
+    clientInvoiceService(invoice),
+    invoice['Title Identfication (Only key words, Enter in lower case}'],
+    invoice['First Inventor'],
+    invoice['Patent Office'],
+    invoice['Client Reference'],
+    invoice.NOTES
+  ].join(' ').toLowerCase();
+}
+
+async function loadFinance() {
+  setTopbarActions('<button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer(\'finance\')">Filters</button>');
+  try {
+    STATE.finance.all = await API.getInvoices();
+    if (!Array.isArray(STATE.finance.all)) STATE.finance.all = [];
+    if (!STATE.finance.pageSize) STATE.finance.pageSize = 10;
+    if (!STATE.finance.page) STATE.finance.page = 1;
+    STATE.finance.filters = Object.assign({ query: '', client: '', status: '', taxType: '', sort: 'date_desc' }, STATE.finance.filters || {});
+    applyFinanceFilters(true);
+  } catch (e) {
+    document.getElementById('page-content').innerHTML = renderError(e.message);
+  }
+}
+
+function handleFinanceFilterChange(key, value) {
+  STATE.finance.filters[key] = value;
+  applyFinanceFilters(true);
+}
+
+function resetFinanceFilters() {
+  STATE.finance.filters = { query: '', client: '', status: '', taxType: '', sort: 'date_desc' };
+  STATE.finance.page = 1;
+  STATE.finance.pageSize = 10;
+  applyFinanceFilters(true);
+}
+
+function setFinancePage(page) {
+  STATE.finance.page = Math.max(1, parseInt(page, 10) || 1);
+  applyFinanceFilters();
+}
+
+function setFinancePageSize(value) {
+  STATE.finance.pageSize = Math.max(1, parseInt(value, 10) || 10);
+  STATE.finance.page = 1;
+  applyFinanceFilters();
+}
+
+function applyFinanceFilters(resetPage) {
+  if (resetPage) STATE.finance.page = 1;
+  var filters = STATE.finance.filters || {};
+  var query = String(filters.query || '').trim().toLowerCase();
+  var client = String(filters.client || '').trim().toUpperCase();
+  var status = String(filters.status || '').trim();
+  var taxType = String(filters.taxType || '').trim();
+  var sort = String(filters.sort || 'date_desc');
+
+  var filtered = (STATE.finance.all || []).filter(function(item) {
+    if (clientInvoiceStatus(item) === 'Deleted') return false;
+    if (client && clientInvoiceClientCode(item).toUpperCase() !== client) return false;
+    if (status && clientInvoiceStatus(item) !== status) return false;
+    if (taxType && clientInvoiceTaxType(item) !== taxType) return false;
+    if (query && clientInvoiceSearchText(item).indexOf(query) === -1) return false;
+    return true;
+  });
+
+  filtered.sort(function(a, b) {
+    if (sort === 'client_az') return clientInvoiceClientCode(a).localeCompare(clientInvoiceClientCode(b));
+    if (sort === 'client_za') return clientInvoiceClientCode(b).localeCompare(clientInvoiceClientCode(a));
+    if (sort === 'amount_asc') return clientInvoiceTotal(a) - clientInvoiceTotal(b);
+    if (sort === 'amount_desc') return clientInvoiceTotal(b) - clientInvoiceTotal(a);
+    if (sort === 'date_asc') return new Date(clientInvoiceDate(a) || 0) - new Date(clientInvoiceDate(b) || 0);
+    return new Date(clientInvoiceDate(b) || 0) - new Date(clientInvoiceDate(a) || 0);
+  });
+
+  STATE.finance.filtered = filtered;
+  var pageSize = STATE.finance.pageSize || 10;
+  var totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  var currentPage = Math.min(STATE.finance.page || 1, totalPages);
+  STATE.finance.page = currentPage;
+  var start = (currentPage - 1) * pageSize;
+  var visible = filtered.slice(start, start + pageSize);
+  var pendingCount = filtered.filter(function(item) { return clientInvoiceAmountDue(item) > 0; }).length;
+  var paidCount = filtered.filter(function(item) { return clientInvoiceStatus(item) === 'Paid'; }).length;
+  var pendingAmount = filtered.reduce(function(sum, item) { return sum + clientInvoiceAmountDue(item); }, 0);
+  var paidAmount = filtered.reduce(function(sum, item) { return sum + clientInvoicePaymentAmount(item); }, 0);
+  var pageOptions = [10, 20, 50].map(function(option) {
+    return '<option value="' + option + '"' + (pageSize === option ? ' selected' : '') + '>' + option + ' rows per page</option>';
+  }).join('');
+  var pagerButtons = Array.from({ length: totalPages }, function(_, index) {
+    var page = index + 1;
+    var cls = page === currentPage ? 'btn-primary' : 'btn-ghost';
+    return '<button class="btn ' + cls + ' btn-sm" onclick="setFinancePage(' + page + ')">' + page + '</button>';
+  }).join('');
+
+  document.getElementById('page-content').innerHTML = `
+    <div class="page">
+      <div class="stats-grid">
+        <div class="stat-card accent-primary"><div class="stat-label">Total Invoices</div><div class="stat-value">${filtered.length}</div><div class="stat-sub">matching filters</div></div>
+        <div class="stat-card accent-rose"><div class="stat-label">Pending Count</div><div class="stat-value">${pendingCount}</div><div class="stat-sub">open invoices</div></div>
+        <div class="stat-card accent-emerald"><div class="stat-label">Paid Count</div><div class="stat-value">${paidCount}</div><div class="stat-sub">closed invoices</div></div>
+        <div class="stat-card accent-amber finance-stat-amount"><div class="stat-label">Pending Amount</div><div class="stat-value">${esc(clientFinanceAmount(pendingAmount))}</div><div class="stat-sub">outstanding</div></div>
+        <div class="stat-card accent-emerald finance-stat-amount"><div class="stat-label">Paid Amount</div><div class="stat-value">${esc(clientFinanceAmount(paidAmount))}</div><div class="stat-sub">received</div></div>
+      </div>
+      <div class="card filter-panel" style="margin-bottom:16px">
+        <div class="filter-toggle-row"><button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer('finance')">${STATE.finance.filtersOpen ? 'Hide Filters' : 'Show Filters'}</button></div>
+        <div class="filter-drawer ${STATE.finance.filtersOpen ? 'open' : ''}">
+          <div class="filter-head"><div class="card-title">Invoice Filters</div><div class="filter-actions"><button class="btn btn-ghost btn-sm" onclick="resetFinanceFilters()">Reset</button></div></div>
+          <div class="filter-grid">
+            <div><label class="form-label">Search</label><input class="form-control" value="${esc(filters.query || '')}" placeholder="UIN, client, docket, inventor, service" oninput="handleFinanceFilterChange('query', this.value)" /></div>
+            <div><label class="form-label">Client</label><select class="form-control" onchange="handleFinanceFilterChange('client', this.value)">${buildClientOptions(filters.client, 'All Clients')}</select></div>
+            <div><label class="form-label">Status</label><select class="form-control" onchange="handleFinanceFilterChange('status', this.value)"><option value="">All Statuses</option><option value="Unpaid"${filters.status === 'Unpaid' ? ' selected' : ''}>Unpaid</option><option value="Partially Paid"${filters.status === 'Partially Paid' ? ' selected' : ''}>Partially Paid</option><option value="Paid"${filters.status === 'Paid' ? ' selected' : ''}>Paid</option></select></div>
+            <div><label class="form-label">Tax Type</label><select class="form-control" onchange="handleFinanceFilterChange('taxType', this.value)"><option value="">All Tax Types</option><option value="IGST"${filters.taxType === 'IGST' ? ' selected' : ''}>IGST</option><option value="CGST/SGST"${filters.taxType === 'CGST/SGST' ? ' selected' : ''}>CGST/SGST</option></select></div>
+            <div><label class="form-label">Sort</label><select class="form-control" onchange="handleFinanceFilterChange('sort', this.value)">
+              <option value="date_desc"${filters.sort === 'date_desc' ? ' selected' : ''}>Newest first</option>
+              <option value="date_asc"${filters.sort === 'date_asc' ? ' selected' : ''}>Oldest first</option>
+              <option value="client_az"${filters.sort === 'client_az' ? ' selected' : ''}>Client A-Z</option>
+              <option value="client_za"${filters.sort === 'client_za' ? ' selected' : ''}>Client Z-A</option>
+              <option value="amount_desc"${filters.sort === 'amount_desc' ? ' selected' : ''}>Amount high-low</option>
+              <option value="amount_asc"${filters.sort === 'amount_asc' ? ' selected' : ''}>Amount low-high</option>
+            </select></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Invoice Ledger</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Invoice UIN</th><th>Date</th><th>Client Code</th><th>Client</th><th>Docket</th><th>Service Code</th><th>Invoice Amount</th><th>Amount Due</th><th>Status</th><th>PDF</th></tr></thead>
+            <tbody>
+              ${visible.map(function(item) {
+                return '<tr><td class="text-em">' + esc(clientInvoiceVisibleId(item) || '-') + '</td><td>' + esc(fmt(clientInvoiceDate(item))) + '</td><td>' + esc(clientInvoiceClientCode(item) || '-') + '</td><td><div class="text-em">' + esc(clientInvoiceClientName(item) || '-') + '</div><div class="finance-table-muted">' + esc(item['Client Reference'] || '') + '</div></td><td>' + esc(clientInvoiceDocket(item) || '-') + '</td><td><div class="text-em">' + esc(clientInvoiceService(item) || '-') + '</div><div class="finance-table-muted">' + esc(clientInvoiceTaxType(item)) + '</div></td><td>' + esc(clientFinanceAmount(clientInvoiceTotal(item))) + '</td><td>' + esc(clientFinanceAmount(clientInvoiceAmountDue(item))) + '</td><td>' + statusBadge(clientInvoiceStatus(item)) + '</td><td>' + (item.INVOICE_PDF_LINK ? '<a href="' + esc(item.INVOICE_PDF_LINK) + '" target="_blank">Open</a>' : '-') + '</td></tr>';
+              }).join('') || '<tr><td colspan="10" class="text-muted" style="padding:20px;text-align:center">No invoices found.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination-row">
+          <div class="text-muted">Showing ${filtered.length ? start + 1 : 0} to ${Math.min(start + pageSize, filtered.length)} of ${filtered.length} invoices</div>
+          <div class="pagination-actions">
+            <label class="text-muted">Show:</label>
+            <select class="form-control" style="width:auto;min-width:160px" onchange="setFinancePageSize(this.value)">${pageOptions}</select>
+            ${pagerButtons}
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
 </script>
 </body>
 </html>
