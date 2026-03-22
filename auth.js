@@ -144,17 +144,22 @@ function sessionAllowsRoles(session, allowedRoles) {
   return effectiveRoles.some((role) => allowedRoles.includes(role));
 }
 
-async function hydrateStoredSession(session) {
-  if (!session || !window.API || typeof window.API.getUserInfo !== 'function') return session;
-  if (session.userId && typeof session.additionalRoles === 'string') return session;
+async function fetchSessionInfo(token) {
+  const apiBase = (window.APP_CONFIG && window.APP_CONFIG.apiBase) || '';
+  if (!apiBase || !token) return null;
   try {
-    const live = await window.API.getUserInfo();
-    if (!live || live.error) return session;
-    const merged = normalizePortalSession({ ...session, ...live, token: session.token });
-    setGasSession(merged);
-    return merged;
+    const response = await fetch(apiBase, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'getUserInfo', params: { token } }),
+      redirect: 'follow',
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!data || data.error || data.sessionExpired) return null;
+    return data;
   } catch {
-    return session;
+    return null;
   }
 }
 
@@ -168,11 +173,16 @@ async function requireAuth(allowedRoles) {
 
   const existing = getGasSession();
   if (existing && sessionMatchesClerkIdentity(existing, email)) {
-    const hydrated = await hydrateStoredSession(existing);
-    if (!sessionAllowsRoles(hydrated, allowedRoles)) {
-      return null;
+    const live = await fetchSessionInfo(existing.token);
+    if (live) {
+      const hydrated = normalizePortalSession({ ...existing, ...live, token: existing.token });
+      setGasSession(hydrated);
+      if (!sessionAllowsRoles(hydrated, allowedRoles)) {
+        return null;
+      }
+      return hydrated;
     }
-    return hydrated;
+    clearGasSession();
   }
 
   try {
