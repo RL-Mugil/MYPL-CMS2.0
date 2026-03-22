@@ -2329,11 +2329,11 @@ async function loadFinance() {
 }
 
 function getInvoiceUiId(inv) {
-  return String(inv?.['Docket# [Invoice UIN]'] || inv?.['Tax Invoice Number'] || inv?.INVOICE_ID || '');
+  return String(inv?.['Docket# [Invoice UIN]'] || inv?.['Tax Invoice Number'] || '');
 }
 
 function getInvoiceUiTotal(inv) {
-  return parseFloat(inv?.InvAmount || inv?.TOTAL || 0) || 0;
+  return parseFloat(inv?.InvAmount || 0) || 0;
 }
 
 function getInvoiceUiDue(inv) {
@@ -5279,7 +5279,6 @@ async function saveInvoice(existingId) {
   }
   refreshInvoiceCalculatedFields();
   const data = {
-    INVOICE_ID: existingId || undefined,
     "Client Manager": document.getElementById('mi-client-manager').value.trim(),
     "Docket# [Invoice UIN]": document.getElementById('mi-uin').value.trim(),
     "Invoice Date": document.getElementById('mi-invoice-date').value,
@@ -5322,7 +5321,6 @@ async function saveInvoice(existingId) {
     ORG_ID: selectedClient.ORG_ID || '',
     NOTES: document.getElementById('mi-notes').value.trim(),
   };
-  if (!existingId) delete data.INVOICE_ID;
   try {
     const r = await API.saveInvoice(data);
     if (r.success) { closeModal('modal-invoice'); loadFinance(); }
