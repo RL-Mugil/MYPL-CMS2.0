@@ -166,23 +166,28 @@ async function fetchSessionInfo(token) {
 async function requireAuth(allowedRoles) {
   const Clerk = await initClerk();
 
+  const existing = getGasSession();
+  if (existing && existing.token) {
+    const live = await fetchSessionInfo(existing.token);
+    if (live) {
+      const hydrated = normalizePortalSession({ ...existing, ...live, token: existing.token });
+      setGasSession(hydrated);
+      if (sessionAllowsRoles(hydrated, allowedRoles)) {
+        return hydrated;
+      }
+    } else {
+      clearGasSession();
+    }
+  }
+
   if (!Clerk.user) return null;
 
   const email = getClerkEmail();
   if (!email) return null;
 
-  const existing = getGasSession();
-  if (existing && sessionMatchesClerkIdentity(existing, email)) {
-    const live = await fetchSessionInfo(existing.token);
-    if (live) {
-      const hydrated = normalizePortalSession({ ...existing, ...live, token: existing.token });
-      setGasSession(hydrated);
-      if (!sessionAllowsRoles(hydrated, allowedRoles)) {
-        return null;
-      }
-      return hydrated;
-    }
-    clearGasSession();
+  const current = getGasSession();
+  if (current && sessionMatchesClerkIdentity(current, email) && sessionAllowsRoles(current, allowedRoles)) {
+    return current;
   }
 
   try {

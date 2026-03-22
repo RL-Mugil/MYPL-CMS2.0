@@ -146,13 +146,14 @@ const STATE = {
 
 (async function bootstrap() {
   applyTheme(loadTheme());
-  SESSION = await Auth.requireAuth([...CLIENT_ROLES, ...INTERNAL_ROLES]);
+  SESSION = await Auth.requireAuth(CLIENT_ROLES);
   if (!SESSION) {
+    var existing = Auth.getGasSession();
+    if (existing && Auth.getEffectiveSessionRoles(existing).some(function(role) { return INTERNAL_ROLES.includes(role); })) {
+      window.location.href = 'dashboard.html';
+      return;
+    }
     window.location.href = 'client-login.html';
-    return;
-  }
-  if (Auth.getEffectiveSessionRoles(SESSION).some(function(role) { return INTERNAL_ROLES.includes(role); })) {
-    window.location.href = 'dashboard.html';
     return;
   }
 

@@ -337,13 +337,14 @@ function isImpersonatingSession() {
 // ── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
   applyTheme(getStoredTheme());
-  SESSION = await Auth.requireAuth([...INTERNAL_ROLES, ...CLIENT_SIDE_ROLES]);
+  SESSION = await Auth.requireAuth(INTERNAL_ROLES);
   if (!SESSION) {
+    const existing = Auth.getGasSession();
+    if (existing && !hasInternalAccessForSession(existing) && hasClientAccessForSession(existing)) {
+      window.location.href = 'client-portal.html';
+      return;
+    }
     window.location.href = 'index.html';
-    return;
-  }
-  if (!hasInternalAccessForSession(SESSION) && hasClientAccessForSession(SESSION)) {
-    window.location.href = 'client-portal.html';
     return;
   }
 
