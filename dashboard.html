@@ -929,6 +929,54 @@ function buildClientOptions(list) {
   }).join('');
 }
 
+const INVOICE_PATENT_OFFICES = ['US','IN','EP','WO','CN','JP','KR','GB','DE','FR','CA','AU'];
+
+function buildSimpleOptions(list) {
+  return (list || []).filter(Boolean).map(value => `<option value="${escapeAttr(String(value))}"></option>`).join('');
+}
+
+function resolveClientByAnyKey(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (!normalized) return null;
+  return (CLIENT_LOOKUP_CACHE || []).find(c =>
+    String(c.CLIENT_CODE || '').trim().toUpperCase() === normalized ||
+    String(c.CLIENT_ID || '').trim().toUpperCase() === normalized ||
+    String(c.CLIENT_NAME || '').trim().toUpperCase() === normalized
+  ) || null;
+}
+
+function getInvoiceClientCodeValue(inv) {
+  const direct = String(inv?.ClientCode || '').trim();
+  if (direct) return direct;
+  const linked = resolveClientByAnyKey(inv?.CLIENT_ID || '');
+  return String(linked?.CLIENT_CODE || inv?.CLIENT_ID || '').trim();
+}
+
+function getInvoiceRelatedCases(clientValue) {
+  const client = resolveClientByAnyKey(clientValue);
+  if (!client) return [];
+  return (CASES_ALL || []).filter(item =>
+    String(item.CLIENT_ID || '').trim().toUpperCase() === String(client.CLIENT_ID || '').trim().toUpperCase() ||
+    String(item.CLIENT_CODE || '').trim().toUpperCase() === String(client.CLIENT_CODE || '').trim().toUpperCase()
+  );
+}
+
+function buildInvoiceCaseOptions(clientValue) {
+  return buildSimpleOptions(getInvoiceRelatedCases(clientValue).map(item => item.CASE_ID));
+}
+
+function buildInvoiceTitleOptions(clientValue) {
+  return buildSimpleOptions(getInvoiceRelatedCases(clientValue).map(item => item.PATENT_TITLE).filter(Boolean));
+}
+
+function buildInvoiceManagerOptions() {
+  const names = (USER_LOOKUP_CACHE || [])
+    .filter(user => getEffectiveRoleList(user).some(role => ['Super Admin','Admin','Galvanizer','Staff','Attorney'].includes(role)))
+    .map(user => user.FULL_NAME || user.EMAIL)
+    .filter(Boolean);
+  return buildSimpleOptions(Array.from(new Set(names)));
+}
+
 function buildUserOptions(list, role) {
   return (list || [])
     .filter(user => !role || getEffectiveRoleList(user).includes(role))
@@ -5107,17 +5155,26 @@ async function saveUserV2(existingId) {
 async function openInvoiceModal(jsonStr) {
   const inv = jsonStr ? JSON.parse(jsonStr) : null;
   await ensureClientLookupLoaded();
+  await ensureUserLookupLoaded();
+  if (!CASES_ALL.length) {
+    try {
+      const allCases = await API.getCases({});
+      CASES_ALL = Array.isArray(allCases) ? allCases : [];
+    } catch (_) {}
+  }
+  const clientCodeValue = getInvoiceClientCodeValue(inv);
   document.getElementById('modal-invoice-title').textContent = inv ? 'Edit Invoice' : 'New Invoice';
   document.getElementById('modal-invoice-body').innerHTML = `
     <div class="card" style="margin-bottom:12px">
       <div class="card-title">Invoice Identity</div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Client Manager</label><input class="form-control" id="mi-client-manager" value="${escapeAttr(invoiceFieldValue(inv,'Client Manager'))}" /></div>
+        <div class="form-group"><label class="form-label">Client Manager</label><input class="form-control" id="mi-client-manager" list="mi-client-manager-list" value="${escapeAttr(invoiceFieldValue(inv,'Client Manager'))}" /><datalist id="mi-client-manager-list">${buildInvoiceManagerOptions()}</datalist></div>
+        <div class="form-group"><label class="form-label">Docket Number</label><input class="form-control" id="mi-docket-number" value="${escapeAttr(invoiceFieldValue(inv,'Docket Number'))}" /></div>
         <div class="form-group"><label class="form-label">Docket# [Invoice UIN]</label><input class="form-control" id="mi-uin" value="${escapeAttr(getInvoiceUiId(inv))}" placeholder="Auto if blank" /></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Invoice Date</label><input type="date" class="form-control" id="mi-invoice-date" value="${inv?.['Invoice Date'] ? new Date(inv['Invoice Date']).toISOString().split('T')[0] : ''}" /></div>
-        <div class="form-group"><label class="form-label">Tax Invoice Date</label><input type="date" class="form-control" id="mi-tax-date" value="${inv?.['Tax Invoice Date'] ? new Date(inv['Tax Invoice Date']).toISOString().split('T')[0] : ''}" /></div>
+        <div class="form-group"><label class="form-label">Invoice Date</label><input type="date" class="form-control" id="mi-invoice-date" value="${escapeAttr(toInputDate(inv?.['Invoice Date']))}" /></div>
+        <div class="form-group"><label class="form-label">Tax Invoice Date</label><input type="date" class="form-control" id="mi-tax-date" value="${escapeAttr(toInputDate(inv?.['Tax Invoice Date']))}" /></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Tax Serial Number</label><input class="form-control" id="mi-tax-serial" value="${escapeAttr(invoiceFieldValue(inv,'Tax Serial Number'))}" /></div>
@@ -5127,16 +5184,13 @@ async function openInvoiceModal(jsonStr) {
     <div class="card" style="margin-bottom:12px">
       <div class="card-title">Client & Matter</div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Client Code *</label><input class="form-control" id="mi-client-code" list="mi-client-list" value="${escapeAttr(inv?.ClientCode || inv?.CLIENT_ID || '')}" placeholder="Search client code" onchange="syncInvoiceClientSelection()" /><datalist id="mi-client-list">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist></div>
-        <div class="form-group"><label class="form-label">Name of Client</label><input class="form-control" id="mi-client-name" value="${escapeAttr(inv?.['Name of Client'] || inv?.CLIENT_NAME || '')}" /></div>
+        <div class="form-group"><label class="form-label">Client Reference</label><input class="form-control" id="mi-client-reference" list="mi-client-ref-list" value="${escapeAttr(invoiceFieldValue(inv,'Client Reference'))}" /><datalist id="mi-client-ref-list">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist></div>
+        <div class="form-group"><label class="form-label">Client Code *</label><input class="form-control" id="mi-client-code" list="mi-client-list" value="${escapeAttr(clientCodeValue)}" placeholder="Search client code" onchange="syncInvoiceClientSelection()" /><datalist id="mi-client-list">${buildClientOptions(CLIENT_LOOKUP_CACHE)}</datalist></div>
+        <div class="form-group"><label class="form-label">Name of Client</label><input class="form-control" id="mi-client-name" value="${escapeAttr(inv?.['Name of Client'] || inv?.CLIENT_NAME || '')}" readonly /></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Invention#</label><input class="form-control" id="mi-case-id" value="${escapeAttr(inv?.['Invention#'] || inv?.CASE_ID || '')}" /></div>
-        <div class="form-group"><label class="form-label">Docket Number</label><input class="form-control" id="mi-docket-number" value="${escapeAttr(invoiceFieldValue(inv,'Docket Number'))}" /></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Client Reference</label><input class="form-control" id="mi-client-reference" value="${escapeAttr(invoiceFieldValue(inv,'Client Reference'))}" /></div>
-        <div class="form-group"><label class="form-label">Patent Office</label><input class="form-control" id="mi-patent-office" value="${escapeAttr(invoiceFieldValue(inv,'Patent Office'))}" /></div>
+        <div class="form-group"><label class="form-label">CASE_ID / Invention#</label><input class="form-control" id="mi-case-id" list="mi-case-list" value="${escapeAttr(inv?.['Invention#'] || inv?.CASE_ID || '')}" onchange="syncInvoiceCaseSelection()" /><datalist id="mi-case-list">${buildInvoiceCaseOptions(clientCodeValue)}</datalist></div>
+        <div class="form-group"><label class="form-label">Patent Office</label><input class="form-control" id="mi-patent-office" list="mi-patent-office-list" value="${escapeAttr(invoiceFieldValue(inv,'Patent Office'))}" /><datalist id="mi-patent-office-list">${buildSimpleOptions(INVOICE_PATENT_OFFICES)}</datalist></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">First Inventor</label><input class="form-control" id="mi-first-inventor" value="${escapeAttr(invoiceFieldValue(inv,'First Inventor'))}" /></div>
@@ -5146,7 +5200,7 @@ async function openInvoiceModal(jsonStr) {
         <div class="form-group"><label class="form-label">Entity Status</label><input class="form-control" id="mi-entity-status" value="${escapeAttr(invoiceFieldValue(inv,'Entity Status'))}" /></div>
         <div class="form-group"><label class="form-label">State of Supply</label><input class="form-control" id="mi-state-supply" value="${escapeAttr(invoiceFieldValue(inv,'State of Supply'))}" /></div>
       </div>
-      <div class="form-group"><label class="form-label">Title Identification</label><input class="form-control" id="mi-title-keywords" value="${escapeAttr(invoiceFieldValue(inv,'Title Identfication (Only key words, Enter in lower case}'))}" /></div>
+      <div class="form-group"><label class="form-label">Title Identification</label><input class="form-control" id="mi-title-keywords" list="mi-title-list" value="${escapeAttr(invoiceFieldValue(inv,'Title Identfication (Only key words, Enter in lower case}'))}" /><datalist id="mi-title-list">${buildInvoiceTitleOptions(clientCodeValue)}</datalist></div>
     </div>
     <div class="card" style="margin-bottom:12px">
       <div class="card-title">Service Codes</div>
@@ -5199,7 +5253,7 @@ async function openInvoiceModal(jsonStr) {
         <div class="form-group"><label class="form-label">Payment Mode</label><input class="form-control" id="mi-payment-mode" value="${escapeAttr(inv?.PAYMENT_MODE || '')}" /></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Payment Date</label><input type="date" class="form-control" id="mi-payment-date" value="${inv?.PAYMENT_DATE ? new Date(inv.PAYMENT_DATE).toISOString().split('T')[0] : ''}" /></div>
+        <div class="form-group"><label class="form-label">Payment Date</label><input type="date" class="form-control" id="mi-payment-date" value="${escapeAttr(toInputDate(inv?.PAYMENT_DATE))}" /></div>
         <div class="form-group"><label class="form-label">Notes</label><input class="form-control" id="mi-notes" value="${escapeAttr(inv?.NOTES || '')}" /></div>
       </div>
     </div>
@@ -5213,9 +5267,29 @@ async function openInvoiceModal(jsonStr) {
 }
 
 function syncInvoiceClientSelection() {
-  const client = resolveClientByCode(document.getElementById('mi-client-code')?.value.trim() || '');
+  const client = resolveClientByAnyKey(document.getElementById('mi-client-code')?.value.trim() || '');
   if (client && document.getElementById('mi-client-name')) {
     document.getElementById('mi-client-name').value = client.CLIENT_NAME || '';
+  }
+  const caseList = document.getElementById('mi-case-list');
+  if (caseList) caseList.innerHTML = buildInvoiceCaseOptions(client?.CLIENT_CODE || client?.CLIENT_ID || '');
+  const titleList = document.getElementById('mi-title-list');
+  if (titleList) titleList.innerHTML = buildInvoiceTitleOptions(client?.CLIENT_CODE || client?.CLIENT_ID || '');
+}
+
+function syncInvoiceCaseSelection() {
+  const caseId = String(document.getElementById('mi-case-id')?.value || '').trim();
+  if (!caseId) return;
+  const caseItem = (CASES_ALL || []).find(item => String(item.CASE_ID || '').trim().toUpperCase() === caseId.toUpperCase());
+  if (!caseItem) return;
+  if (document.getElementById('mi-title-keywords') && !document.getElementById('mi-title-keywords').value.trim()) {
+    document.getElementById('mi-title-keywords').value = caseItem.PATENT_TITLE || '';
+  }
+  if (document.getElementById('mi-docket-number') && !document.getElementById('mi-docket-number').value.trim()) {
+    document.getElementById('mi-docket-number').value = caseItem.APPLICATION_NUMBER || caseItem.CASE_ID || '';
+  }
+  if (document.getElementById('mi-patent-office') && !document.getElementById('mi-patent-office').value.trim()) {
+    document.getElementById('mi-patent-office').value = caseItem.COUNTRY || '';
   }
 }
 
@@ -5271,7 +5345,7 @@ function refreshInvoiceCalculatedFields() {
 async function saveInvoice(existingId) {
   const btn = document.getElementById('mi-save');
   btn.disabled = true; btn.textContent = 'Saving…';
-  const selectedClient = resolveClientByCode(document.getElementById('mi-client-code').value.trim());
+  const selectedClient = resolveClientByAnyKey(document.getElementById('mi-client-code').value.trim());
   if (!selectedClient) {
     alert('Select a valid client code.');
     btn.disabled = false; btn.textContent = 'Save Invoice';
