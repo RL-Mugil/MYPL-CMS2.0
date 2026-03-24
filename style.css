@@ -1077,7 +1077,10 @@ body.mobile-app .main {
 }
 
 body.mobile-app .sidebar {
+  width: 75vw;
+  max-width: 75vw;
   transition: transform 0.2s ease;
+  z-index: 1400;
 }
 
 body.mobile-app .topbar {
@@ -1087,6 +1090,19 @@ body.mobile-app .topbar {
 body.mobile-app .topbar-right {
   justify-content: flex-end;
   align-items: flex-start;
+  width: auto;
+  margin-left: auto;
+  flex-wrap: nowrap;
+}
+
+body.mobile-app .topbar > div:first-child {
+  width: auto;
+  flex: 1 1 auto;
+}
+
+body.mobile-app .topbar-actions-extra {
+  width: auto;
+  flex-wrap: nowrap;
 }
 
 body.mobile-app .topbar-right > .btn,
@@ -1152,9 +1168,32 @@ body.mobile-app .daily-audit-section-head {
 
 body.mobile-app .grid-2,
 body.mobile-app .grid-3,
-body.mobile-app .grid-7-5,
-body.mobile-app .stats-grid {
+body.mobile-app .grid-7-5 {
   grid-template-columns: 1fr;
+}
+
+body.mobile-app .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body.mobile-app .stat-card {
+  min-width: 0;
+  width: 100%;
+  padding: 14px 14px 12px;
+}
+
+body.mobile-app .stat-label {
+  margin-bottom: 4px;
+}
+
+body.mobile-app .stat-value {
+  font-size: 24px;
+}
+
+body.mobile-app .stat-sub {
+  margin-top: 2px;
 }
 
 body.mobile-app .donut-wrap {
@@ -1174,6 +1213,20 @@ body.mobile-app .modal-invoice-form {
   width: 100%;
   max-height: calc(100vh - 24px);
   overflow: auto;
+}
+
+@media (max-width: 420px) {
+  body.mobile-app .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.mobile-app .stat-card {
+    padding: 12px;
+  }
+
+  body.mobile-app .stat-value {
+    font-size: 22px;
+  }
 }
 
 /* ── Action rows ─────────────────────────────────────────────────────────── */

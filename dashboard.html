@@ -389,6 +389,10 @@ function isMobileAppShell() {
   return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 }
 
+function isCompactMobileUi() {
+  return isMobileAppShell() || window.innerWidth <= 768;
+}
+
 function setMobileAppMode() {
   document.body.classList.toggle('mobile-app', isMobileAppShell());
 }
@@ -400,8 +404,13 @@ function setSidebarOpen(open) {
 }
 
 function initMobileAppGestures() {
-  if (!isMobileAppShell()) return;
+  if (!isCompactMobileUi()) return;
   const touchStart = (event) => {
+    const target = event.target;
+    if (target && target.closest && target.closest('.table-wrap, .search-dropdown-menu, .stream-thread, .chat-thread')) {
+      MOBILE_SWIPE_STATE = { tracking: false, startX: 0, startY: 0 };
+      return;
+    }
     const touch = event.changedTouches && event.changedTouches[0];
     if (!touch) return;
     MOBILE_SWIPE_STATE = { tracking: true, startX: touch.clientX, startY: touch.clientY };
@@ -413,8 +422,8 @@ function initMobileAppGestures() {
     if (!touch) return;
     const deltaX = touch.clientX - MOBILE_SWIPE_STATE.startX;
     const deltaY = touch.clientY - MOBILE_SWIPE_STATE.startY;
-    if (Math.abs(deltaY) > 60 || Math.abs(deltaX) < 70) return;
-    if (MOBILE_SWIPE_STATE.startX <= 24 && deltaX > 0) {
+    if (Math.abs(deltaY) > 60 || Math.abs(deltaX) < 80) return;
+    if (deltaX > 0) {
       setSidebarOpen(true);
       return;
     }
@@ -880,7 +889,7 @@ function sortItemsBy(items, getter, direction = 'az') {
 }
 
 function renderFilterToggleButton(filterKey) {
-  if (isMobileAppShell()) {
+  if (isCompactMobileUi()) {
     return financeActionIconButton(FILTER_PANEL_STATE[filterKey] ? 'Close Filter' : 'Open Filter', 'filter_alt', 'btn-ghost', `toggleFilterPanel('${filterKey}')`);
   }
   return `<button class="btn btn-ghost btn-sm" onclick="toggleFilterPanel('${filterKey}')">${FILTER_PANEL_STATE[filterKey] ? 'Close Filter' : 'Filter'}</button>`;
@@ -1302,7 +1311,7 @@ function applyTheme(theme) {
 }
 
 function getThemeToggleHtml() {
-  if (isMobileAppShell()) {
+  if (isCompactMobileUi()) {
     return financeActionIconButton(CURRENT_THEME === 'light' ? 'Use Dark Theme' : 'Use Light Theme', CURRENT_THEME === 'light' ? 'dark_mode' : 'light_mode', 'btn-ghost', 'toggleTheme()');
   }
   return `<button class="btn btn-ghost btn-sm" onclick="toggleTheme()">${CURRENT_THEME === 'light' ? 'Dark' : 'Light'} Theme</button>`;
@@ -1323,7 +1332,7 @@ function financeActionIconButton(label, icon, className, onClick) {
 }
 
 function renderMobileTopbarAction(label, icon, onClick, className = 'btn-ghost') {
-  return isMobileAppShell()
+  return isCompactMobileUi()
     ? financeActionIconButton(label, icon, className, onClick)
     : '';
 }
@@ -1480,7 +1489,7 @@ async function loadDashboard() {
 
 function renderDashboardSummary(d) {
   const caseIds = [];
-  setTopbarActions(isMobileAppShell()
+  setTopbarActions(isCompactMobileUi()
     ? renderMobileTopbarAction(DASHBOARD_FILTER_OPEN ? 'Close Dashboard Filters' : 'Open Dashboard Filters', 'filter_alt', 'toggleDashboardFilters()')
     : `<button class="btn btn-ghost btn-sm" onclick="toggleDashboardFilters()">${DASHBOARD_FILTER_OPEN ? 'Close Filter' : 'Filter'}</button>`);
   document.getElementById('page-content').innerHTML = `
@@ -1771,7 +1780,7 @@ async function loadCases() {
   const canEdit = sessionHasRoleAtLeast('Staff');
   const canBulk = sessionHasRoleAtLeast('Admin');
   if (canEdit) {
-    setTopbarActions(isMobileAppShell()
+    setTopbarActions(isCompactMobileUi()
       ? `${renderFilterToggleButton('cases')}${canBulk ? renderMobileTopbarAction('Bulk Update', 'playlist_add_check', 'openBulkCaseUpdate()') : ''}${renderMobileTopbarAction('Bulk Import', 'upload_file', 'openBulkDocketTrakImport()')}${renderMobileTopbarAction('New Case', 'add', 'openCaseModal()', 'btn-primary')}`
       : `${renderFilterToggleButton('cases')}${canBulk ? `<button class="btn btn-ghost btn-sm" onclick="openBulkCaseUpdate()">Bulk Update</button>` : ''}<button class="btn btn-ghost btn-sm" onclick="openBulkDocketTrakImport()">Bulk Import</button><button class="btn btn-primary btn-sm" onclick="openCaseModal()">+ New Case</button>`);
   } else {
@@ -2191,7 +2200,9 @@ async function advanceTaskStatus(taskId, currentStatus) {
 
 async function loadApprovals() {
   destroyCharts();
-  setTopbarActions(`${renderFilterToggleButton('approvals')}<button class="btn btn-primary btn-sm" onclick="openApprovalModal()">+ New Approval</button>`);
+  setTopbarActions(isCompactMobileUi()
+    ? `${renderFilterToggleButton('approvals')}${renderMobileTopbarAction('New Approval', 'approval', 'openApprovalModal()', 'btn-primary')}`
+    : `${renderFilterToggleButton('approvals')}<button class="btn btn-primary btn-sm" onclick="openApprovalModal()">+ New Approval</button>`);
   try {
     APPROVALS_CACHE = await API.getApprovalRequests({});
     renderApprovals();
@@ -2306,7 +2317,9 @@ async function reviewApproval(approvalId, status) {
 
 async function loadDocumentWorkflow() {
   destroyCharts();
-  setTopbarActions(`<button class="btn btn-primary btn-sm" onclick="openDocumentRequestModal()">+ New Request</button>`);
+  setTopbarActions(isCompactMobileUi()
+    ? renderMobileTopbarAction('New Request', 'post_add', 'openDocumentRequestModal()', 'btn-primary')
+    : `<button class="btn btn-primary btn-sm" onclick="openDocumentRequestModal()">+ New Request</button>`);
   try {
     const items = await API.getDocumentRequests({});
     document.getElementById('page-content').innerHTML = `
@@ -2382,7 +2395,7 @@ function renderDocuments(docs) {
       ${items}
     </div>`;
   }).join('');
-  setTopbarActions(isMobileAppShell()
+  setTopbarActions(isCompactMobileUi()
     ? renderFilterToggleButton('documents')
     : `<button class="btn btn-primary btn-sm" onclick="submitDocumentUpload()">Upload Document</button>`);
   document.getElementById('page-content').innerHTML = `<div class="page">
@@ -2429,7 +2442,7 @@ async function loadFinance() {
   }
   const canEdit = sessionHasRoleAtLeast('Admin');
   if (canEdit) {
-    setTopbarActions(isMobileAppShell()
+    setTopbarActions(isCompactMobileUi()
       ? `${renderFilterToggleButton('finance')}${renderMobileTopbarAction('New Invoice', 'add', 'openInvoiceModal()', 'btn-primary')}`
       : `${renderFilterToggleButton('finance')}<button class="btn btn-primary btn-sm" onclick="openInvoiceModal()">+ New Invoice</button>`);
   } else {
@@ -2787,10 +2800,10 @@ function renderMgmtUsers() {
       <td>${statusBadge(u.ROLE)}</td>
       <td>${statusBadge(u.STATUS)}</td>
       <td><div class="action-row">
-        ${String(u.EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase() ? '' : `<button class="btn btn-ghost btn-sm" onclick="openDirectMessageForUser('${escapeAttr(u.EMAIL)}','${escapeAttr(u.FULL_NAME)}')">Message</button>`}
-        ${canImpersonateUsers() && String(u.USER_ID || '') !== String(SESSION.userId || '') ? `<button class="btn btn-ghost btn-sm" onclick="startImpersonation('${u.USER_ID}')">Impersonate</button>` : ''}
-        <button class="btn btn-ghost btn-sm" onclick='openUserModal(${JSON.stringify(JSON.stringify(u))})'>Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteItem('User','${u.USER_ID}')">Del</button>
+        ${String(u.EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase() ? '' : financeActionIconButton('Message', 'chat', 'btn-ghost', `openDirectMessageForUser('${escapeAttr(u.EMAIL)}','${escapeAttr(u.FULL_NAME)}')`)}
+        ${canImpersonateUsers() && String(u.USER_ID || '') !== String(SESSION.userId || '') ? financeActionIconButton('Impersonate', 'person_search', 'btn-ghost', `startImpersonation('${u.USER_ID}')`) : ''}
+        ${financeActionIconButton('Edit', 'edit', 'btn-ghost', `openUserModal(${JSON.stringify(JSON.stringify(u))})`)}
+        ${financeActionIconButton('Delete', 'delete', 'btn-danger', `deleteItem('User','${u.USER_ID}')`)}
       </div></td>
     </tr>`).join('');
     mc.innerHTML = `
@@ -3927,7 +3940,9 @@ async function loadStreamMessaging() {
       return;
     }
     await ensureUserLookupLoaded();
-    setTopbarActions(`<button class="btn btn-ghost btn-sm" onclick="refreshStreamChannelList(false)">Refresh</button><button class="btn btn-ghost btn-sm" onclick="openStreamNewGroupModal()">+ New Group</button><button class="btn btn-primary btn-sm" onclick="openStreamNewChatModal()">+ New Stream Chat</button>`);
+    setTopbarActions(isCompactMobileUi()
+      ? `${renderMobileTopbarAction('Refresh', 'refresh', 'refreshStreamChannelList(false)')}${renderMobileTopbarAction('New Group', 'groups', 'openStreamNewGroupModal()')}${renderMobileTopbarAction('New Stream Chat', 'chat_add_on', 'openStreamNewChatModal()', 'btn-primary')}`
+      : `<button class="btn btn-ghost btn-sm" onclick="refreshStreamChannelList(false)">Refresh</button><button class="btn btn-ghost btn-sm" onclick="openStreamNewGroupModal()">+ New Group</button><button class="btn btn-primary btn-sm" onclick="openStreamNewChatModal()">+ New Stream Chat</button>`);
     document.getElementById('page-content').innerHTML = `
       <div class="page">
         <div class="stream-layout">
@@ -4336,7 +4351,9 @@ async function loadNotifications() {
   try {
     const items = await API.getNotifications();
     const canAnnounce = sessionHasAnyRole(['Super Admin', 'Admin']);
-    setTopbarActions(`${canAnnounce ? `<button class="btn btn-primary btn-sm" onclick="openAnnouncementModal()">+ Announcement</button>` : ''}<button class="btn btn-ghost btn-sm" onclick="clearAllNotifications()">Clear All</button>`);
+    setTopbarActions(isCompactMobileUi()
+      ? `${canAnnounce ? renderMobileTopbarAction('Announcement', 'campaign', 'openAnnouncementModal()', 'btn-primary') : ''}${renderMobileTopbarAction('Clear All Notifications', 'notifications_off', 'clearAllNotifications()')}`
+      : `${canAnnounce ? `<button class="btn btn-primary btn-sm" onclick="openAnnouncementModal()">+ Announcement</button>` : ''}<button class="btn btn-ghost btn-sm" onclick="clearAllNotifications()">Clear All</button>`);
     const rows = items.map(n => `
       <div class="card" style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;gap:12px">
@@ -4445,7 +4462,7 @@ async function loadDailyAudit() {
     const wrapups = (audit.wrapups || []).map(item => `
       <tr><td>${item.ENTRY_DATE}</td><td>${item.USER_NAME || item.USER_EMAIL}</td><td>${item.HIGH_POINTS || '—'}</td><td>${item.LOW_POINTS || '—'}</td><td>${item.HELP_NEEDED || '—'}</td></tr>
     `).join('');
-    setTopbarActions(isMobileAppShell()
+    setTopbarActions(isCompactMobileUi()
       ? renderMobileTopbarAction(DAILY_AUDIT_FILTER_OPEN ? 'Close Daily Audit Filters' : 'Open Daily Audit Filters', 'filter_alt', 'toggleDailyAuditFilters()')
       : `<button class="btn btn-ghost btn-sm" onclick="toggleDailyAuditFilters()">${DAILY_AUDIT_FILTER_OPEN ? 'Close Filter' : 'Filter'}</button>`);
     document.getElementById('page-content').innerHTML = `
