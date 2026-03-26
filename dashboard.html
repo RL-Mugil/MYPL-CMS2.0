@@ -331,6 +331,7 @@ function hasRoleAtLeast(role, minimumRole) {
     'Super Admin': 60,
     'Admin': 50,
     'Galvanizer': 45,
+    'Paralegal': 44,
     'Staff': 40,
     'Attorney': 30,
     'Client Admin': 20,
@@ -378,7 +379,7 @@ function canImpersonateUsers() {
 }
 
 function isInternalUser() {
-  return sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney']);
+  return sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer', 'Paralegal', 'Staff', 'Attorney']);
 }
 
 function canAccessStreamMessaging() {
@@ -642,7 +643,7 @@ async function startImpersonation(userId) {
     const effectiveRoles = (window.Auth && typeof window.Auth.getEffectiveSessionRoles === 'function')
       ? window.Auth.getEffectiveSessionRoles(nextSession)
       : [nextSession.role].filter(Boolean);
-    const isInternal = effectiveRoles.some((role) => ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'].includes(role));
+      const isInternal = effectiveRoles.some((role) => ['Super Admin', 'Admin', 'Galvanizer', 'Paralegal', 'Staff', 'Attorney'].includes(role));
     window.location.href = isInternal ? 'dashboard.html' : 'client-portal.html';
   } catch (e) {
     alert(e.message || 'Unable to impersonate user.');
@@ -711,7 +712,7 @@ function statusBadge(s) {
     'Lapsed': 'badge-abandoned', 'Refused': 'badge-abandoned',
     'Paid': 'badge-paid', 'Unpaid': 'badge-unpaid',
     'Active': 'badge-active', 'Inactive': 'badge-inactive',
-    'Admin': 'badge-admin', 'Attorney': 'badge-attorney', 'Client': 'badge-client',
+      'Admin': 'badge-admin', 'Paralegal': 'badge-admin', 'Attorney': 'badge-attorney', 'Client': 'badge-client',
   };
   return `<span class="badge ${map[s] || 'badge-drafted'}">${s}</span>`;
 }
@@ -1030,7 +1031,7 @@ function buildInvoiceTitleOptions(clientValue) {
 
 function buildInvoiceManagerOptions() {
   const names = (USER_LOOKUP_CACHE || [])
-    .filter(user => getEffectiveRoleList(user).some(role => ['Super Admin','Admin','Galvanizer','Staff','Attorney'].includes(role)))
+    .filter(user => getEffectiveRoleList(user).some(role => ['Super Admin','Admin','Galvanizer','Paralegal','Staff','Attorney'].includes(role)))
     .map(user => user.FULL_NAME || user.EMAIL)
     .filter(Boolean);
   return buildSimpleOptions(Array.from(new Set(names)));
@@ -1427,7 +1428,7 @@ function getCaseIdLookupFromCases(cases) {
 
 function renderRoleCheckboxes(selectedCsv) {
   const selected = String(selectedCsv || '').split(',').map(v => v.trim()).filter(Boolean);
-  const roles = ['Super Admin','Admin','Galvanizer','Staff','Attorney','Client Admin','Client Employee','Individual Client'];
+  const roles = ['Super Admin','Admin','Galvanizer','Paralegal','Staff','Attorney','Client Admin','Client Employee','Individual Client'];
   return roles.map(role => `
     <label style="display:inline-flex;align-items:center;gap:6px;margin:0 12px 8px 0;font-size:13px">
       <input type="checkbox" class="mu-extra-role" value="${role}" ${selected.includes(role) ? 'checked' : ''} />
@@ -3509,7 +3510,7 @@ function getInternalStreamCandidates() {
   const selfEmail = String(SESSION?.email || '').toLowerCase();
   return (USER_LOOKUP_CACHE || [])
     .filter((user) => String(user.EMAIL || '').toLowerCase() !== selfEmail)
-    .filter((user) => isInternalUserRole(user.ROLE || '') || getEffectiveRoleList(user).some((role) => ['Super Admin', 'Admin', 'Galvanizer', 'Staff', 'Attorney'].includes(role)))
+    .filter((user) => isInternalUserRole(user.ROLE || '') || getEffectiveRoleList(user).some((role) => ['Super Admin', 'Admin', 'Galvanizer', 'Paralegal', 'Staff', 'Attorney'].includes(role)))
     .sort((a, b) => String(a.FULL_NAME || a.EMAIL || '').localeCompare(String(b.FULL_NAME || b.EMAIL || ''), undefined, { sensitivity: 'base' }));
 }
 
@@ -4407,6 +4408,7 @@ async function openAnnouncementModal() {
         <option value="Super Admin">Super Admin</option>
         <option value="Admin">Admin</option>
         <option value="Galvanizer">Galvanizer</option>
+        <option value="Paralegal">Paralegal</option>
         <option value="Staff">Staff</option>
         <option value="Attorney">Attorney</option>
         <option value="Client Admin">Client Admin</option>
@@ -4540,7 +4542,7 @@ function resetDailyAuditFilters() {
 }
 
 function isInternalUserRole(role) {
-  return ['Super Admin','Admin','Galvanizer','Staff','Attorney'].includes(role);
+    return ['Super Admin','Admin','Galvanizer','Paralegal','Staff','Attorney'].includes(role);
 }
 
 function applyDailyAuditFilters() {
@@ -4634,7 +4636,7 @@ async function loadExpenses() {
 async function loadGalvanizerQueue() {
   destroyCharts();
   CASE_FILTER_TARGET = 'galvanizer';
-  if (!sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer'])) {
+  if (!sessionHasAnyRole(['Super Admin', 'Admin', 'Galvanizer', 'Paralegal'])) {
     document.getElementById('page-content').innerHTML = err('Galvanizer queue is restricted.');
     return;
   }
@@ -5144,7 +5146,7 @@ function openUserModal(jsonStr, options = {}) {
     <div class="form-group"><label class="form-label">Password ${u?'(leave blank to keep)':'*'}</label><input type="password" class="form-control" id="mu-pwd" /></div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Role</label>
-        <select class="form-control" id="mu-role" onchange="syncUserOrgSelection()">${['Super Admin','Admin','Galvanizer','Staff','Attorney','Client Admin','Client Employee','Individual Client'].map(x=>`<option${(u?.ROLE || (prefilledOrg ? 'Client Employee' : ''))===x?' selected':''}>${x}</option>`).join('')}</select>
+        <select class="form-control" id="mu-role" onchange="syncUserOrgSelection()">${['Super Admin','Admin','Galvanizer','Paralegal','Staff','Attorney','Client Admin','Client Employee','Individual Client'].map(x=>`<option${(u?.ROLE || (prefilledOrg ? 'Client Employee' : ''))===x?' selected':''}>${x}</option>`).join('')}</select>
       </div>
       <div class="form-group"><label class="form-label">Client Code</label><input class="form-control" id="mu-cid" list="mu-client-list" value="${u?.CLIENT_ID||''}" /><datalist id="mu-client-list">${clientOptions}</datalist></div>
     </div>

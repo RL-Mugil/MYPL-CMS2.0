@@ -8,6 +8,7 @@ var ROLE_ORDER_ = {
   "Super Admin": 60,
   "Admin": 50,
   "Galvanizer": 45,
+  "Paralegal": 44,
   "Staff": 40,
   "Attorney": 30,
   "Client Admin": 20,
@@ -34,7 +35,26 @@ function getRecords_(configKey) {
   var headers = data[0];
   var records = [];
   for (var i = 1; i < data.length; i++) {
-    if (!data[i][0]) continue;
+    if (configKey === "INVOICE") {
+      var hasInvoiceIdentity = false;
+      for (var h = 0; h < headers.length; h++) {
+        var header = headers[h];
+        if (
+          header === "Docket# [Invoice UIN]" ||
+          header === "Tax Invoice Number" ||
+          header === "ClientCode" ||
+          header === "CLIENT_ID"
+        ) {
+          if (String(data[i][h] || "").trim()) {
+            hasInvoiceIdentity = true;
+            break;
+          }
+        }
+      }
+      if (!hasInvoiceIdentity) continue;
+    } else {
+      if (!data[i][0]) continue;
+    }
     var row = {};
     for (var j = 0; j < headers.length; j++) {
       row[headers[j]] = data[i][j];
@@ -89,6 +109,99 @@ function updateRecordById_(configKey, idField, idValue, updates) {
   });
   clearRequestSheetCache_(configKey);
   return true;
+}
+
+function normalizeWorkflowStageFromStatus_(status, currentStage) {
+  var normalized = String(status || "").trim();
+  var map = {
+    "Drafted": "Drafting",
+    "Filed": "Filed",
+    "Published": "Under Examination",
+    "Under Examination": "Under Examination",
+    "Granted": "Granted",
+    "Abandoned": "Closed",
+    "Lapsed": "Closed",
+    "Refused": "Closed",
+    "Deleted": "Closed",
+    "Closed": "Closed"
+  };
+  return map[normalized] || currentStage || "Drafting";
+}
+
+function getCaseWithNormalizedStage_(caseItem) {
+  var clone = {};
+  Object.keys(caseItem || {}).forEach(function(key) {
+    clone[key] = caseItem[key];
+  });
+  clone.WORKFLOW_STAGE = normalizeWorkflowStageFromStatus_(clone.CURRENT_STATUS, clone.WORKFLOW_STAGE || "");
+  return clone;
+}
+
+function renameCaseId_(session, oldCaseId, newCaseId) {
+  oldCaseId = String(oldCaseId || "").trim();
+  newCaseId = String(newCaseId || "").trim();
+  if (!oldCaseId || !newCaseId) return { error: "Both old and new Case ID are required." };
+  if (oldCaseId === newCaseId) return { success: true, message: "No Case ID change needed." };
+  if ((getAllCases() || []).some(function(item) { return String(item.CASE_ID || "") === newCaseId; })) {
+    return { error: "Case ID already exists: " + newCaseId };
+  }
+
+  var caseUpdated = updateRecordById_("CASE", "CASE_ID", oldCaseId, { CASE_ID: newCaseId, LAST_UPDATED: new Date() });
+  if (!caseUpdated) return { error: "Case not found." };
+
+  function replaceColumnValue_(configKey, columnName, fromValue, toValue, predicate) {
+    var sheet = getSheet_(configKey);
+    var data = sheet.getDataRange().getValues();
+    if (!data.length) return;
+    var headers = data[0];
+    var colIndex = headers.indexOf(columnName);
+    if (colIndex === -1) return;
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][0] || "") === "") continue;
+      if (String(data[i][colIndex] || "") !== fromValue) continue;
+      if (predicate && !predicate(headers, data[i])) continue;
+      sheet.getRange(i + 1, colIndex + 1).setValue(toValue);
+    }
+    clearRequestSheetCache_(configKey);
+  }
+
+  replaceColumnValue_("INVOICE", "CASE_ID", oldCaseId, newCaseId);
+  replaceColumnValue_("DOCUMENT_REQUESTS", "CASE_ID", oldCaseId, newCaseId);
+  replaceColumnValue_("ACTIVITY_TIMELINE", "CASE_ID", oldCaseId, newCaseId);
+  replaceColumnValue_("ACTIVITY_TIMELINE", "ENTITY_ID", oldCaseId, newCaseId, function(headers, row) {
+    return String(row[headers.indexOf("ENTITY_TYPE")] || "") === "CASE";
+  });
+  replaceColumnValue_("TASKS", "RELATED_ENTITY_ID", oldCaseId, newCaseId, function(headers, row) {
+    return String(row[headers.indexOf("RELATED_ENTITY_TYPE")] || "") === "CASE";
+  });
+  replaceColumnValue_("APPROVALS", "RELATED_ENTITY_ID", oldCaseId, newCaseId, function(headers, row) {
+    return String(row[headers.indexOf("RELATED_ENTITY_TYPE")] || "") === "CASE";
+  });
+  replaceColumnValue_("MESSAGE_THREADS", "RELATED_ENTITY_ID", oldCaseId, newCaseId, function(headers, row) {
+    return String(row[headers.indexOf("RELATED_ENTITY_TYPE")] || "") === "CASE";
+  });
+  replaceColumnValue_("NOTIFICATIONS", "RELATED_ENTITY_ID", oldCaseId, newCaseId, function(headers, row) {
+    return String(row[headers.indexOf("RELATED_ENTITY_TYPE")] || "") === "CASE";
+  });
+
+  if (session && session.email) {
+    try {
+      createTimelineEvent_({
+        EVENT_TYPE: "CASE_ID_UPDATED",
+        TITLE: "Case ID updated",
+        DESCRIPTION: oldCaseId + " renamed to " + newCaseId,
+        ENTITY_TYPE: "CASE",
+        ENTITY_ID: newCaseId,
+        CASE_ID: newCaseId,
+        USER_EMAIL: session.email,
+        USER_NAME: session.name || session.email,
+        VISIBILITY: "Internal"
+      });
+    } catch (e) {}
+  }
+
+  clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "documents", "galvanizerQueue", "workflowBoard", "attorneyWorkspace", "notifications", "tasks", "messages", "timeline", "approvals", "documentRequests", "smartSearch"]);
+  return { success: true, message: "Case ID updated successfully." };
 }
 
 function getUserRecordByEmail_(email) {
@@ -150,7 +263,7 @@ function hasAnyRole_(userOrSession, roles) {
 function isInternalRole_(role) {
   var roles = Object.prototype.toString.call(role) === "[object Array]" ? role : [role];
   return roles.some(function(item) {
-    return ["Super Admin", "Admin", "Galvanizer", "Staff", "Attorney"].indexOf(normalizeRole_(item)) > -1;
+    return ["Super Admin", "Admin", "Galvanizer", "Paralegal", "Staff", "Attorney"].indexOf(normalizeRole_(item)) > -1;
   });
 }
 
@@ -261,12 +374,28 @@ function nextCaseSequenceForClient_(clientCode) {
   return ("000" + (maxNum + 1)).slice(-3);
 }
 
+function caseIdExists_(caseId) {
+  var target = String(caseId || "").trim().toUpperCase();
+  if (!target) return false;
+  return (getAllCases() || []).some(function(caseItem) {
+    return String(caseItem.CASE_ID || "").trim().toUpperCase() === target;
+  });
+}
+
 function generateCaseIdForClient_(client) {
   var clientCode = normalizeClientCode_(client.CLIENT_CODE || client.CLIENT_ID, client.CLIENT_REGION);
   if (!looksLikeModernClientCode_(clientCode)) {
     throw new Error("Valid client code is required before creating a case.");
   }
-  return clientCode + nextCaseSequenceForClient_(clientCode);
+  var nextNumber = parseInt(nextCaseSequenceForClient_(clientCode), 10) || 1;
+  var attempts = 0;
+  while (attempts < 9999) {
+    var candidate = clientCode + ("000" + nextNumber).slice(-3);
+    if (!caseIdExists_(candidate)) return candidate;
+    nextNumber++;
+    attempts++;
+  }
+  throw new Error("Unable to generate a unique case ID for client " + clientCode);
 }
 
 function getAccessibleClientsForUser_(session) {
@@ -279,7 +408,11 @@ function getAccessibleClientsForUser_(session) {
 
   if (hasRoleAtLeast_(roles, "Admin")) return clients;
 
-  if (roles.indexOf("Galvanizer") > -1 || role === "Staff") {
+  if (roles.indexOf("Galvanizer") > -1 || roles.indexOf("Paralegal") > -1) {
+    return clients;
+  }
+
+  if (role === "Staff") {
     return clients.filter(function(client) {
       return String(client.ASSIGNED_STAFF_EMAIL || "").trim().toLowerCase() === sessionEmail;
     });
@@ -325,24 +458,17 @@ function getAccessibleCasesForUser_(session) {
   var roles = getEffectiveRoles_(session);
   var sessionEmail = String(session.email || "").trim().toLowerCase();
   var sessionOrgId = getResolvedOrgIdForSession_(session);
-
-  if (hasRoleAtLeast_(roles, "Admin")) return getAllCases();
-  if (roles.indexOf("Galvanizer") > -1) {
-    return getAllCases().filter(function(caseItem) {
-      return String(caseItem.ASSIGNED_STAFF_EMAIL || "").trim().toLowerCase() === sessionEmail ||
-        String(caseItem.GALVANIZER_EMAIL || "").trim().toLowerCase() === sessionEmail;
-    });
-  }
-  if (role === "Attorney") return getAttorneyCases(session.email);
-
   var clientIds = getAccessibleClientIdsForUser_(session);
   var clientIdMap = {};
   clientIds.forEach(function(id) { clientIdMap[id] = true; });
 
+  if (hasRoleAtLeast_(roles, "Admin")) return getAllCases();
+  if (roles.indexOf("Galvanizer") > -1 || roles.indexOf("Paralegal") > -1) return getAllCases();
+  if (role === "Attorney") return getAttorneyCases(session.email);
+
   return getAllCases().filter(function(caseItem) {
     if (role === "Staff") {
-      return String(caseItem.ASSIGNED_STAFF_EMAIL || "").trim().toLowerCase() === sessionEmail ||
-        clientIdMap[caseItem.CLIENT_ID];
+      return String(caseItem.ASSIGNED_STAFF_EMAIL || "").trim().toLowerCase() === sessionEmail;
     }
     if (sessionOrgId) {
       return String(caseItem.ORG_ID || "").trim().toUpperCase() === sessionOrgId || clientIdMap[caseItem.CLIENT_ID];
@@ -441,11 +567,11 @@ function filterUsers_(users, filters) {
 }
 
 function getGalvanizerQueue_(session, filters) {
-  if (!hasAnyRole_(session, ["Super Admin", "Admin", "Galvanizer"])) return { error: "Access denied." };
+  if (!hasAnyRole_(session, ["Super Admin", "Admin", "Galvanizer", "Paralegal"])) return { error: "Access denied." };
   var cacheKey = buildPortalCacheKey_("galvanizerQueue", session, JSON.stringify(filters || {}));
   var cached = readPortalCache_(cacheKey);
   if (cached) return cached;
-  var cases = getAccessibleCasesForUser_(session);
+  var cases = getAccessibleCasesForUser_(session).map(getCaseWithNormalizedStage_);
   cases = filterCases_(cases, filters);
   cases = cases.filter(function(caseItem) {
     return ["Drafting", "Ready for Attorney", "Under Attorney Review"].indexOf(String(caseItem.WORKFLOW_STAGE || "Drafting")) > -1;
@@ -501,7 +627,7 @@ function getCircleMembers_(session, circleId) {
 }
 
 function saveCircle_(session, circleData) {
-  if (!hasAnyRole_(session, ["Super Admin", "Admin", "Galvanizer"])) return { error: "Access denied." };
+  if (!hasAnyRole_(session, ["Super Admin", "Admin", "Galvanizer", "Paralegal"])) return { error: "Access denied." };
   return withScriptLock_(function() {
     var sheet = getSheet_("CIRCLES");
     if (circleData.CIRCLE_ID) {
@@ -531,7 +657,7 @@ function saveCircle_(session, circleData) {
 }
 
 function deleteCircle_(session, circleId) {
-  if (!hasAnyRole_(session, ["Super Admin", "Admin", "Galvanizer"])) return { error: "Access denied." };
+  if (!hasAnyRole_(session, ["Super Admin", "Admin", "Galvanizer", "Paralegal"])) return { error: "Access denied." };
   var ok = updateRecordById_("CIRCLES", "CIRCLE_ID", circleId, {
     STATUS: "Inactive",
     UPDATED_AT: new Date()
@@ -541,7 +667,7 @@ function deleteCircle_(session, circleId) {
 }
 
 function saveCircleMember_(session, memberData) {
-  if (!hasAnyRole_(session, ["Super Admin", "Admin", "Galvanizer"])) return { error: "Access denied." };
+  if (!hasAnyRole_(session, ["Super Admin", "Admin", "Galvanizer", "Paralegal"])) return { error: "Access denied." };
   return withScriptLock_(function() {
     var user = memberData.USER_ID ? getUserRecordById_(memberData.USER_ID) : getUserRecordByEmail_(memberData.USER_EMAIL);
     if (!user) return { error: "User not found." };
@@ -576,7 +702,7 @@ function saveCircleMember_(session, memberData) {
 }
 
 function removeCircleMember_(session, membershipId) {
-  if (!hasAnyRole_(session, ["Super Admin", "Admin", "Galvanizer"])) return { error: "Access denied." };
+  if (!hasAnyRole_(session, ["Super Admin", "Admin", "Galvanizer", "Paralegal"])) return { error: "Access denied." };
   var ok = updateRecordById_("CIRCLE_MEMBERS", "MEMBERSHIP_ID", membershipId, {
     STATUS: "Removed",
     UPDATED_AT: new Date()
@@ -614,7 +740,7 @@ function bulkUpdateCases_(session, payload) {
   });
 
   logActivity_("BULK_UPDATE_CASES", "CASE", caseIds.join(","), JSON.stringify(updates));
-  if (updated) clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "galvanizerQueue", "documents"]);
+  if (updated) clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "galvanizerQueue", "documents", "workflowBoard", "attorneyWorkspace", "smartSearch"]);
   return { success: true, updated: updated, message: updated + " cases updated." };
 }
 
@@ -760,7 +886,7 @@ function bulkImportDocketTrakRows_(session, payload) {
       try {
         logActivity_("BULK_IMPORT_CASES", "CASE", importedCaseIds.join(","), "Imported " + imported + " DocketTrak rows into " + client.CLIENT_ID);
       } catch (e) {}
-      clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "documents", "galvanizerQueue", "workflowBoard", "smartSearch"]);
+      clearPortalCaches_(["cases", "casesPage", "dashboard", "dashboardSummary", "dashboardDetails", "documents", "galvanizerQueue", "workflowBoard", "attorneyWorkspace", "smartSearch"]);
     }
 
     return {
@@ -1187,6 +1313,54 @@ function getNotifications_(session) {
     return new Date(b.CREATED_AT || 0) - new Date(a.CREATED_AT || 0);
   });
   return writePortalCache_(cacheKey, sanitizeDataForFrontend_(notifications.slice(0, 100)), 45);
+}
+
+function sendAnnouncement_(session, announcementData) {
+  if (!hasAnyRole_(session, ["Super Admin", "Admin"])) return { error: "Access denied." };
+  var title = String(announcementData.title || "").trim();
+  var body = String(announcementData.body || "").trim();
+  var audience = String(announcementData.audience || "all").trim().toLowerCase();
+  var orgId = String(announcementData.orgId || "").trim();
+  var roleFilter = String(announcementData.role || "").trim();
+  if (!title || !body) return { error: "Announcement title and message are required." };
+
+  var recipients = getRecords_("USERS").filter(function(user) {
+    if (String(user.STATUS || "") !== "Active") return false;
+    var roles = getEffectiveRoles_(user);
+    var isInternal = isInternalRole_(roles);
+    if (audience === "internal" && !isInternal) return false;
+    if (audience === "clients" && isInternal) return false;
+    if (orgId && String(user.ORG_ID || "") !== orgId) return false;
+    if (roleFilter && roles.indexOf(roleFilter) === -1) return false;
+    return true;
+  });
+
+  recipients.forEach(function(user) {
+    createNotification_(
+      user.EMAIL,
+      "[Announcement] " + title,
+      body + " | Sent by " + (session.name || session.email),
+      "ANNOUNCEMENT",
+      title
+    );
+  });
+
+  try {
+    createTimelineEvent_({
+      EVENT_TYPE: "ANNOUNCEMENT_SENT",
+      TITLE: title,
+      DESCRIPTION: "Announcement sent to " + recipients.length + " users",
+      ENTITY_TYPE: "ANNOUNCEMENT",
+      ENTITY_ID: title,
+      ORG_ID: orgId || "",
+      USER_EMAIL: session.email,
+      USER_NAME: session.name || session.email,
+      VISIBILITY: "Internal"
+    });
+  } catch (e) {}
+
+  clearPortalCaches_(["notifications", "dashboard", "dashboardSummary", "dashboardDetails"]);
+  return { success: true, recipients: recipients.length, message: "Announcement sent to " + recipients.length + " users." };
 }
 
 function markNotificationRead_(session, notificationId) {
@@ -1846,7 +2020,7 @@ function getWorkflowBoard_(session, filters) {
   var cached = readPortalCache_(cacheKey);
   if (cached) return cached;
   var stages = ["Drafting", "Ready for Attorney", "Under Attorney Review", "Filed", "Under Examination", "Granted", "Closed"];
-  var cases = filterAccessibleCases_(session, filters || {});
+  var cases = filterAccessibleCases_(session, filters || {}).map(getCaseWithNormalizedStage_);
   var board = {};
   stages.forEach(function(stage) { board[stage] = []; });
   cases.forEach(function(caseItem) {
@@ -1860,8 +2034,13 @@ function getWorkflowBoard_(session, filters) {
 function getAttorneyWorkspace_(session, filters) {
   if (!hasAnyRole_(session, ["Super Admin", "Admin", "Attorney"])) return { error: "Access denied." };
   filters = filters || {};
-  var cases = getAccessibleCasesForUser_(session).filter(function(caseItem) {
-    return String(caseItem.ATTORNEY || "").toLowerCase() === String(session.email || "").toLowerCase() || hasRoleAtLeast_(getEffectiveRoles_(session), "Admin");
+  var allowedStages = ["Under Examination", "Ready for Attorney", "Under Attorney Review"];
+  var cases = getAccessibleCasesForUser_(session).map(getCaseWithNormalizedStage_).filter(function(caseItem) {
+    var isAssignedAttorney = String(caseItem.ATTORNEY || "").toLowerCase() === String(session.email || "").toLowerCase();
+    var isAdmin = hasRoleAtLeast_(getEffectiveRoles_(session), "Admin");
+    var statusMatches = String(caseItem.CURRENT_STATUS || "") === "Under Examination";
+    var stageMatches = allowedStages.indexOf(String(caseItem.WORKFLOW_STAGE || "")) > -1;
+    return (isAssignedAttorney || isAdmin) && statusMatches && stageMatches;
   });
   if (filters.status) cases = cases.filter(function(item) { return String(item.CURRENT_STATUS || "") === String(filters.status); });
   if (filters.stage) cases = cases.filter(function(item) { return String(item.WORKFLOW_STAGE || "") === String(filters.stage); });
@@ -2074,22 +2253,36 @@ function reviewDocumentRequest_(session, requestId, reviewData) {
   var request = getRecords_("DOCUMENT_REQUESTS").find(function(item) { return item.REQUEST_ID === requestId; });
   if (!request) return { error: "Document request not found." };
   if (!hasRoleAtLeast_(getEffectiveRoles_(session), "Staff")) return { error: "Access denied." };
+  var nextStatus = reviewData.status || request.STATUS || "Open";
   var ok = updateRecordById_("DOCUMENT_REQUESTS", "REQUEST_ID", requestId, {
-    STATUS: reviewData.status || request.STATUS || "Open",
+    STATUS: nextStatus,
     DRIVE_LINK: reviewData.driveLink || request.DRIVE_LINK || "",
     APPROVAL_STATUS: reviewData.approvalStatus || request.APPROVAL_STATUS || "",
     UPDATED_AT: new Date()
   });
   if (!ok) return { error: "Document request update failed." };
   if (request.REQUESTED_BY_EMAIL) {
-    createNotification_(request.REQUESTED_BY_EMAIL, "Document request updated", request.TITLE + " is now " + (reviewData.status || request.STATUS), "DOCUMENT_REQUEST", requestId);
+    createNotification_(request.REQUESTED_BY_EMAIL, "Document request updated", request.TITLE + " is now " + nextStatus, "DOCUMENT_REQUEST", requestId);
   }
+  createTimelineEvent_({
+    EVENT_TYPE: "DOCUMENT_REQUEST_REVIEWED",
+    TITLE: request.TITLE || "Document request reviewed",
+    DESCRIPTION: "Document request moved to " + nextStatus + " by " + session.name,
+    ENTITY_TYPE: "DOCUMENT_REQUEST",
+    ENTITY_ID: requestId,
+    CASE_ID: request.CASE_ID || "",
+    CLIENT_ID: request.CLIENT_ID || "",
+    ORG_ID: request.ORG_ID || "",
+    USER_EMAIL: session.email,
+    USER_NAME: session.name,
+    VISIBILITY: String(request.CLIENT_VISIBLE || "Yes") === "Yes" ? "Shared" : "Internal"
+  });
   clearPortalCaches_(["documentRequests", "timeline", "notifications"]);
   return { success: true };
 }
 
 function getGalvanizerCommandCenter_(session, filters) {
-  if (!hasAnyRole_(session, ["Super Admin", "Admin", "Galvanizer"])) return { error: "Access denied." };
+  if (!hasAnyRole_(session, ["Super Admin", "Admin", "Galvanizer", "Paralegal"])) return { error: "Access denied." };
   filters = filters || {};
   var queue = getGalvanizerQueue_(session, filters);
   var tasks = getTasks_(session, {});
