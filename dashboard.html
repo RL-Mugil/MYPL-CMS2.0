@@ -2499,6 +2499,11 @@ function openInvoicePaymentModalFromEncoded(encoded) {
   return openInvoicePaymentModal(inv ? JSON.stringify(inv) : '');
 }
 
+function openUserModalFromEncoded(encoded, options = {}) {
+  const user = decodeInlinePayload(encoded);
+  return openUserModal(user ? JSON.stringify(user) : '', options);
+}
+
 function previewInvoiceByLink(link) {
   const target = String(link || '').trim();
   if (!target) {
@@ -2803,7 +2808,7 @@ function renderMgmtUsers() {
       <td><div class="action-row">
         ${String(u.EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase() ? '' : financeActionIconButton('Message', 'chat', 'btn-ghost', `openDirectMessageForUser('${escapeAttr(u.EMAIL)}','${escapeAttr(u.FULL_NAME)}')`)}
         ${canImpersonateUsers() && String(u.USER_ID || '') !== String(SESSION.userId || '') ? financeActionIconButton('Impersonate', 'person_search', 'btn-ghost', `startImpersonation('${u.USER_ID}')`) : ''}
-        ${financeActionIconButton('Edit', 'edit', 'btn-ghost', `openUserModal(${JSON.stringify(JSON.stringify(u))})`)}
+        ${financeActionIconButton('Edit', 'edit', 'btn-ghost', `openUserModalFromEncoded('${encodeInlinePayload(u)}')`)}
         ${financeActionIconButton('Delete', 'delete', 'btn-danger', `deleteItem('User','${u.USER_ID}')`)}
       </div></td>
     </tr>`).join('');
@@ -2811,7 +2816,7 @@ function renderMgmtUsers() {
     <div class="card filter-panel filter-drawer ${FILTER_PANEL_STATE.mgmtUsers ? 'open' : ''}" style="margin-bottom:12px">
       <div class="form-row">
         <div class="form-group"><label class="form-label">Search</label><input class="form-control" id="user-search" value="${USER_FILTERS.query || ''}" placeholder="Name, email, ID" /></div>
-        <div class="form-group"><label class="form-label">Role</label><select class="form-control" id="user-role-filter">${['','Super Admin','Admin','Galvanizer','Staff','Attorney','Client Admin','Client Employee','Individual Client'].map(v=>`<option value="${v}"${USER_FILTERS.role===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label">Role</label><select class="form-control" id="user-role-filter">${['','Super Admin','Admin','Galvanizer','Paralegal','Staff','Attorney','Client Admin','Client Employee','Individual Client'].map(v=>`<option value="${v}"${USER_FILTERS.role===v?' selected':''}>${v||'All'}</option>`).join('')}</select></div>
         <div class="form-group"><label class="form-label">Sort</label><select class="form-control" id="user-sort-filter"><option value="az"${USER_FILTERS.sortDir==='az'?' selected':''}>A-Z</option><option value="za"${USER_FILTERS.sortDir==='za'?' selected':''}>Z-A</option></select></div>
       </div>
       <div style="display:flex;gap:8px">

@@ -468,6 +468,23 @@ async function updateTaskStatus(taskId, status, notes = '') {
   clearClientCache(['getTasks', 'getActivityTimeline', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails', 'getNotifications']);
   return result;
 }
+async function getCaseTickets(caseId = '') { return callGASCached('getCaseTickets', { caseId }, 30000); }
+async function raiseCaseTicket(ticketData) {
+  const result = await callGAS('raiseCaseTicket', { ticketData });
+  clearClientCache(['getCaseTickets', 'getCases', 'getCasesPage', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  return result;
+}
+async function assignCaseTicket(ticketId, assigneeEmail) {
+  const result = await callGAS('assignCaseTicket', { ticketId, assigneeEmail });
+  clearClientCache(['getCaseTickets', 'getTasks', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  return result;
+}
+async function updateCaseTicketStatus(ticketId, status, resolutionNote = '') {
+  const result = await callGAS('updateCaseTicketStatus', { ticketId, status, resolutionNote });
+  clearClientCache(['getCaseTickets', 'getTasks', 'getNotifications', 'getDashboard', 'getDashboardSummary', 'getDashboardDetails']);
+  return result;
+}
+async function getStaffAuditReport(auditDate = '') { return callGASCached('getStaffAuditReport', { auditDate }, 60000); }
 async function getActivityTimeline(filters = {}) { return callGASCached('getActivityTimeline', { filters }, 60000); }
 async function getWorkflowBoard(filters = {}) { return callGASCached('getWorkflowBoard', { filters }, 60000); }
 async function getAttorneyWorkspace(filters = {}) { return callGASCached('getAttorneyWorkspace', { filters }, 60000); }
@@ -681,6 +698,11 @@ window.API = {
   getTasks,
   saveTask,
   updateTaskStatus,
+  getCaseTickets,
+  raiseCaseTicket,
+  assignCaseTicket,
+  updateCaseTicketStatus,
+  getStaffAuditReport,
   getActivityTimeline,
   getWorkflowBoard,
   getAttorneyWorkspace,
