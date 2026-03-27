@@ -142,6 +142,7 @@ const STATE = {
   requests: { all: [], filtered: [], limit: 20, filters: { query: '', client: '', status: '', caseId: '' }, filtersOpen: false },
   finance: { all: [], filtered: [], limit: 20, filters: { query: '', client: '', status: '', month: '', fromDate: '', toDate: '' }, filtersOpen: false },
   notifications: [],
+  tickets: { byCase: {}, activeCaseId: '', activeTickets: [] },
   threads: { list: [], selectedThreadId: '', messages: [] },
   search: { query: '', scope: 'all', results: null }
 };
@@ -229,6 +230,8 @@ function getTicketTimerMeta(ticket) {
 async function loadCaseTickets(caseId) {
   var normalizedCaseId = String(caseId || '').trim();
   if (!normalizedCaseId) return [];
+  if (!STATE.tickets) STATE.tickets = { byCase: {}, activeCaseId: '', activeTickets: [] };
+  if (!STATE.tickets.byCase) STATE.tickets.byCase = {};
   var tickets = await API.getCaseTickets(normalizedCaseId);
   STATE.tickets.byCase[normalizedCaseId] = Array.isArray(tickets) ? tickets : [];
   return STATE.tickets.byCase[normalizedCaseId];
