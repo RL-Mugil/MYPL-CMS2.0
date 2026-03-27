@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -116,6 +116,7 @@
 <script>
 let SESSION = null;
 let CHARTS = {};
+let MOBILE_SWIPE_STATE = { tracking: false, startX: 0, startY: 0 };
 const CLIENT_ROLES = ['Client', 'Client Admin', 'Client Employee', 'Individual Client'];
 const THEME_KEY = 'mg_client_theme';
 const DOC_CATEGORIES = ['APPLICATIONS', 'OFFICE_ACTIONS', 'RESPONSES', 'CERTIFICATES', 'INVOICES', 'COMMUNICATION'];
@@ -146,6 +147,8 @@ const STATE = {
 };
 
 (async function bootstrap() {
+  setMobileAppMode();
+  initMobileAppGestures();
   applyTheme(loadTheme());
   SESSION = await Auth.requireAuth(CLIENT_ROLES);
   if (!SESSION) {
@@ -204,6 +207,69 @@ function money(value) {
   return 'Rs ' + amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function ticketStatusBadge(status) {
+  return statusBadge(status || 'Open');
+}
+
+function getTicketTimerMeta(ticket) {
+  var due = ticket && ticket.DUE_AT ? new Date(ticket.DUE_AT) : null;
+  if (!due || isNaN(due.getTime())) return { text: '-', cls: 'sla-neutral' };
+  var diffMs = due.getTime() - Date.now();
+  var overdue = diffMs < 0;
+  var absMs = Math.abs(diffMs);
+  var totalMinutes = Math.floor(absMs / 60000);
+  var hours = Math.floor(totalMinutes / 60);
+  var minutes = totalMinutes % 60;
+  return {
+    text: (overdue ? 'Overdue ' : '') + hours + 'h ' + minutes + 'm',
+    cls: overdue ? 'sla-overdue' : diffMs <= 12 * 60 * 60 * 1000 ? 'sla-danger' : diffMs <= 24 * 60 * 60 * 1000 ? 'sla-warn' : 'sla-safe'
+  };
+}
+
+async function loadCaseTickets(caseId) {
+  var normalizedCaseId = String(caseId || '').trim();
+  if (!normalizedCaseId) return [];
+  var tickets = await API.getCaseTickets(normalizedCaseId);
+  STATE.tickets.byCase[normalizedCaseId] = Array.isArray(tickets) ? tickets : [];
+  return STATE.tickets.byCase[normalizedCaseId];
+}
+
+function buildTicketRows(tickets) {
+  if (!tickets || !tickets.length) {
+    return '<tr><td colspan="5" class="text-muted" style="padding:16px;text-align:center">No tickets raised yet.</td></tr>';
+  }
+  return tickets.map(function(ticket) {
+    var timer = getTicketTimerMeta(ticket);
+    return '<tr>' +
+      '<td><div class="text-em">' + esc(ticket.TICKET_ID || '') + '</div><div class="text-muted">' + esc(ticket.TITLE || '') + '</div></td>' +
+      '<td>' + ticketStatusBadge(ticket.STATUS || 'Open') + '</td>' +
+      '<td><span class="sla-pill ' + timer.cls + '">' + esc(timer.text) + '</span></td>' +
+      '<td>' + esc(ticket.ASSIGNED_STAFF_EMAIL || ticket.GALVANIZER_EMAIL || '-') + '</td>' +
+      '<td>' + fmtDateTime(ticket.CREATED_AT) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function raiseCaseTicket(caseId) {
+  var title = window.prompt('Ticket title');
+  if (title == null) return;
+  title = String(title).trim();
+  if (!title) {
+    alert('Ticket title is required.');
+    return;
+  }
+  var description = window.prompt('Describe the issue', '');
+  if (description == null) return;
+  try {
+    await API.raiseCaseTicket({ caseId: caseId, title: title, description: description, priority: 'High' });
+    await loadCaseTickets(caseId);
+    applyCaseFilters();
+    alert('Ticket raised successfully.');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
 function statusBadge(status) {
   var key = String(status || 'Drafted');
   var map = {
@@ -235,6 +301,51 @@ function setTopbarActions(html) {
     ? '<span class="topbar-actions-extra"><span class="stream-chip">Impersonating ' + esc(SESSION.name || SESSION.email || 'Client') + '</span><button class="btn btn-ghost btn-sm" onclick="stopImpersonation()">Stop Impersonation</button></span>'
     : '';
   document.getElementById('topbar-actions').innerHTML = impersonationHtml + (html || '');
+}
+
+function isMobileAppShell() {
+  return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+}
+
+function isCompactMobileUi() {
+  return isMobileAppShell() || window.innerWidth <= 768;
+}
+
+function financeActionIconButton(label, icon, className, onClick) {
+  return '<button class="btn ' + (className || 'btn-ghost') + ' btn-sm icon-btn" title="' + esc(label) + '" aria-label="' + esc(label) + '" onclick="' + onClick + '"><span class="material-symbols-outlined">' + icon + '</span></button>';
+}
+
+function renderMobileTopbarAction(label, icon, onClick, className) {
+  return isCompactMobileUi() ? financeActionIconButton(label, icon, className || 'btn-ghost', onClick) : '';
+}
+
+function setMobileAppMode() {
+  document.body.classList.toggle('mobile-app', isMobileAppShell());
+}
+
+function initMobileAppGestures() {
+  if (!isCompactMobileUi()) return;
+  document.addEventListener('touchstart', function(event) {
+    var target = event.target;
+    if (target && target.closest && target.closest('.table-wrap, .chat-thread, .chat-list, .filter-drawer')) {
+      MOBILE_SWIPE_STATE = { tracking: false, startX: 0, startY: 0 };
+      return;
+    }
+    var touch = event.changedTouches && event.changedTouches[0];
+    if (!touch) return;
+    MOBILE_SWIPE_STATE = { tracking: true, startX: touch.clientX, startY: touch.clientY };
+  }, { passive: true });
+  document.addEventListener('touchend', function(event) {
+    if (!MOBILE_SWIPE_STATE.tracking) return;
+    MOBILE_SWIPE_STATE.tracking = false;
+    var touch = event.changedTouches && event.changedTouches[0];
+    if (!touch) return;
+    var deltaX = touch.clientX - MOBILE_SWIPE_STATE.startX;
+    var deltaY = touch.clientY - MOBILE_SWIPE_STATE.startY;
+    if (Math.abs(deltaY) > 60 || Math.abs(deltaX) < 80) return;
+    if (deltaX > 0) toggleSidebar(true);
+    else if (deltaX < -80) toggleSidebar(false);
+  }, { passive: true });
 }
 
 function destroyCharts() {
@@ -282,7 +393,15 @@ function applyTheme(theme) {
   document.body.classList.toggle('theme-light', theme === 'light');
   localStorage.setItem(THEME_KEY, theme);
   var btn = document.getElementById('theme-toggle');
-  if (btn) btn.textContent = theme === 'light' ? 'Dark Mode' : 'Light Mode';
+  if (btn) {
+    if (isCompactMobileUi()) {
+      btn.innerHTML = '<span class="material-symbols-outlined">' + (theme === 'light' ? 'dark_mode' : 'light_mode') + '</span>';
+      btn.setAttribute('aria-label', theme === 'light' ? 'Use Dark Theme' : 'Use Light Theme');
+      btn.setAttribute('title', theme === 'light' ? 'Use Dark Theme' : 'Use Light Theme');
+    } else {
+      btn.textContent = theme === 'light' ? 'Dark Mode' : 'Light Mode';
+    }
+  }
 }
 
 function toggleTheme() {
@@ -580,9 +699,18 @@ function renderDashboardCharts(details) {
 }
 
 async function loadCases() {
-  setTopbarActions('<button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer(\'cases\')">Filters</button>');
+  setTopbarActions(isCompactMobileUi() ? renderMobileTopbarAction('Case Filters', 'filter_alt', 'toggleFilterDrawer(\'cases\')') : '<button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer(\'cases\')">Filters</button>');
   try {
     if (!STATE.cases.all.length) STATE.cases.all = await API.getCases({});
+    var ticketMap = {};
+    await Promise.all((STATE.cases.all || []).map(function(item) {
+      return loadCaseTickets(item.CASE_ID || '').then(function(tickets) {
+        ticketMap[item.CASE_ID || ''] = tickets || [];
+      }).catch(function() {
+        ticketMap[item.CASE_ID || ''] = [];
+      });
+    }));
+    STATE.tickets.byCase = ticketMap;
     applyCaseFilters();
   } catch (e) {
     document.getElementById('page-content').innerHTML = renderError(e.message);
@@ -630,45 +758,67 @@ function applyCaseFilters(resetLimit) {
   var visible = filtered.slice(0, STATE.cases.limit);
   var countries = Array.from(new Set(STATE.cases.all.map(function(item) { return item.COUNTRY || ''; }).filter(Boolean))).sort();
   var statuses = Array.from(new Set(STATE.cases.all.map(function(item) { return item.CURRENT_STATUS || ''; }).filter(Boolean))).sort();
+  var caseRows = visible.map(function(item) {
+    var caseTickets = STATE.tickets.byCase[item.CASE_ID] || [];
+    var latestTicket = caseTickets[0] || null;
+    var timer = latestTicket ? getTicketTimerMeta(latestTicket) : null;
+    return '<tr>' +
+      '<td class="text-em">' + esc(item.CASE_ID) + '</td>' +
+      '<td><div class="text-em">' + esc(item.PATENT_TITLE || '') + '</div><div class="text-muted" style="font-size:11px">' + esc(item.APPLICATION_NUMBER || '') + '</div></td>' +
+      '<td>' + esc((getClientById(item.CLIENT_ID) || {}).CLIENT_NAME || item.CLIENT_ID || '-') + '</td>' +
+      '<td>' + esc(item.COUNTRY || '-') + '</td>' +
+      '<td>' + statusBadge(item.CURRENT_STATUS || 'Drafted') + '</td>' +
+      '<td>' + esc(fmt(item.NEXT_DEADLINE)) + '</td>' +
+      '<td><div class="action-row">' +
+        financeActionIconButton('Raise Ticket', 'confirmation_number', 'btn-primary', 'raiseCaseTicket(\'' + esc(item.CASE_ID || '') + '\')') +
+        (latestTicket ? '<span class="sla-pill ' + timer.cls + '" title="' + esc(latestTicket.TICKET_ID || '') + '">' + esc(timer.text) + '</span>' : '') +
+      '</div></td>' +
+    '</tr>';
+  }).join('');
+  var allVisibleTickets = [];
+  visible.forEach(function(item) {
+    (STATE.tickets.byCase[item.CASE_ID] || []).forEach(function(ticket) {
+      allVisibleTickets.push(ticket);
+    });
+  });
+  allVisibleTickets.sort(function(a, b) { return new Date(b.CREATED_AT || 0) - new Date(a.CREATED_AT || 0); });
 
-  document.getElementById('page-content').innerHTML = `
-    <div class="page">
-      <div class="card filter-panel">
-        <div class="filter-toggle-row"><button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer('cases')">${STATE.cases.filtersOpen ? 'Hide Filters' : 'Show Filters'}</button></div>
-        <div class="filter-drawer ${STATE.cases.filtersOpen ? 'open' : ''}">
-          <div class="filter-head"><div class="card-title">Case Filters</div><div class="filter-actions"><button class="btn btn-ghost btn-sm" onclick="resetCaseFilters()">Reset</button></div></div>
-          <div class="filter-grid">
-            <div><label class="form-label">Search</label><input class="form-control" value="${esc(filters.query)}" placeholder="Case ID, title, application no." oninput="handleCaseFilterChange('query', this.value)" /></div>
-            <div><label class="form-label">Client</label><select class="form-control" onchange="handleCaseFilterChange('client', this.value)">${buildClientOptions(filters.client, 'All Clients')}</select></div>
-            <div><label class="form-label">Status</label><select class="form-control" onchange="handleCaseFilterChange('status', this.value)"><option value="">All Statuses</option>${statuses.map(function(status) { return '<option value="' + esc(status) + '"' + (filters.status === status ? ' selected' : '') + '>' + esc(status) + '</option>'; }).join('')}</select></div>
-            <div><label class="form-label">Country</label><select class="form-control" onchange="handleCaseFilterChange('country', this.value)"><option value="">All Countries</option>${countries.map(function(country) { return '<option value="' + esc(country) + '"' + (filters.country === country ? ' selected' : '') + '>' + esc(country) + '</option>'; }).join('')}</select></div>
-            <div><label class="form-label">From Date</label><input class="form-control" type="date" value="${esc(filters.fromDate)}" onchange="handleCaseFilterChange('fromDate', this.value)" /></div>
-            <div><label class="form-label">To Date</label><input class="form-control" type="date" value="${esc(filters.toDate)}" onchange="handleCaseFilterChange('toDate', this.value)" /></div>
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Case Portfolio</div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Case ID</th><th>Title</th><th>Client</th><th>Country</th><th>Status</th><th>Deadline</th></tr></thead>
-            <tbody>
-              ${visible.map(function(item) {
-                return '<tr><td class="text-em">' + esc(item.CASE_ID) + '</td><td><div class="text-em">' + esc(item.PATENT_TITLE || '') + '</div><div class="text-muted" style="font-size:11px">' + esc(item.APPLICATION_NUMBER || '') + '</div></td><td>' + esc((getClientById(item.CLIENT_ID) || {}).CLIENT_NAME || item.CLIENT_ID || '-') + '</td><td>' + esc(item.COUNTRY || '-') + '</td><td>' + statusBadge(item.CURRENT_STATUS || 'Drafted') + '</td><td>' + esc(fmt(item.NEXT_DEADLINE)) + '</td></tr>';
-              }).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No cases found for the selected filters.</td></tr>'}
-            </tbody>
-          </table>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
-          <div class="text-muted">${visible.length} of ${filtered.length} cases</div>
-          ${visible.length < filtered.length ? '<button class="btn btn-primary btn-sm" onclick="loadMoreCases()">Load More</button>' : ''}
-        </div>
-      </div>
-    </div>`;
+  document.getElementById('page-content').innerHTML =
+    '<div class="page">' +
+      '<div class="card filter-panel">' +
+        '<div class="filter-toggle-row"><button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer(\'cases\')">' + (STATE.cases.filtersOpen ? 'Hide Filters' : 'Show Filters') + '</button></div>' +
+        '<div class="filter-drawer ' + (STATE.cases.filtersOpen ? 'open' : '') + '">' +
+          '<div class="filter-head"><div class="card-title">Case Filters</div><div class="filter-actions"><button class="btn btn-ghost btn-sm" onclick="resetCaseFilters()">Reset</button></div></div>' +
+          '<div class="filter-grid">' +
+            '<div><label class="form-label">Search</label><input class="form-control" value="' + esc(filters.query) + '" placeholder="Case ID, title, application no." oninput="handleCaseFilterChange(\'query\', this.value)" /></div>' +
+            '<div><label class="form-label">Client</label><select class="form-control" onchange="handleCaseFilterChange(\'client\', this.value)">' + buildClientOptions(filters.client, 'All Clients') + '</select></div>' +
+            '<div><label class="form-label">Status</label><select class="form-control" onchange="handleCaseFilterChange(\'status\', this.value)"><option value="">All Statuses</option>' + statuses.map(function(status) { return '<option value="' + esc(status) + '"' + (filters.status === status ? ' selected' : '') + '>' + esc(status) + '</option>'; }).join('') + '</select></div>' +
+            '<div><label class="form-label">Country</label><select class="form-control" onchange="handleCaseFilterChange(\'country\', this.value)"><option value="">All Countries</option>' + countries.map(function(country) { return '<option value="' + esc(country) + '"' + (filters.country === country ? ' selected' : '') + '>' + esc(country) + '</option>'; }).join('') + '</select></div>' +
+            '<div><label class="form-label">From Date</label><input class="form-control" type="date" value="' + esc(filters.fromDate) + '" onchange="handleCaseFilterChange(\'fromDate\', this.value)" /></div>' +
+            '<div><label class="form-label">To Date</label><input class="form-control" type="date" value="' + esc(filters.toDate) + '" onchange="handleCaseFilterChange(\'toDate\', this.value)" /></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card">' +
+        '<div class="card-title">Case Portfolio</div>' +
+        '<div class="table-wrap scroll-table-x"><table>' +
+          '<thead><tr><th>Case ID</th><th>Title</th><th>Client</th><th>Country</th><th>Status</th><th>Deadline</th><th>Actions</th></tr></thead>' +
+          '<tbody>' + (caseRows || '<tr><td colspan="7" class="text-muted" style="padding:20px;text-align:center">No cases found for the selected filters.</td></tr>') + '</tbody>' +
+        '</table></div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">' +
+          '<div class="text-muted">' + visible.length + ' of ' + filtered.length + ' cases</div>' +
+          (visible.length < filtered.length ? '<button class="btn btn-primary btn-sm" onclick="loadMoreCases()">Load More</button>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="card">' +
+        '<div class="card-title">Case Tickets</div>' +
+        '<div class="table-wrap scroll-table-x"><table><thead><tr><th>Ticket</th><th>Status</th><th>SLA</th><th>Assigned To</th><th>Created</th></tr></thead><tbody>' + buildTicketRows(allVisibleTickets) + '</tbody></table></div>' +
+      '</div>' +
+    '</div>';
 }
 
 async function loadDocuments() {
-  setTopbarActions('<button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer(\'documents\')">Filters</button>');
+  setTopbarActions(isCompactMobileUi() ? renderMobileTopbarAction('Document Filters', 'filter_alt', 'toggleFilterDrawer(\'documents\')') : '<button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer(\'documents\')">Filters</button>');
   try {
     if (!STATE.documents.all.length) {
       const docs = await API.getDocuments();
@@ -802,7 +952,7 @@ async function uploadClientDocument() {
 }
 
 async function loadRequests() {
-  setTopbarActions('<button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer(\'requests\')">Filters</button>');
+  setTopbarActions(isCompactMobileUi() ? renderMobileTopbarAction('Request Filters', 'filter_alt', 'toggleFilterDrawer(\'requests\')') : '<button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer(\'requests\')">Filters</button>');
   try {
     STATE.requests.all = await API.getDocumentRequests({});
     applyRequestFilters();
@@ -879,7 +1029,7 @@ function applyRequestFilters(resetLimit) {
 }
 
 async function loadFinance() {
-  setTopbarActions('<button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer(\'finance\')">Filters</button>');
+  setTopbarActions(isCompactMobileUi() ? renderMobileTopbarAction('Invoice Filters', 'filter_alt', 'toggleFilterDrawer(\'finance\')') : '<button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer(\'finance\')">Filters</button>');
   try {
     STATE.finance.all = await API.getInvoices();
     applyFinanceFilters();
@@ -1010,7 +1160,7 @@ function applyFinanceFilters(resetLimit) {
 }
 
 async function loadNotifications() {
-  setTopbarActions('<button class="btn btn-ghost btn-sm" onclick="clearAllNotifications()">Clear All</button>');
+  setTopbarActions(isCompactMobileUi() ? renderMobileTopbarAction('Clear All Notifications', 'notifications_off', 'clearAllNotifications()') : '<button class="btn btn-ghost btn-sm" onclick="clearAllNotifications()">Clear All</button>');
   try {
     STATE.notifications = await API.getNotifications();
     document.getElementById('page-content').innerHTML = '<div class="page">' + ((STATE.notifications || []).map(function(item) {
@@ -1037,7 +1187,7 @@ async function clearAllNotifications() {
 }
 
 async function loadThreads() {
-  setTopbarActions('<button class="btn btn-primary btn-sm" onclick="openThreadModal()">+ New Thread</button>');
+  setTopbarActions(isCompactMobileUi() ? renderMobileTopbarAction('New Thread', 'post_add', 'openThreadModal()', 'btn-primary') : '<button class="btn btn-primary btn-sm" onclick="openThreadModal()">+ New Thread</button>');
   try {
     STATE.threads.list = (await API.getMessageThreads()).filter(function(thread) {
       return String(thread.THREAD_TYPE || '') !== 'Direct';
@@ -1295,3 +1445,4 @@ window.addEventListener('click', function(event) {
 </script>
 </body>
 </html>
+

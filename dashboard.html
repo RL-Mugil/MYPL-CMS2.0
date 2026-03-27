@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Metayage — Staff Dashboard</title>
+  <title>Metayage â€” Staff Dashboard</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -63,7 +63,7 @@
 </button>
 
 <div class="app-shell">
-  <!-- ── Sidebar ────────────────────────────────────────────────────── -->
+  <!-- â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <aside class="sidebar">
     <div class="sidebar-logo">
       <div class="logo-mark">M</div>
@@ -89,7 +89,7 @@
       <div class="nav-section" data-nav-section="portfolio">
         <button class="nav-label nav-section-toggle" type="button" onclick="toggleNavSection('portfolio')">
           <span>Portfolio</span>
-          <span class="nav-section-chevron">▾</span>
+          <span class="nav-section-chevron">â–¾</span>
         </button>
         <div class="nav-section-content" data-section-content="portfolio">
         <button class="nav-item" data-page="cases" onclick="showPage('cases')">
@@ -121,7 +121,7 @@
       <div class="nav-section" data-nav-section="operations">
         <button class="nav-label nav-section-toggle" type="button" onclick="toggleNavSection('operations')">
           <span>Operations</span>
-          <span class="nav-section-chevron">▾</span>
+          <span class="nav-section-chevron">â–¾</span>
         </button>
         <div class="nav-section-content" data-section-content="operations">
         <button class="nav-item" id="nav-stream" data-page="stream" onclick="showPage('stream')">
@@ -182,7 +182,7 @@
       <div class="user-pill">
         <div class="user-avatar" id="sidebar-avatar">-</div>
         <div class="user-info">
-          <div class="user-name" id="sidebar-name">Loading…</div>
+          <div class="user-name" id="sidebar-name">Loadingâ€¦</div>
           <div class="user-role" id="sidebar-role">-</div>
         </div>
         <button class="sign-out-btn" onclick="handleSignOut()" title="Sign out">
@@ -192,7 +192,7 @@
     </div>
   </aside>
 
-  <!-- ── Main ──────────────────────────────────────────────────────── -->
+  <!-- â”€â”€ Main â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <main class="main">
     <div class="topbar">
       <div style="display:flex;align-items:center;gap:12px">
@@ -210,18 +210,18 @@
     </div>
 
     <div class="content" id="page-content">
-      <div class="loading-wrap"><div class="spinner"></div><span>Loading…</span></div>
+      <div class="loading-wrap"><div class="spinner"></div><span>Loadingâ€¦</span></div>
     </div>
   </main>
 </div>
 
-<!-- ── Modals ────────────────────────────────────────────────────────────── -->
+<!-- â”€â”€ Modals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 <!-- Case Modal -->
 <div class="modal-overlay" id="modal-case">
   <div class="modal modal-landscape modal-case-form">
     <div class="modal-header">
       <h3 id="modal-case-title">Case</h3>
-      <button class="modal-close" onclick="closeModal('modal-case')">✕</button>
+      <button class="modal-close" onclick="closeModal('modal-case')">âœ•</button>
     </div>
     <div id="modal-case-body"></div>
   </div>
@@ -232,7 +232,7 @@
   <div class="modal modal-landscape modal-invoice-form">
     <div class="modal-header">
       <h3 id="modal-client-title">Client</h3>
-      <button class="modal-close" onclick="closeModal('modal-client')">✕</button>
+      <button class="modal-close" onclick="closeModal('modal-client')">âœ•</button>
     </div>
     <div id="modal-client-body"></div>
   </div>
@@ -243,7 +243,7 @@
   <div class="modal">
     <div class="modal-header">
       <h3 id="modal-user-title">User</h3>
-      <button class="modal-close" onclick="closeModal('modal-user')">✕</button>
+      <button class="modal-close" onclick="closeModal('modal-user')">âœ•</button>
     </div>
     <div id="modal-user-body"></div>
   </div>
@@ -254,7 +254,7 @@
   <div class="modal">
     <div class="modal-header">
       <h3 id="modal-invoice-title">Invoice</h3>
-      <button class="modal-close" onclick="closeModal('modal-invoice')">✕</button>
+      <button class="modal-close" onclick="closeModal('modal-invoice')">âœ•</button>
     </div>
     <div id="modal-invoice-body"></div>
   </div>
@@ -265,7 +265,7 @@
   <div class="modal">
     <div class="modal-header">
       <h3 id="modal-generic-title">Dialog</h3>
-      <button class="modal-close" onclick="closeModal('modal-generic')">✕</button>
+      <button class="modal-close" onclick="closeModal('modal-generic')">âœ•</button>
     </div>
     <div id="modal-generic-body"></div>
   </div>
@@ -275,7 +275,7 @@
 <script src="api.js"></script>
 <script src="auth.js"></script>
 <script>
-// ── Globals ──────────────────────────────────────────────────────────────────
+// â”€â”€ Globals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 let SESSION = null;
 let _charts = {};
 let DASHBOARD_FILTERS = { clientCode: '', caseId: '', fromDate: '', toDate: '' };
@@ -434,7 +434,7 @@ function initMobileAppGestures() {
   document.addEventListener('touchend', touchEnd, { passive: true });
 }
 
-// ── Init ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 (async () => {
   setMobileAppMode();
   initMobileAppGestures();
@@ -547,7 +547,7 @@ async function populateCircleNav() {
   }
 }
 
-// ── Navigation ───────────────────────────────────────────────────────────────
+// â”€â”€ Navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const PAGE_TITLES = {
   dashboard: 'Dashboard',
   cases: 'Cases',
@@ -602,7 +602,7 @@ function showPage(page) {
   document.querySelector('.sidebar').classList.remove('open');
 
   const content = document.getElementById('page-content');
-  content.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><span>Loading…</span></div>';
+  content.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><span>Loadingâ€¦</span></div>';
 
   setTopbarActions('');
 
@@ -666,13 +666,13 @@ function stopImpersonation() {
   }
 }
 
-// ── Sign out ──────────────────────────────────────────────────────────────────
+// â”€â”€ Sign out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function handleSignOut() {
   await Auth.signOut();
   window.location.href = 'index.html';
 }
 
-// ── Modal helpers ─────────────────────────────────────────────────────────────
+// â”€â”€ Modal helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 function openGenericModal(title, bodyHtml) {
@@ -684,9 +684,9 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
 });
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function fmt(v) {
-  if (!v) return '—';
+  if (!v) return 'â€”';
   try { return new Date(v).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }); }
   catch { return v; }
 }
@@ -702,7 +702,7 @@ function toInputDate(v) {
 }
 function money(v) {
   const n = parseFloat(v) || 0;
-  return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  return 'â‚¹' + n.toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
 function statusBadge(s) {
   const map = {
@@ -717,6 +717,47 @@ function statusBadge(s) {
   return `<span class="badge ${map[s] || 'badge-drafted'}">${s}</span>`;
 }
 function err(msg) { return `<div class="alert alert-error">${msg}</div>`; }
+function fmtDateTimeLong(v) {
+  if (!v) return '—';
+  try { return new Date(v).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }); }
+  catch { return v; }
+}
+function getTicketTimerMeta(ticket) {
+  const due = ticket && ticket.DUE_AT ? new Date(ticket.DUE_AT) : null;
+  if (!due || Number.isNaN(due.getTime())) return { text: '—', cls: 'sla-neutral' };
+  const diffMs = due.getTime() - Date.now();
+  const overdue = diffMs < 0;
+  const totalMinutes = Math.floor(Math.abs(diffMs) / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return {
+    text: `${overdue ? 'Overdue ' : ''}${hours}h ${minutes}m`,
+    cls: overdue ? 'sla-overdue' : diffMs <= 12 * 60 * 60 * 1000 ? 'sla-danger' : diffMs <= 24 * 60 * 60 * 1000 ? 'sla-warn' : 'sla-safe'
+  };
+}
+function renderGalvanizerTicketQueueCard(ticketRows) {
+  return '<div class="card" style="margin-top:16px">' +
+    '<div class="card-title">Client Ticket Queue</div>' +
+    '<div class="table-wrap scroll-table-x"><table>' +
+      '<thead><tr><th>Ticket</th><th>Case</th><th>Status</th><th>SLA</th><th>Assigned Staff</th><th>Created</th><th>Actions</th></tr></thead>' +
+      '<tbody>' + (ticketRows || '<tr><td colspan="7" class="text-muted" style="padding:20px;text-align:center">No client tickets.</td></tr>') + '</tbody>' +
+    '</table></div>' +
+  '</div>';
+}
+async function assignTicketPrompt(ticketId) {
+  const assigneeEmail = window.prompt('Assign to staff email');
+  if (assigneeEmail == null) return;
+  const cleaned = String(assigneeEmail).trim();
+  if (!cleaned) return;
+  await API.assignCaseTicket(ticketId, cleaned);
+  await loadGalvanizerQueue();
+}
+async function resolveTicketPrompt(ticketId) {
+  const resolutionNote = window.prompt('Resolution note', 'Resolved');
+  if (resolutionNote == null) return;
+  await API.updateCaseTicketStatus(ticketId, 'Resolved', resolutionNote);
+  await loadGalvanizerQueue();
+}
 function showPageError(context, error) {
   const message = error && error.message ? error.message : String(error);
   const content = document.getElementById('page-content');
@@ -1452,15 +1493,15 @@ function startSafePrefetch() {
   ]).catch(() => {});
 }
 
-// ── Destroy charts helper ─────────────────────────────────────────────────────
+// â”€â”€ Destroy charts helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function destroyCharts() {
   Object.values(_charts).forEach(c => { try { c.destroy(); } catch {} });
   _charts = {};
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  DASHBOARD
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function loadDashboard() {
   destroyCharts();
   try {
@@ -1534,7 +1575,7 @@ function renderDashboardSummary(d) {
     </div>
     <div id="dashboard-detail-loading" class="card" style="margin-top:20px">
       <div class="card-title">Loading details</div>
-      <div class="loading-wrap" style="min-height:220px"><div class="spinner"></div><span>Loading charts and activity…</span></div>
+      <div class="loading-wrap" style="min-height:220px"><div class="spinner"></div><span>Loading charts and activityâ€¦</span></div>
     </div>
     <div id="dashboard-detail-block"></div>
   </div>`;
@@ -1563,7 +1604,7 @@ function renderDashboard(d) {
         <div class="list-entry-val">${u.docket}</div>
       </div>
       <div style="text-align:right">
-        <div class="list-entry-label">${u.country} · Due</div>
+        <div class="list-entry-label">${u.country} Â· Due</div>
         <div class="list-entry-val" style="color:var(--amber)">${u.dateStr}</div>
       </div>
     </div>`).join('') || '<div class="empty-state text-muted" style="padding:20px">No upcoming deadlines</div>';
@@ -1674,7 +1715,7 @@ function renderDashboard(d) {
         <div class="card">
           <div class="card-title">Pending Payments</div>
           ${invoiceRows}
-          <div style="text-align:right;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="showPage('finance')">View all →</button></div>
+          <div style="text-align:right;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="showPage('finance')">View all â†’</button></div>
         </div>
       </div>
     </div>
@@ -1772,9 +1813,9 @@ function toggleDashboardFilters() {
   loadDashboard();
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  CASES
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function loadCases() {
   destroyCharts();
   CASE_FILTER_TARGET = 'cases';
@@ -1815,12 +1856,12 @@ function renderCases(canEdit = sessionHasRoleAtLeast('Staff'), canBulk = session
       <td class="text-em" style="font-family:'Syne',sans-serif;font-size:12px">${c.CASE_ID}</td>
       <td><div style="font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.PATENT_TITLE}</div>
           <div style="font-size:11px;color:var(--text-3)">${c.APPLICATION_NUMBER||''}</div></td>
-      <td>${c.COUNTRY||'—'}</td>
+      <td>${c.COUNTRY||'â€”'}</td>
       <td>${fmt(c.FILING_DATE)}</td>
       <td>${statusBadge(c.CURRENT_STATUS)}</td>
       <td>${statusBadge(c.WORKFLOW_STAGE || deriveWorkflowStageFromStatus(c.CURRENT_STATUS, c.WORKFLOW_STAGE))}</td>
       <td style="color:${c.NEXT_DEADLINE?'var(--amber)':'var(--text-3)'}">${fmt(c.NEXT_DEADLINE)}</td>
-      <td style="font-size:12px;color:var(--text-2)">${c.ATTORNEY||'—'}</td>
+      <td style="font-size:12px;color:var(--text-2)">${c.ATTORNEY||'â€”'}</td>
       ${canEdit ? `<td><div class="action-row">
         <button class="btn btn-ghost btn-sm" onclick='openCaseModal(${JSON.stringify(JSON.stringify(c))})'>Edit</button>
         <button class="btn btn-danger btn-sm" onclick="deleteItem('Case','${c.CASE_ID}')">Del</button>
@@ -1942,9 +1983,9 @@ function reloadCaseFilterTarget() {
   return loadCases();
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  DOCUMENTS
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function loadDocuments() {
   destroyCharts();
   try {
@@ -2025,7 +2066,7 @@ function openWorkflowStageModal(stage) {
     <div class="card">
       <div class="table-wrap"><table>
         <thead><tr><th>Case ID</th><th>Title</th><th>Client</th><th>Status</th><th>Attorney</th></tr></thead>
-        <tbody>${paged.items.map(item => `<tr><td class="font-mono">${item.CASE_ID}</td><td>${item.PATENT_TITLE || ''}</td><td>${item.CLIENT_NAME || item.CLIENT_ID || ''}</td><td>${statusBadge(item.CURRENT_STATUS || '')}</td><td>${item.ATTORNEY || '—'}</td></tr>`).join('') || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No cases in this stage.</td></tr>'}</tbody>
+        <tbody>${paged.items.map(item => `<tr><td class="font-mono">${item.CASE_ID}</td><td>${item.PATENT_TITLE || ''}</td><td>${item.CLIENT_NAME || item.CLIENT_ID || ''}</td><td>${statusBadge(item.CURRENT_STATUS || '')}</td><td>${item.ATTORNEY || 'â€”'}</td></tr>`).join('') || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No cases in this stage.</td></tr>'}</tbody>
       </table></div>
       ${buildPagerControls(key, paged, 'rerenderWorkflowStageModal', 'cases')}
     </div>`);
@@ -2328,7 +2369,7 @@ async function loadDocumentWorkflow() {
         <div class="card">
           <div class="table-wrap"><table>
             <thead><tr><th>ID</th><th>Title</th><th>Case</th><th>Due</th><th>Status</th><th>Drive</th></tr></thead>
-            <tbody>${(items || []).map(item => `<tr><td class="text-em">${item.REQUEST_ID}</td><td>${item.TITLE || ''}</td><td>${item.CASE_ID || ''}</td><td>${fmt(item.DUE_DATE)}</td><td>${statusBadge(item.STATUS || 'Open')}</td><td>${item.DRIVE_LINK ? `<a href="${item.DRIVE_LINK}" target="_blank">Open</a>` : '—'}</td></tr>`).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No document requests.</td></tr>'}</tbody>
+            <tbody>${(items || []).map(item => `<tr><td class="text-em">${item.REQUEST_ID}</td><td>${item.TITLE || ''}</td><td>${item.CASE_ID || ''}</td><td>${fmt(item.DUE_DATE)}</td><td>${statusBadge(item.STATUS || 'Open')}</td><td>${item.DRIVE_LINK ? `<a href="${item.DRIVE_LINK}" target="_blank">Open</a>` : 'â€”'}</td></tr>`).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No document requests.</td></tr>'}</tbody>
           </table></div>
         </div>
       </div>`;
@@ -2379,7 +2420,7 @@ async function submitDocumentRequestModal() {
 function renderDocuments(docs) {
   if (docs.error) { document.getElementById('page-content').innerHTML = err(docs.error); return; }
   const selectedClient = (document.getElementById('docs-client-filter')?.value || '').trim().toUpperCase();
-  const ICONS = { APPLICATIONS:'📝', OFFICE_ACTIONS:'📨', RESPONSES:'📤', CERTIFICATES:'🏆', INVOICES:'🧾', COMMUNICATION:'💬' };
+  const ICONS = { APPLICATIONS:'ðŸ“', OFFICE_ACTIONS:'ðŸ“¨', RESPONSES:'ðŸ“¤', CERTIFICATES:'ðŸ†', INVOICES:'ðŸ§¾', COMMUNICATION:'ðŸ’¬' };
   const sections = Object.keys(docs).map(cat => {
     const files = (docs[cat] || []).filter(f => !selectedClient || String(f.clientId || '').toUpperCase() === selectedClient || String(f.name || '').toUpperCase().includes(selectedClient));
     const items = files.length ? files.map(f => `
@@ -2392,7 +2433,7 @@ function renderDocuments(docs) {
       </div>`).join('') :
       '<div class="text-muted" style="font-size:13px;padding:8px 0">No documents in this category.</div>';
     return `<div class="doc-section card" style="margin-bottom:16px">
-      <div class="doc-section-title">${ICONS[cat]||'📁'} ${cat.replace(/_/g,' ')}</div>
+      <div class="doc-section-title">${ICONS[cat]||'ðŸ“'} ${cat.replace(/_/g,' ')}</div>
       ${items}
     </div>`;
   }).join('');
@@ -2432,9 +2473,9 @@ function renderDocuments(docs) {
     ${sections}</div>`;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  FINANCE
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function loadFinance() {
   destroyCharts();
   if (!canAccessFinance()) {
@@ -2656,7 +2697,7 @@ function resetFinanceFilters() {
 
 async function markPaid(invoiceId, btn) {
   if (!confirm(`Mark ${invoiceId} as Paid?`)) return;
-  btn.disabled = true; btn.textContent = '…';
+  btn.disabled = true; btn.textContent = 'â€¦';
   try {
     await API.markInvoicePaid(invoiceId);
     loadFinance();
@@ -2672,7 +2713,7 @@ function openInvoicePaymentModal(jsonStr) {
   const invoiceId = getInvoiceUiId(inv);
   const total = getInvoiceUiTotal(inv);
   const paidAmount = parseFloat(inv.PAYMENT_AMOUNT || 0) || 0;
-  openGenericModal(`Update Payment — ${escapeHtml(invoiceId)}`, `
+  openGenericModal(`Update Payment â€” ${escapeHtml(invoiceId)}`, `
     <div class="form-row">
       <div class="form-group"><label class="form-label">Invoice Amount</label><input class="form-control" id="qp-total" value="${total.toFixed(2)}" readonly /></div>
       <div class="form-group"><label class="form-label">Amount Paid</label><input type="number" step="0.01" class="form-control" id="qp-paid-amount" value="${paidAmount ? paidAmount.toFixed(2) : ''}" /></div>
@@ -2703,7 +2744,7 @@ async function submitQuickInvoicePayment(invoiceId, total) {
     return;
   }
   btn.disabled = true;
-  btn.textContent = 'Saving…';
+  btn.textContent = 'Savingâ€¦';
   try {
     await API.updateInvoicePayment(invoiceId, {
       PAYMENT_AMOUNT: paidAmount,
@@ -2723,7 +2764,7 @@ async function sendInvoiceNow(invoiceId, btn) {
   if (!confirm(`Send invoice ${invoiceId} to the client now?`)) return;
   const oldText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'Sending…';
+  btn.textContent = 'Sendingâ€¦';
   try {
     let result;
     try {
@@ -2746,9 +2787,9 @@ async function sendInvoiceNow(invoiceId, btn) {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  MANAGEMENT
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 let _mgmtTab = 'users';
 let ACTIVE_ORG_VIEW_ID = '';
 
@@ -2860,7 +2901,7 @@ async function loadMgmtClients() {
     const rows = paged.items.map(c => `<tr>
       <td class="font-mono">${c.CLIENT_ID}</td>
       <td>${c.CLIENT_NAME}</td>
-      <td style="font-size:12px">${c.EMAIL||'—'}</td>
+      <td style="font-size:12px">${c.EMAIL||'â€”'}</td>
       <td>${statusBadge(c.STATUS)}</td>
       <td><div class="action-row">
         <button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(c))})'>Edit</button>
@@ -2892,7 +2933,7 @@ function renderMgmtClients() {
   const rows = paged.items.map(c => `<tr>
     <td class="font-mono">${c.CLIENT_ID}</td>
     <td>${c.CLIENT_NAME}</td>
-    <td style="font-size:12px">${c.EMAIL||'â€”'}</td>
+    <td style="font-size:12px">${c.EMAIL||'Ã¢â‚¬â€'}</td>
     <td>${statusBadge(c.STATUS)}</td>
     <td><div class="action-row">
       <button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(c))})'>Edit</button>
@@ -2967,7 +3008,7 @@ async function loadMgmtCases() {
   } catch(e) { mc.innerHTML = err(e.message); }
 }
 
-// ── Delete helper ─────────────────────────────────────────────────────────────
+// â”€â”€ Delete helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function deleteItem(type, id) {
   if (!confirm(`Delete ${type} ${id}? This cannot be undone.`)) return;
   try {
@@ -2993,7 +3034,7 @@ async function loadMgmtOrganizations(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
     const orgUsers = activeOrg ? await API.getOrganizationUsers(activeOrg.ORG_ID) : [];
     const rows = orgs.map(o => `<tr>
       <td>${o.ORG_NAME || o.ORG_ID}</td>
-      <td>${o.ASSIGNED_STAFF_EMAIL || '—'}</td>
+      <td>${o.ASSIGNED_STAFF_EMAIL || 'â€”'}</td>
       <td>${statusBadge(o.STATUS || 'Active')}</td>
     </tr>`).join('');
     mc.innerHTML = `
@@ -3036,7 +3077,7 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
     const rows = paged.items.map(o => `<tr>
       <td class="font-mono">${o.ORG_ID}</td>
       <td>${o.ORG_NAME}</td>
-      <td>${o.ASSIGNED_STAFF_EMAIL || '—'}</td>
+      <td>${o.ASSIGNED_STAFF_EMAIL || 'â€”'}</td>
       <td>${statusBadge(o.STATUS || 'Active')}</td>
       <td><div class="action-row">
         <button class="btn btn-ghost btn-sm" onclick='openOrganizationModal(${JSON.stringify(JSON.stringify(o))})'>Edit</button>
@@ -3047,7 +3088,7 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
     const userRows = (orgClients || []).map(client => `<tr>
       <td>${client.CLIENT_ID}</td>
       <td>${client.CLIENT_NAME}</td>
-      <td>${client.EMAIL || '—'}</td>
+      <td>${client.EMAIL || 'â€”'}</td>
       <td>${statusBadge(client.CLIENT_TYPE || 'Client')}</td>
       <td><button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(client))})'>Open</button></td>
     </tr>`).join('');
@@ -3092,7 +3133,7 @@ function renderMgmtOrganizations() {
   const paged = paginateItems(filtered, 'mgmt-orgs', 10);
   const rows = paged.items.map(o => `<tr>
     <td>${o.ORG_NAME || o.ORG_ID}</td>
-    <td>${o.ASSIGNED_STAFF_EMAIL || 'â€”'}</td>
+    <td>${o.ASSIGNED_STAFF_EMAIL || 'Ã¢â‚¬â€'}</td>
     <td>${statusBadge(o.STATUS || 'Active')}</td>
     <td><div class="action-row">
       <button class="btn btn-ghost btn-sm" onclick='openOrganizationModal(${JSON.stringify(JSON.stringify(o))})'>Edit</button>
@@ -3103,7 +3144,7 @@ function renderMgmtOrganizations() {
   const userRows = (orgClients || []).map(client => `<tr>
     <td>${client.CLIENT_ID}</td>
     <td>${client.CLIENT_NAME}</td>
-    <td>${client.EMAIL || 'â€”'}</td>
+    <td>${client.EMAIL || 'Ã¢â‚¬â€'}</td>
     <td>${statusBadge(client.CLIENT_TYPE || 'Client')}</td>
     <td><button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(client))})'>Open</button></td>
   </tr>`).join('');
@@ -3245,7 +3286,7 @@ async function attachClientToOrganization(orgId, clientId) {
 
 function truncateText(value, max = 64) {
   const text = String(value || '').trim();
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+  return text.length > max ? `${text.slice(0, max - 1)}â€¦` : text;
 }
 
 function escapeAttr(value) {
@@ -3432,10 +3473,10 @@ function renderStreamAttachments(message) {
 
 function renderStreamReactionBar(message) {
   const options = [
-    { type: 'love', label: '❤️' },
-    { type: 'like', label: '👍' },
-    { type: 'fire', label: '🔥' },
-    { type: 'smile', label: '😄' },
+    { type: 'love', label: 'â¤ï¸' },
+    { type: 'like', label: 'ðŸ‘' },
+    { type: 'fire', label: 'ðŸ”¥' },
+    { type: 'smile', label: 'ðŸ˜„' },
   ];
   return `
     <div class="stream-reaction-row">
@@ -3501,7 +3542,7 @@ async function ensureStreamMessagingClient() {
         .join(', ');
       const labelNode = document.getElementById('stream-typing-label');
       if (labelNode) {
-        labelNode.textContent = typingLabel ? `${typingLabel} typing…` : '';
+        labelNode.textContent = typingLabel ? `${typingLabel} typingâ€¦` : '';
       }
     }
     if (STREAM_STATE.activeChannel && event.cid === STREAM_STATE.activeChannel.cid && !['typing.start', 'typing.stop'].includes(event.type)) {
@@ -3550,7 +3591,7 @@ function renderStreamChannelList() {
   const rows = (STREAM_STATE.channels || []).map((channel) => {
     const meta = getStreamChannelMeta(channel);
     const subtitle = meta.typingUsers.length
-      ? `${meta.typingUsers.map((entry) => entry.user?.name || entry.user?.email || 'User').join(', ')} typing…`
+      ? `${meta.typingUsers.map((entry) => entry.user?.name || entry.user?.email || 'User').join(', ')} typingâ€¦`
       : (meta.lastMessage?.text || (meta.lastMessage?.attachments?.some((attachment) => attachment?.type === 'portal_poll') ? 'Poll' : 'No messages yet.'));
     const unreadCount = Number(channel?.countUnread?.() || channel?.state?.unreadCount || 0);
     return `
@@ -3586,7 +3627,7 @@ function renderStreamActiveChannel() {
   const meta = getStreamChannelMeta(channel);
   const mentionTargets = getStreamMentionTargets(channel);
   const typingLabel = meta.typingUsers.length
-    ? `${meta.typingUsers.map((entry) => entry.user?.name || entry.user?.email || 'User').join(', ')} typing…`
+    ? `${meta.typingUsers.map((entry) => entry.user?.name || entry.user?.email || 'User').join(', ')} typingâ€¦`
     : (meta.isGroup ? `${Object.keys(meta.state.members || {}).length} members` : (meta.otherMembers[0]?.user?.email || 'Direct stream conversation'));
   const items = meta.messages.map((message) => {
     const mine = message.user?.id === STREAM_STATE.auth?.user?.id;
@@ -3963,9 +4004,9 @@ async function loadStreamMessaging() {
             <div class="form-group" style="margin-bottom:12px">
               <input class="form-control" id="stream-channel-search" placeholder="Search channels or people" oninput="filterStreamChannels()" />
             </div>
-            <div class="stream-channel-list" id="stream-channel-list"><div class="loading-wrap"><div class="spinner"></div><span>Loading…</span></div></div>
+            <div class="stream-channel-list" id="stream-channel-list"><div class="loading-wrap"><div class="spinner"></div><span>Loadingâ€¦</span></div></div>
           </div>
-          <div class="card stream-panel" id="stream-active-panel"><div class="text-muted" style="padding:24px">Loading Stream conversations…</div></div>
+          <div class="card stream-panel" id="stream-active-panel"><div class="text-muted" style="padding:24px">Loading Stream conversationsâ€¦</div></div>
         </div>
       </div>`;
     await refreshStreamChannelList(false);
@@ -4464,10 +4505,10 @@ async function loadDailyAudit() {
     const audit = await API.getDailyAudit(filters);
     const internalNames = USER_LOOKUP_CACHE.filter(user => isInternalUserRole(user.ROLE)).map(user => ({ FULL_NAME: user.FULL_NAME })).filter(user => user.FULL_NAME);
     const priorities = (audit.priorities || []).map(item => `
-      <tr><td>${item.ENTRY_DATE}</td><td>${item.USER_NAME || item.USER_EMAIL}</td><td>${item.PRIORITY_1 || '—'}</td><td>${item.PRIORITY_2 || '—'}</td><td>${item.PRIORITY_3 || '—'}</td></tr>
+      <tr><td>${item.ENTRY_DATE}</td><td>${item.USER_NAME || item.USER_EMAIL}</td><td>${item.PRIORITY_1 || 'â€”'}</td><td>${item.PRIORITY_2 || 'â€”'}</td><td>${item.PRIORITY_3 || 'â€”'}</td></tr>
     `).join('');
     const wrapups = (audit.wrapups || []).map(item => `
-      <tr><td>${item.ENTRY_DATE}</td><td>${item.USER_NAME || item.USER_EMAIL}</td><td>${item.HIGH_POINTS || '—'}</td><td>${item.LOW_POINTS || '—'}</td><td>${item.HELP_NEEDED || '—'}</td></tr>
+      <tr><td>${item.ENTRY_DATE}</td><td>${item.USER_NAME || item.USER_EMAIL}</td><td>${item.HIGH_POINTS || 'â€”'}</td><td>${item.LOW_POINTS || 'â€”'}</td><td>${item.HELP_NEEDED || 'â€”'}</td></tr>
     `).join('');
     setTopbarActions(isCompactMobileUi()
       ? renderMobileTopbarAction(DAILY_AUDIT_FILTER_OPEN ? 'Close Daily Audit Filters' : 'Open Daily Audit Filters', 'filter_alt', 'toggleDailyAuditFilters()')
@@ -4587,8 +4628,8 @@ async function loadExpenses() {
         <td>${c.CATEGORY}</td>
         <td>${money(c.AMOUNT)}</td>
         <td>${statusBadge(c.STATUS || 'Submitted')}</td>
-        <td>${c.USER_NAME || '—'}</td>
-        <td>${c.BILL_LINK ? `<a href="${c.BILL_LINK}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">Open</a>` : '—'}</td>
+        <td>${c.USER_NAME || 'â€”'}</td>
+        <td>${c.BILL_LINK ? `<a href="${c.BILL_LINK}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">Open</a>` : 'â€”'}</td>
       </tr>`).join('');
     document.getElementById('page-content').innerHTML = `
     <div class="page">
@@ -4645,23 +4686,6 @@ async function loadGalvanizerQueue() {
     document.getElementById('page-content').innerHTML = err('Galvanizer queue is restricted.');
     return;
   }
-
-function applyExpenseFilters() {
-  EXPENSE_FILTERS = {
-    period: document.getElementById('expense-period')?.value || 'month',
-    fromDate: document.getElementById('expense-from-date')?.value || '',
-    toDate: document.getElementById('expense-to-date')?.value || '',
-    sortDir: document.getElementById('expense-sort')?.value || 'az',
-  };
-  FILTER_PANEL_STATE.expenses = false;
-  loadExpenses();
-}
-
-function resetExpenseFilters() {
-  EXPENSE_FILTERS = { period: 'month', fromDate: '', toDate: '', sortDir: 'az' };
-  FILTER_PANEL_STATE.expenses = false;
-  loadExpenses();
-}
   try {
     setTopbarActions(renderFilterToggleButton('galvanizer'));
     const filters = {
@@ -4687,6 +4711,23 @@ function resetExpenseFilters() {
         <td>${statusBadge(c.WORKFLOW_STAGE || 'Drafting')}</td>
         <td><button class="btn btn-ghost btn-sm" onclick='openCaseModal(${JSON.stringify(JSON.stringify(c))})'>Open</button></td>
       </tr>`).join('');
+    const ticketLists = await Promise.all(sortedCases.map(c => API.getCaseTickets(c.CASE_ID || '').catch(() => [])));
+    const ticketRows = [];
+    ticketLists.forEach(list => {
+      (list || []).forEach(ticket => {
+        const timer = getTicketTimerMeta(ticket);
+        ticketRows.push(`
+          <tr>
+            <td><div class="text-em">${ticket.TICKET_ID || ''}</div><div class="text-muted">${ticket.TITLE || ''}</div></td>
+            <td>${ticket.CASE_ID || ''}</td>
+            <td>${statusBadge(ticket.STATUS || 'Open')}</td>
+            <td><span class="sla-pill ${timer.cls}">${timer.text}</span></td>
+            <td>${ticket.ASSIGNED_STAFF_EMAIL || '—'}</td>
+            <td>${fmtDateTimeLong(ticket.CREATED_AT)}</td>
+            <td><div class="action-row">${financeActionIconButton('Assign', 'person_add', 'btn-ghost', `assignTicketPrompt('${escapeAttr(ticket.TICKET_ID || '')}')`)}${financeActionIconButton('Resolve', 'task_alt', 'btn-success', `resolveTicketPrompt('${escapeAttr(ticket.TICKET_ID || '')}')`)}</div></td>
+          </tr>`);
+      });
+    });
     document.getElementById('page-content').innerHTML = `
     <div class="page">
       <div class="stats-grid">
@@ -4703,12 +4744,12 @@ function resetExpenseFilters() {
           <tbody>${rows || '<tr><td colspan="8" class="text-muted" style="padding:20px;text-align:center">No cases in queue.</td></tr>'}</tbody>
         </table></div>
       </div>
+      ${renderGalvanizerTicketQueueCard(ticketRows.join(''))}
     </div>`;
   } catch (e) {
     showPageError('loadGalvanizerQueue', e);
   }
 }
-
 async function saveExpenseClaim() {
   let billLink = document.getElementById('ex-bill').value.trim();
   const file = document.getElementById('ex-bill-file')?.files?.[0];
@@ -4731,9 +4772,9 @@ async function saveExpenseClaim() {
   loadExpenses();
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  CONTACT
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function loadContact() {
   document.getElementById('page-content').innerHTML = `
   <div class="page">
@@ -4741,7 +4782,7 @@ function loadContact() {
       <h3 style="margin-bottom:20px">Send a Message</h3>
       <div class="form-group"><label class="form-label">Subject</label><input class="form-control" id="ct-subject" placeholder="What is this regarding?" /></div>
       <div class="form-group"><label class="form-label">Related Case ID (optional)</label><input class="form-control" id="ct-case" placeholder="e.g. 157M001" /></div>
-      <div class="form-group"><label class="form-label">Message</label><textarea class="form-control" id="ct-message" rows="5" placeholder="Type your message…"></textarea></div>
+      <div class="form-group"><label class="form-label">Message</label><textarea class="form-control" id="ct-message" rows="5" placeholder="Type your messageâ€¦"></textarea></div>
       <button class="btn btn-primary" onclick="submitContact()">Send Message</button>
       <div id="ct-status" style="margin-top:12px"></div>
     </div>
@@ -4763,9 +4804,9 @@ async function submitContact() {
   } catch(e) { status.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  MODALS — Case
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+//  MODALS â€” Case
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function clientSearchBlock(selectedCode) {
   const listId = 'client-code-options';
   return `
@@ -4862,7 +4903,7 @@ async function refreshAfterCaseSave() {
 
 async function saveCase(existingId) {
   const btn = document.getElementById('mc-save');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const clientCode = document.getElementById('mc-client-code').value.trim().toUpperCase();
   const client = resolveClientByCode(clientCode);
   if (!client) {
@@ -5004,7 +5045,7 @@ function refreshClientTypeFields() {
 
 async function saveClient(existingId) {
   const btn = document.getElementById('cl-save');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const data = {
     CLIENT_ID: existingId || undefined,
     CLIENT_NAME: document.getElementById('cl-name').value.trim(),
@@ -5038,7 +5079,7 @@ async function saveClient(existingId) {
 
 async function saveClientV2(existingId) {
   const btn = document.getElementById('cl-save');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const clientType = document.getElementById('cl-client-type').value;
   const org = clientType === 'Organization' ? resolveOrganization(document.getElementById('cl-org-id').value.trim()) : null;
   const adminUser = clientType === 'Organization' ? resolveUserById(document.getElementById('cl-admin-user').value.trim()) : null;
@@ -5080,15 +5121,15 @@ async function saveClientV2(existingId) {
   }
 }
 
-// ── Client Modal ──────────────────────────────────────────────────────────────
+// â”€â”€ Client Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function openClientModalLegacy(jsonStr) {
   const c = jsonStr ? JSON.parse(jsonStr) : null;
   document.getElementById('modal-client-title').textContent = c ? 'Edit Client' : 'New Client';
   document.getElementById('modal-client-body').innerHTML = `
     ${!c ? `<div class="form-group"><label class="form-label">Client Type *</label>
       <div style="display:flex;gap:8px;margin-top:4px">
-        <button class="btn btn-primary btn-sm" id="type-M" onclick="selType('M')">M — Indian</button>
-        <button class="btn btn-ghost btn-sm" id="type-Y" onclick="selType('Y')">Y — Abroad</button>
+        <button class="btn btn-primary btn-sm" id="type-M" onclick="selType('M')">M â€” Indian</button>
+        <button class="btn btn-ghost btn-sm" id="type-Y" onclick="selType('Y')">Y â€” Abroad</button>
       </div>
       <input type="hidden" id="cl-type" value="false" />
     </div>` : ''}
@@ -5115,7 +5156,7 @@ function selTypeLegacy(t) {
 
 async function saveClientLegacy(existingId) {
   const btn = document.getElementById('cl-save');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const data = {
     CLIENT_ID: existingId || undefined,
     CLIENT_NAME: document.getElementById('cl-name').value.trim(),
@@ -5137,7 +5178,7 @@ async function saveClientLegacy(existingId) {
   }
 }
 
-// ── User Modal ────────────────────────────────────────────────────────────────
+// â”€â”€ User Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function openUserModal(jsonStr, options = {}) {
   const u = jsonStr ? JSON.parse(jsonStr) : null;
   const prefilledOrg = options.prefilledOrgId ? resolveOrganization(options.prefilledOrgId) : null;
@@ -5189,7 +5230,7 @@ function syncUserOrgSelection() {
 
 async function saveUser(existingId) {
   const btn = document.getElementById('mu-save');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const data = {
     USER_ID: existingId || undefined,
     FULL_NAME: document.getElementById('mu-name').value.trim(),
@@ -5221,7 +5262,7 @@ async function saveUser(existingId) {
 
 async function saveUserV2(existingId) {
   const btn = document.getElementById('mu-save');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const org = resolveOrganization(document.getElementById('mu-org').value.trim());
   const selectedRole = document.getElementById('mu-role').value;
   const data = {
@@ -5260,7 +5301,7 @@ async function saveUserV2(existingId) {
   }
 }
 
-// ── Invoice Modal ─────────────────────────────────────────────────────────────
+// â”€â”€ Invoice Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function openInvoiceModal(jsonStr) {
   const inv = jsonStr ? JSON.parse(jsonStr) : null;
   await ensureClientLookupLoaded();
@@ -5354,11 +5395,11 @@ async function openInvoiceModal(jsonStr) {
         <div class="form-group"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">InvAmount</label><input class="form-control" id="mi-inv-amount" value="${money(getInvoiceUiTotal(inv)).replace('₹','')}" readonly /></div>
-        <div class="form-group"><label class="form-label">Amount due</label><input class="form-control" id="mi-amount-due" value="${money(getInvoiceUiDue(inv)).replace('₹','')}" readonly /></div>
+        <div class="form-group"><label class="form-label">InvAmount</label><input class="form-control" id="mi-inv-amount" value="${money(getInvoiceUiTotal(inv)).replace('â‚¹','')}" readonly /></div>
+        <div class="form-group"><label class="form-label">Amount due</label><input class="form-control" id="mi-amount-due" value="${money(getInvoiceUiDue(inv)).replace('â‚¹','')}" readonly /></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Net Revenue</label><input class="form-control" id="mi-net-revenue" value="${money(parseFloat(inv?.['Net Revenue'] || 0) || 0).replace('₹','')}" readonly /></div>
+        <div class="form-group"><label class="form-label">Net Revenue</label><input class="form-control" id="mi-net-revenue" value="${money(parseFloat(inv?.['Net Revenue'] || 0) || 0).replace('â‚¹','')}" readonly /></div>
         <div class="form-group"><label class="form-label">Payment Mode</label><input class="form-control" id="mi-payment-mode" value="${escapeAttr(inv?.PAYMENT_MODE || '')}" /></div>
       </div>
       <div class="form-row">
@@ -5453,7 +5494,7 @@ function refreshInvoiceCalculatedFields() {
 
 async function saveInvoice(existingId) {
   const btn = document.getElementById('mi-save');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const selectedClient = resolveClientByAnyKey(document.getElementById('mi-client-code').value.trim());
   if (!selectedClient) {
     alert('Select a valid client code.');
@@ -5718,7 +5759,7 @@ function openClientModalLegacyV0(jsonStr) {
 
 async function saveClientLegacyV0(existingId) {
   const btn = document.getElementById('cl-save');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const data = {
     CLIENT_ID: existingId || undefined,
     CLIENT_NAME: document.getElementById('cl-name').value.trim(),
@@ -5788,7 +5829,7 @@ function openCaseModalLegacyV0(jsonStr) {
 
 async function saveCaseLegacyV0(existingId) {
   const btn = document.getElementById('mc-save');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const data = {
     CASE_ID: existingId || undefined,
     CLIENT_ID: document.getElementById('mc-cid').value.trim(),
@@ -5821,3 +5862,6 @@ async function saveCaseLegacyV0(existingId) {
 </script>
 </body>
 </html>
+
+
+

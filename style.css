@@ -1,4 +1,4 @@
-/* ── Metayage IP Portal ── Dark Modern Theme ───────────────────────────── */
+﻿/* â”€â”€ Metayage IP Portal â”€â”€ Dark Modern Theme â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0&display=swap');
 
@@ -79,7 +79,7 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Typography ──────────────────────────────────────────────────────────── */
+/* â”€â”€ Typography â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 h1,h2,h3,h4 { font-family: 'Syne', sans-serif; font-weight: 700; color: var(--text); }
 h1 { font-size: 28px; letter-spacing: -0.5px; }
 h2 { font-size: 20px; }
@@ -89,18 +89,18 @@ h4 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 a { color: var(--primary); text-decoration: none; }
 a:hover { color: #a5b4fc; }
 
-/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+/* â”€â”€ Scrollbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
 
-/* ── Layout ──────────────────────────────────────────────────────────────── */
+/* â”€â”€ Layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .app-shell {
   display: flex;
   min-height: 100vh;
 }
 
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+/* â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .sidebar {
   position: fixed;
   top: 0; left: 0; bottom: 0;
@@ -258,7 +258,7 @@ a:hover { color: #a5b4fc; }
 }
 .sign-out-btn:hover { color: var(--rose); background: rgba(251,113,133,0.1); }
 
-/* ── Main Content ────────────────────────────────────────────────────────── */
+/* â”€â”€ Main Content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .main {
   margin-left: var(--sidebar-w);
   min-height: 100vh;
@@ -305,7 +305,7 @@ a:hover { color: #a5b4fc; }
   flex: 1;
 }
 
-/* ── Cards ───────────────────────────────────────────────────────────────── */
+/* â”€â”€ Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -320,7 +320,7 @@ a:hover { color: #a5b4fc; }
   color: var(--text);
 }
 
-/* ── Stat Cards ──────────────────────────────────────────────────────────── */
+/* â”€â”€ Stat Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .stats-grid {
   display: flex;
   flex-wrap: wrap;
@@ -349,7 +349,7 @@ a:hover { color: #a5b4fc; }
 .stat-card.accent-amber .stat-value { color: var(--amber); }
 .stat-card.accent-rose .stat-value { color: var(--rose); }
 
-/* ── Grid Layouts ────────────────────────────────────────────────────────── */
+/* â”€â”€ Grid Layouts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .inbox-layout { display: flex; gap: 20px; min-height: 70vh; align-items: stretch; }
 .inbox-sidebar { flex: 0 0 360px; min-width: 320px; min-height: 70vh; }
@@ -419,7 +419,7 @@ a:hover { color: #a5b4fc; }
 .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
 .grid-7-5 { display: grid; grid-template-columns: 7fr 5fr; gap: 20px; }
 
-/* ── Tables ──────────────────────────────────────────────────────────────── */
+/* â”€â”€ Tables â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 thead th {
@@ -443,7 +443,7 @@ tbody tr:last-child td { border-bottom: none; }
 tbody tr { transition: background 0.12s; }
 tbody tr:hover { background: var(--row-hover); }
 
-/* ── Badges ──────────────────────────────────────────────────────────────── */
+/* â”€â”€ Badges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -467,7 +467,7 @@ tbody tr:hover { background: var(--row-hover); }
 .badge-attorney  { background: rgba(56,189,248,0.12); color: var(--sky); }
 .badge-client    { background: rgba(251,191,36,0.1); color: var(--amber); }
 
-/* ── Buttons ─────────────────────────────────────────────────────────────── */
+/* â”€â”€ Buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -495,7 +495,7 @@ tbody tr:hover { background: var(--row-hover); }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 .btn-icon { padding: 7px; }
 
-/* ── Forms ───────────────────────────────────────────────────────────────── */
+/* â”€â”€ Forms â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .form-group { margin-bottom: 16px; }
 .form-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-2); margin-bottom: 6px; }
 .form-control {
@@ -564,7 +564,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   height: 42px;
 }
 
-/* ── Modal ───────────────────────────────────────────────────────────────── */
+/* â”€â”€ Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .modal-overlay {
   display: none;
   position: fixed; inset: 0;
@@ -622,7 +622,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .modal-close:hover { color: var(--text); }
 .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 
-/* ── Alerts ──────────────────────────────────────────────────────────────── */
+/* â”€â”€ Alerts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .alert {
   padding: 12px 16px;
   border-radius: var(--radius);
@@ -635,7 +635,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .alert-info { background: rgba(129,140,248,0.08); border-color: rgba(129,140,248,0.2); color: var(--primary); }
 .alert-warning { background: rgba(251,191,36,0.08); border-color: rgba(251,191,36,0.2); color: var(--amber); }
 
-/* ── Loading ─────────────────────────────────────────────────────────────── */
+/* â”€â”€ Loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .loading-wrap {
   display: flex;
   flex-direction: column;
@@ -659,7 +659,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 }
 .empty-state svg { opacity: 0.3; margin-bottom: 12px; }
 
-/* ── Document items ──────────────────────────────────────────────────────── */
+/* â”€â”€ Document items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .doc-item {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 12px;
@@ -673,7 +673,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .doc-name { font-weight: 500; font-size: 13px; color: var(--text); }
 .doc-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 
-/* ── Deadline/Invoice list cards ─────────────────────────────────────────── */
+/* â”€â”€ Deadline/Invoice list cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .list-entry {
   display: flex; justify-content: space-between; align-items: flex-start;
   padding: 12px;
@@ -687,7 +687,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .list-entry-val { font-size: 13px; font-weight: 500; color: var(--text); }
 .list-entry-amount { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; color: var(--amber); }
 
-/* ── Chart containers ────────────────────────────────────────────────────── */
+/* â”€â”€ Chart containers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .chart-container { position: relative; }
 .donut-wrap { position: relative; width: 160px; height: 160px; margin: 0 auto; }
 .donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
@@ -698,7 +698,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
 
-/* ── Login page ──────────────────────────────────────────────────────────── */
+/* â”€â”€ Login page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .login-page {
   min-height: 100vh;
   display: flex;
@@ -775,7 +775,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .login-footer { margin-top: 24px; text-align: center; font-size: 12px; color: var(--text-3); }
 .login-footer a { color: var(--primary); }
 
-/* ── Mgmt tabs ───────────────────────────────────────────────────────────── */
+/* â”€â”€ Mgmt tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .tab-bar {
   display: flex; gap: 4px;
   margin-bottom: 20px;
@@ -796,7 +796,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .tab-btn:hover { color: var(--text); }
 .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 500; }
 
-/* ── Animations ──────────────────────────────────────────────────────────── */
+/* â”€â”€ Animations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
@@ -804,14 +804,14 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 
 .page { animation: fadeSlide 0.2s ease; }
 
-/* ── Page header ─────────────────────────────────────────────────────────── */
+/* â”€â”€ Page header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .page-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 24px;
 }
 .page-header h2 { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; }
 
-/* ── Responsive ──────────────────────────────────────────────────────────── */
+/* â”€â”€ Responsive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .menu-toggle {
   display: none;
   position: fixed; top: 14px; left: 14px; z-index: 200;
@@ -1143,6 +1143,38 @@ body.mobile-app .filter-panel.filter-drawer.open .filter-grid.compact-2 {
   grid-template-columns: 1fr;
 }
 
+body.mobile-app .filter-panel .filter-drawer {
+  display: none;
+}
+
+body.mobile-app .filter-panel .filter-drawer.open {
+  display: block;
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  top: calc(env(safe-area-inset-top, 0px) + 68px);
+  bottom: 12px;
+  z-index: 1200;
+  overflow: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-lg);
+}
+
+body.mobile-app .filter-panel > .filter-toggle-row {
+  display: none;
+}
+
+body.mobile-app .filter-panel:has(> .filter-drawer) {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+  margin-bottom: 0 !important;
+}
+
 body.mobile-app .table-wrap table {
   min-width: 760px;
 }
@@ -1229,7 +1261,7 @@ body.mobile-app .modal-invoice-form {
   }
 }
 
-/* ── Action rows ─────────────────────────────────────────────────────────── */
+/* â”€â”€ Action rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .action-row { display: flex; gap: 6px; }
 .icon-btn { min-width: 36px; width: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 .material-symbols-outlined {
@@ -1249,12 +1281,12 @@ body.mobile-app .modal-invoice-form {
 }
 .icon-btn .material-symbols-outlined { font-size: 18px; line-height: 1; }
 
-/* ── Inline text muted ───────────────────────────────────────────────────── */
+/* â”€â”€ Inline text muted â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .text-muted { color: var(--text-3); }
 .text-em { font-weight: 500; color: var(--text); }
 .font-mono { font-family: 'DM Mono', monospace; font-size: 12px; }
 
-/* ── Page-specific: Documents ────────────────────────────────────────────── */
+/* â”€â”€ Page-specific: Documents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .doc-section { margin-bottom: 24px; }
 .doc-section-title {
   font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
@@ -1262,3 +1294,21 @@ body.mobile-app .modal-invoice-form {
   margin-bottom: 10px;
   display: flex; align-items: center; gap: 8px;
 }
+
+.sla-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-2);
+}
+.sla-safe { background: rgba(52, 211, 153, 0.14); color: var(--emerald); }
+.sla-warn { background: rgba(251, 191, 36, 0.14); color: var(--amber); }
+.sla-danger { background: rgba(251, 113, 133, 0.14); color: var(--rose); }
+.sla-overdue { background: rgba(239, 68, 68, 0.16); color: #ef4444; }
+.sla-neutral { background: rgba(148, 163, 184, 0.12); color: var(--text-2); }
