@@ -2288,9 +2288,8 @@ function renderApprovals() {
           <tbody>${paged.items.map(item => {
             const canReview = item.STATUS === 'Pending' && (canManageAll || String(item.APPROVER_EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase());
             const rowIndex = Number(item.__ROW_INDEX || 0);
-            const rawApprovalId = JSON.stringify(String(item.APPROVAL_ID || ''));
-            const approveAction = `reviewApproval(${rawApprovalId},'Approved',${rowIndex})`;
-            const rejectAction = `reviewApproval(${rawApprovalId},'Rejected',${rowIndex})`;
+            const approveAction = `reviewApprovalByRow(${rowIndex},'Approved')`;
+            const rejectAction = `reviewApprovalByRow(${rowIndex},'Rejected')`;
             const actionHtml = canReview
               ? `<div class="action-row approval-action-row">${financeActionIconButton('Approve', 'done', 'btn-success', approveAction)}${financeActionIconButton('Reject', 'close', 'btn-danger', rejectAction)}</div>`
               : '';
@@ -2363,6 +2362,10 @@ async function reviewApproval(approvalId, status, rowIndex = 0) {
   } catch (e) {
     alert(`Approval update failed: ${e.message}`);
   }
+}
+
+async function reviewApprovalByRow(rowIndex, status) {
+  return reviewApproval('', status, Number(rowIndex || 0));
 }
 
 async function loadDocumentWorkflow() {
