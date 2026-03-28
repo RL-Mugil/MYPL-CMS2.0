@@ -1725,8 +1725,7 @@ function renderDashboard(d) {
     </div>
   </div>`;
 
-  requestAnimationFrame(() => {
-    setTimeout(() => {
+  const drawDashboardCharts = () => {
       const styles = getComputedStyle(document.body);
       const chartText = styles.getPropertyValue('--chart-text').trim() || styles.getPropertyValue('--text-2').trim() || '#9191b4';
       const chartGrid = styles.getPropertyValue('--chart-grid').trim() || 'rgba(255,255,255,0.08)';
@@ -1750,6 +1749,7 @@ function renderDashboard(d) {
           data: { labels, datasets: [{ data, backgroundColor: bgColors, borderWidth: 0, cutout: '78%' }] },
           options: {
             responsive: true, maintainAspectRatio: false,
+            animation: false,
             plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw}` } } }
           }
         });
@@ -1771,6 +1771,7 @@ function renderDashboard(d) {
           },
           options: {
             indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            animation: false,
             plugins: { legend: { display: false } },
             scales: {
               x: { display: false, grid: { display: false, color: chartGrid }, border: { display: false } },
@@ -1779,8 +1780,12 @@ function renderDashboard(d) {
           }
         });
       }
-    }, 0);
-  });
+  };
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(drawDashboardCharts, { timeout: 400 });
+  } else {
+    setTimeout(drawDashboardCharts, 150);
+  }
 }
 
 function applyDashboardFilters() {
