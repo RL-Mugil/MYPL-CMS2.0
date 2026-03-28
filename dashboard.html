@@ -2255,6 +2255,7 @@ async function loadApprovals() {
 
 function renderApprovals() {
   const canManageAll = sessionHasRoleAtLeast('Admin');
+  const approvalDisplayId = item => item.DISPLAY_APPROVAL_ID || item.APPROVAL_ID || `APR-${String(item.__ROW_INDEX || '').padStart(4, '0')}`;
   const filtered = sortItemsBy((APPROVALS_CACHE || []).filter(item => {
     const query = normalizeAlphaValue(APPROVAL_FILTERS.query);
     const haystack = normalizeAlphaValue([item.APPROVAL_ID, item.TITLE, item.APPROVER_EMAIL, item.APPROVAL_TYPE].join(' '));
@@ -2286,7 +2287,8 @@ function renderApprovals() {
           <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Approver</th><th>Status</th><th></th></tr></thead>
           <tbody>${paged.items.map(item => {
             const canReview = item.STATUS === 'Pending' && (canManageAll || String(item.APPROVER_EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase());
-            return `<tr><td class="text-em">${item.APPROVAL_ID}</td><td>${item.TITLE || ''}</td><td>${item.APPROVAL_TYPE || ''}</td><td>${item.APPROVER_EMAIL || ''}</td><td>${statusBadge(item.STATUS || 'Pending')}</td><td>${canReview ? `<div class="action-row approval-action-row">${financeActionIconButton('Approve', 'done', 'btn-success', `reviewApproval('${item.APPROVAL_ID}','Approved')`)}${financeActionIconButton('Reject', 'close', 'btn-danger', `reviewApproval('${item.APPROVAL_ID}','Rejected')`)}</div>` : ''}</td></tr>`;
+            const rowIndex = Number(item.__ROW_INDEX || 0);
+            return `<tr><td class="text-em">${approvalDisplayId(item)}</td><td>${item.TITLE || ''}</td><td>${item.APPROVAL_TYPE || ''}</td><td>${item.APPROVER_EMAIL || ''}</td><td>${statusBadge(item.STATUS || 'Pending')}</td><td>${canReview ? `<div class="action-row approval-action-row">${financeActionIconButton('Approve', 'done', 'btn-success', `reviewApproval(${JSON.stringify(String(item.APPROVAL_ID || ''))},'Approved',${rowIndex})`)}${financeActionIconButton('Reject', 'close', 'btn-danger', `reviewApproval(${JSON.stringify(String(item.APPROVAL_ID || ''))},'Rejected',${rowIndex})`)}</div>` : ''}</td></tr>`;
           }).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No approvals.</td></tr>'}</tbody>
         </table></div>
       </div>
@@ -2348,9 +2350,9 @@ async function submitApprovalModal() {
   loadApprovals();
 }
 
-async function reviewApproval(approvalId, status) {
+async function reviewApproval(approvalId, status, rowIndex = 0) {
   try {
-    await API.reviewApprovalRequest(approvalId, { status, notes: '' });
+    await API.reviewApprovalRequest(approvalId, { status, notes: '', rowIndex });
     loadApprovals();
   } catch (e) {
     alert(`Approval update failed: ${e.message}`);
