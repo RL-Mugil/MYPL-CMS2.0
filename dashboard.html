@@ -1503,10 +1503,16 @@ function destroyCharts() {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function loadDashboard() {
   destroyCharts();
+  document.getElementById('page-content').innerHTML = `
+  <div class="page">
+    <div class="card" style="margin-top:20px">
+      <div class="card-title">Loading dashboard</div>
+      <div class="loading-wrap" style="min-height:240px"><div class="spinner"></div><span>Loading summary and charts...</span></div>
+    </div>
+  </div>`;
   try {
     const dashboard = await API.getDashboard(DASHBOARD_FILTERS);
-    renderDashboardSummary(dashboard);
-    hydrateDashboardDetails(dashboard, dashboard);
+    renderDashboard(dashboard);
   } catch(e) {
     showPageError('loadDashboard', e);
   }
@@ -1719,59 +1725,62 @@ function renderDashboard(d) {
     </div>
   </div>`;
 
-  // Draw charts
-  const styles = getComputedStyle(document.body);
-  const chartText = styles.getPropertyValue('--chart-text').trim() || styles.getPropertyValue('--text-2').trim() || '#9191b4';
-  const chartGrid = styles.getPropertyValue('--chart-grid').trim() || 'rgba(255,255,255,0.08)';
-  const chartEmpty = styles.getPropertyValue('--chart-empty').trim() || '#1e1e30';
-  const primaryDark = styles.getPropertyValue('--primary-d').trim() || '#6366f1';
-  const primary = styles.getPropertyValue('--primary').trim() || '#818cf8';
-  Chart.defaults.color = chartText;
-  Chart.defaults.font.family = "'DM Sans', sans-serif";
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      const styles = getComputedStyle(document.body);
+      const chartText = styles.getPropertyValue('--chart-text').trim() || styles.getPropertyValue('--text-2').trim() || '#9191b4';
+      const chartGrid = styles.getPropertyValue('--chart-grid').trim() || 'rgba(255,255,255,0.08)';
+      const chartEmpty = styles.getPropertyValue('--chart-empty').trim() || '#1e1e30';
+      const primaryDark = styles.getPropertyValue('--primary-d').trim() || '#6366f1';
+      const primary = styles.getPropertyValue('--primary').trim() || '#818cf8';
+      Chart.defaults.color = chartText;
+      Chart.defaults.font.family = "'DM Sans', sans-serif";
 
-  const makeDonut = (canvasId, dataObj) => {
-    const labels = Object.keys(dataObj);
-    const data = labels.map(k => dataObj[k]);
-    const bgColors = labels.map(k => COUNTRY_COLORS[k] || '#6b7097');
-    if (data.length === 0 || data.every(v => v === 0)) {
-      labels.push('None'); data.push(1); bgColors.push(chartEmpty);
-    }
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-    _charts[canvasId] = new Chart(ctx, {
-      type: 'doughnut',
-      data: { labels, datasets: [{ data, backgroundColor: bgColors, borderWidth: 0, cutout: '78%' }] },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw}` } } }
-      }
-    });
-  };
-
-  makeDonut('chart-granted', d.grantedByCountry || {});
-  makeDonut('chart-pending', d.pendingByCountry || {});
-
-  const statusObj = d.pendingByStatus || {};
-  const sLabels = Object.keys(statusObj);
-  const sData = sLabels.map(k => statusObj[k]);
-  const barCtx = document.getElementById('chart-status');
-  if (barCtx && sLabels.length) {
-    _charts['chart-status'] = new Chart(barCtx, {
-      type: 'bar',
-      data: {
-        labels: sLabels,
-        datasets: [{ data: sData, backgroundColor: primaryDark, hoverBackgroundColor: primary, borderRadius: 4, barThickness: 14 }]
-      },
-      options: {
-        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { display: false, grid: { display: false, color: chartGrid }, border: { display: false } },
-          y: { grid: { display: false, color: chartGrid }, border: { display: false }, ticks: { padding: 8, font: { size: 11 }, color: chartText } }
+      const makeDonut = (canvasId, dataObj) => {
+        const labels = Object.keys(dataObj);
+        const data = labels.map(k => dataObj[k]);
+        const bgColors = labels.map(k => COUNTRY_COLORS[k] || '#6b7097');
+        if (data.length === 0 || data.every(v => v === 0)) {
+          labels.push('None'); data.push(1); bgColors.push(chartEmpty);
         }
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        _charts[canvasId] = new Chart(ctx, {
+          type: 'doughnut',
+          data: { labels, datasets: [{ data, backgroundColor: bgColors, borderWidth: 0, cutout: '78%' }] },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw}` } } }
+          }
+        });
+      };
+
+      makeDonut('chart-granted', d.grantedByCountry || {});
+      makeDonut('chart-pending', d.pendingByCountry || {});
+
+      const statusObj = d.pendingByStatus || {};
+      const sLabels = Object.keys(statusObj);
+      const sData = sLabels.map(k => statusObj[k]);
+      const barCtx = document.getElementById('chart-status');
+      if (barCtx && sLabels.length) {
+        _charts['chart-status'] = new Chart(barCtx, {
+          type: 'bar',
+          data: {
+            labels: sLabels,
+            datasets: [{ data: sData, backgroundColor: primaryDark, hoverBackgroundColor: primary, borderRadius: 4, barThickness: 14 }]
+          },
+          options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { display: false, grid: { display: false, color: chartGrid }, border: { display: false } },
+              y: { grid: { display: false, color: chartGrid }, border: { display: false }, ticks: { padding: 8, font: { size: 11 }, color: chartText } }
+            }
+          }
+        });
       }
-    });
-  }
+    }, 0);
+  });
 }
 
 function applyDashboardFilters() {
