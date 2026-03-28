@@ -2288,7 +2288,13 @@ function renderApprovals() {
           <tbody>${paged.items.map(item => {
             const canReview = item.STATUS === 'Pending' && (canManageAll || String(item.APPROVER_EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase());
             const rowIndex = Number(item.__ROW_INDEX || 0);
-            return `<tr><td class="text-em">${approvalDisplayId(item)}</td><td>${item.TITLE || ''}</td><td>${item.APPROVAL_TYPE || ''}</td><td>${item.APPROVER_EMAIL || ''}</td><td>${statusBadge(item.STATUS || 'Pending')}</td><td>${canReview ? `<div class="action-row approval-action-row">${financeActionIconButton('Approve', 'done', 'btn-success', `reviewApproval(${JSON.stringify(String(item.APPROVAL_ID || ''))},'Approved',${rowIndex})`)}${financeActionIconButton('Reject', 'close', 'btn-danger', `reviewApproval(${JSON.stringify(String(item.APPROVAL_ID || ''))},'Rejected',${rowIndex})`)}</div>` : ''}</td></tr>`;
+            const rawApprovalId = JSON.stringify(String(item.APPROVAL_ID || ''));
+            const approveAction = `reviewApproval(${rawApprovalId},'Approved',${rowIndex})`;
+            const rejectAction = `reviewApproval(${rawApprovalId},'Rejected',${rowIndex})`;
+            const actionHtml = canReview
+              ? `<div class="action-row approval-action-row">${financeActionIconButton('Approve', 'done', 'btn-success', approveAction)}${financeActionIconButton('Reject', 'close', 'btn-danger', rejectAction)}</div>`
+              : '';
+            return `<tr><td class="text-em">${approvalDisplayId(item)}</td><td>${item.TITLE || ''}</td><td>${item.APPROVAL_TYPE || ''}</td><td>${item.APPROVER_EMAIL || ''}</td><td>${statusBadge(item.STATUS || 'Pending')}</td><td>${actionHtml}</td></tr>`;
           }).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No approvals.</td></tr>'}</tbody>
         </table></div>
       </div>
