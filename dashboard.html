@@ -2255,7 +2255,7 @@ async function loadApprovals() {
 
 function renderApprovals() {
   const canManageAll = sessionHasRoleAtLeast('Admin');
-  const approvalDisplayId = item => item.DISPLAY_APPROVAL_ID || item.APPROVAL_ID || `APR-${String(item.__ROW_INDEX || '').padStart(4, '0')}`;
+  const approvalDisplayId = item => item.DISPLAY_APPROVAL_ID || item.APPROVAL_ID || `PR${String(item.__ROW_INDEX || '').padStart(4, '0')}`;
   const filtered = sortItemsBy((APPROVALS_CACHE || []).filter(item => {
     const query = normalizeAlphaValue(APPROVAL_FILTERS.query);
     const haystack = normalizeAlphaValue([item.APPROVAL_ID, item.TITLE, item.APPROVER_EMAIL, item.APPROVAL_TYPE].join(' '));
