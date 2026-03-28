@@ -702,7 +702,7 @@ function toInputDate(v) {
 }
 function money(v) {
   const n = parseFloat(v) || 0;
-  return 'â‚¹' + n.toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  return 'Rs ' + n.toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
 function statusBadge(s) {
   const map = {
@@ -5395,11 +5395,11 @@ async function openInvoiceModal(jsonStr) {
         <div class="form-group"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">InvAmount</label><input class="form-control" id="mi-inv-amount" value="${money(getInvoiceUiTotal(inv)).replace('â‚¹','')}" readonly /></div>
-        <div class="form-group"><label class="form-label">Amount due</label><input class="form-control" id="mi-amount-due" value="${money(getInvoiceUiDue(inv)).replace('â‚¹','')}" readonly /></div>
+        <div class="form-group"><label class="form-label">InvAmount</label><input class="form-control" id="mi-inv-amount" value="${money(getInvoiceUiTotal(inv)).replace('Rs ','')}" readonly /></div>
+        <div class="form-group"><label class="form-label">Amount due</label><input class="form-control" id="mi-amount-due" value="${money(getInvoiceUiDue(inv)).replace('Rs ','')}" readonly /></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Net Revenue</label><input class="form-control" id="mi-net-revenue" value="${money(parseFloat(inv?.['Net Revenue'] || 0) || 0).replace('â‚¹','')}" readonly /></div>
+        <div class="form-group"><label class="form-label">Net Revenue</label><input class="form-control" id="mi-net-revenue" value="${money(parseFloat(inv?.['Net Revenue'] || 0) || 0).replace('Rs ','')}" readonly /></div>
         <div class="form-group"><label class="form-label">Payment Mode</label><input class="form-control" id="mi-payment-mode" value="${escapeAttr(inv?.PAYMENT_MODE || '')}" /></div>
       </div>
       <div class="form-row">
