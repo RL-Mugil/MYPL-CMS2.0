@@ -1488,8 +1488,7 @@ function startSafePrefetch() {
     ensureClientLookupLoaded(),
     ensureUserLookupLoaded(),
     ensureCircleLookupLoaded(),
-    API.getOrganizations(),
-    API.getCasesPage({}, CASES_PAGE_LIMIT, 0)
+    API.getOrganizations()
   ]).catch(() => {});
 }
 
@@ -1505,25 +1504,9 @@ function destroyCharts() {
 async function loadDashboard() {
   destroyCharts();
   try {
-    await ensureClientLookupLoaded();
-    const cachedSummary = API.getCachedDashboardSummary(DASHBOARD_FILTERS);
-    const cachedDetails = API.getCachedDashboardDetails(DASHBOARD_FILTERS);
-    if (cachedSummary) {
-      renderDashboardSummary(cachedSummary);
-      if (cachedDetails) {
-        hydrateDashboardDetails(cachedSummary, cachedDetails);
-      }
-    }
-    const summary = await API.getDashboardSummary(DASHBOARD_FILTERS);
-    renderDashboardSummary(summary);
-    if (!cachedDetails) {
-      const loadingBlock = document.getElementById('dashboard-detail-loading');
-      if (loadingBlock) {
-        loadingBlock.style.display = '';
-      }
-    }
-    const details = await API.getDashboardDetails(DASHBOARD_FILTERS);
-    hydrateDashboardDetails(summary, details);
+    const dashboard = await API.getDashboard(DASHBOARD_FILTERS);
+    renderDashboardSummary(dashboard);
+    hydrateDashboardDetails(dashboard, dashboard);
   } catch(e) {
     showPageError('loadDashboard', e);
   }
