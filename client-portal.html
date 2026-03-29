@@ -540,19 +540,22 @@ function fileToDataUrl(file) {
 }
 
 async function loadDashboard() {
-  document.getElementById('page-content').innerHTML = `
-    <div class="page">
-      <div class="card" style="margin-top:20px">
-        <div class="card-title">Loading dashboard</div>
-        <div class="loading-wrap" style="min-height:240px"><div class="spinner"></div><span>Loading client dashboard...</span></div>
-      </div>
-    </div>`;
   try {
-    const dashboardPromise = API.getDashboard({});
+    const summaryPromise = API.getDashboardSummary({});
+    const detailsPromise = API.getDashboardDetails({});
+    const notificationsPromise = API.getNotifications();
+    const threadsPromise = API.getMessageThreads();
+    const requestsPromise = API.getDocumentRequests({});
     const clients = await ensureAccessibleClientsLoaded();
-    const dashboard = await dashboardPromise;
-    const summary = dashboard || {};
-    const details = dashboard || {};
+    const results = await Promise.all([summaryPromise, detailsPromise, notificationsPromise, threadsPromise, requestsPromise]);
+    const summary = results[0] || {};
+    const details = results[1] || {};
+    const notifications = Array.isArray(results[2]) ? results[2] : [];
+    const threads = Array.isArray(results[3]) ? results[3].filter(function(thread) { return String(thread.THREAD_TYPE || '') !== 'Direct'; }) : [];
+    const requests = Array.isArray(results[4]) ? results[4] : [];
+    const unreadNotifications = notifications.filter(function(item) { return String(item.IS_READ || 'No') !== 'Yes'; });
+    const openRequests = requests.filter(function(item) { return String(item.STATUS || 'Open') !== 'Completed'; });
+    const recentThreads = threads.slice(0, 4);
     const recentCases = (details.recentActiveCases || []).slice(0, 5);
     const deadlines = (details.upcomingDeadlines || []).slice(0, 5);
 
@@ -562,10 +565,10 @@ async function loadDashboard() {
           <div class="stat-card accent-primary"><div class="stat-label">Granted</div><div class="stat-value">${summary.totalGranted || 0}</div><div class="stat-sub">registered matters</div></div>
           <div class="stat-card accent-sky"><div class="stat-label">Pending</div><div class="stat-value">${summary.totalPending || 0}</div><div class="stat-sub">active matters</div></div>
           <div class="stat-card accent-amber"><div class="stat-label">Upcoming Deadlines</div><div class="stat-value">${summary.upcomingDeadlineCount || (details.upcomingDeadlines || []).length || 0}</div><div class="stat-sub">need attention</div></div>
-          <div class="stat-card accent-rose"><div class="stat-label">Unread Alerts</div><div class="stat-value">${summary.unreadNotifications || 0}</div><div class="stat-sub">notifications</div></div>
-          <div class="stat-card accent-emerald"><div class="stat-label">Open Threads</div><div class="stat-value">${summary.openThreads || 0}</div><div class="stat-sub">shared conversations</div></div>
+          <div class="stat-card accent-rose"><div class="stat-label">Unread Alerts</div><div class="stat-value">${unreadNotifications.length}</div><div class="stat-sub">notifications</div></div>
+          <div class="stat-card accent-emerald"><div class="stat-label">Open Threads</div><div class="stat-value">${summary.openThreads || threads.length || 0}</div><div class="stat-sub">shared conversations</div></div>
           <div class="stat-card accent-primary"><div class="stat-label">Clients</div><div class="stat-value">${clients.length}</div><div class="stat-sub">accessible records</div></div>
-          <div class="stat-card accent-sky"><div class="stat-label">Open Requests</div><div class="stat-value" id="client-open-requests-count">...</div><div class="stat-sub">document workflows</div></div>
+          <div class="stat-card accent-sky"><div class="stat-label">Open Requests</div><div class="stat-value">${openRequests.length}</div><div class="stat-sub">document workflows</div></div>
         </div>
 
         <div class="grid-7-5" style="margin-bottom:20px">
@@ -591,7 +594,9 @@ async function loadDashboard() {
 
             <div class="card">
               <div class="card-title">Recent Shared Threads</div>
-              <div id="client-dashboard-threads"><div class="text-muted" style="padding:12px 0">Loading threads...</div></div>
+              ${recentThreads.map(function(item) {
+                return '<div class="list-entry"><div><div class="list-entry-val">' + esc(item.TITLE || item.THREAD_ID) + '</div><div class="list-entry-label">' + esc(item.THREAD_TYPE || 'General') + '</div></div><button class="btn btn-ghost btn-sm" onclick="openThreadFromDashboard(\'' + esc(item.THREAD_ID) + '\')">Open</button></div>';
+              }).join('') || '<div class="text-muted" style="padding:12px 0">No shared threads.</div>'}
             </div>
           </div>
         </div>
@@ -618,7 +623,6 @@ async function loadDashboard() {
       </div>`;
 
     renderDashboardCharts(details);
-    lazyLoadClientDashboardExtras();
   } catch (e) {
     document.getElementById('page-content').innerHTML = renderError(e.message);
   }
@@ -645,92 +649,56 @@ function renderDashboardCharts(details) {
     return '<div class="legend-item"><div class="legend-dot" style="background:' + (palette[country] || '#6b7097') + '"></div><span>' + esc(country) + '</span></div>';
   }).join('');
 
-  const drawCharts = function() {
-    Chart.defaults.color = readCssVar('--chart-text') || '#9191b4';
-    Chart.defaults.font.family = "'DM Sans', sans-serif";
+  Chart.defaults.color = readCssVar('--chart-text') || '#9191b4';
+  Chart.defaults.font.family = "'DM Sans', sans-serif";
 
-    function createDonut(id, dataObj) {
-      var labels = Object.keys(dataObj);
-      var data = labels.map(function(label) { return dataObj[label]; });
-      if (!data.length) {
-        labels = ['None'];
-        data = [1];
-      }
-      var el = document.getElementById(id);
-      if (!el) return;
-      CHARTS[id] = new Chart(el, {
-        type: 'doughnut',
-        data: {
-          labels: labels,
-          datasets: [{
-            data: data,
-            backgroundColor: labels.map(function(label) { return palette[label] || readCssVar('--chart-empty') || '#1e1e30'; }),
-            borderWidth: 0,
-            cutout: '78%'
-          }]
-        },
-        options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } } }
-      });
+  function createDonut(id, dataObj) {
+    var labels = Object.keys(dataObj);
+    var data = labels.map(function(label) { return dataObj[label]; });
+    if (!data.length) {
+      labels = ['None'];
+      data = [1];
     }
-
-    createDonut('client-granted-chart', grantedByCountry);
-    createDonut('client-pending-chart', pendingByCountry);
-
-    var statusEl = document.getElementById('client-status-chart');
-    if (statusEl) {
-      CHARTS.status = new Chart(statusEl, {
-        type: 'bar',
-        data: {
-          labels: Object.keys(pendingByStatus),
-          datasets: [{
-            data: Object.keys(pendingByStatus).map(function(label) { return pendingByStatus[label]; }),
-            backgroundColor: readCssVar('--primary'),
-            borderRadius: 8,
-            barThickness: 18
-          }]
-        },
-        options: {
-          indexAxis: 'y',
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { grid: { color: readCssVar('--chart-grid') }, ticks: { color: readCssVar('--chart-text') } },
-            y: { grid: { display: false }, ticks: { color: readCssVar('--chart-text') } }
-          }
-        }
-      });
-    }
-  };
-  if ('requestIdleCallback' in window) {
-    requestIdleCallback(drawCharts, { timeout: 400 });
-  } else {
-    setTimeout(drawCharts, 150);
+    CHARTS[id] = new Chart(document.getElementById(id), {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: data,
+          backgroundColor: labels.map(function(label) { return palette[label] || readCssVar('--chart-empty') || '#1e1e30'; }),
+          borderWidth: 0,
+          cutout: '78%'
+        }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
   }
-}
 
-async function lazyLoadClientDashboardExtras() {
-  try {
-    const [threads, requests] = await Promise.all([
-      API.getMessageThreads(),
-      API.getDocumentRequests({})
-    ]);
-    const visibleThreads = Array.isArray(threads) ? threads.filter(function(thread) {
-      return String(thread.THREAD_TYPE || '') !== 'Direct';
-    }).slice(0, 4) : [];
-    const openRequests = Array.isArray(requests) ? requests.filter(function(item) {
-      return String(item.STATUS || 'Open') !== 'Completed';
-    }) : [];
-    const countEl = document.getElementById('client-open-requests-count');
-    if (countEl) countEl.textContent = String(openRequests.length);
-    const threadsEl = document.getElementById('client-dashboard-threads');
-    if (threadsEl) {
-      threadsEl.innerHTML = visibleThreads.map(function(item) {
-        return '<div class="list-entry"><div><div class="list-entry-val">' + esc(item.TITLE || item.THREAD_ID) + '</div><div class="list-entry-label">' + esc(item.THREAD_TYPE || 'General') + '</div></div><button class="btn btn-ghost btn-sm" onclick="openThreadFromDashboard(\'' + esc(item.THREAD_ID) + '\')">Open</button></div>';
-      }).join('') || '<div class="text-muted" style="padding:12px 0">No shared threads.</div>';
+  createDonut('client-granted-chart', grantedByCountry);
+  createDonut('client-pending-chart', pendingByCountry);
+
+  CHARTS.status = new Chart(document.getElementById('client-status-chart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(pendingByStatus),
+      datasets: [{
+        data: Object.keys(pendingByStatus).map(function(label) { return pendingByStatus[label]; }),
+        backgroundColor: readCssVar('--primary'),
+        borderRadius: 8,
+        barThickness: 18
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: readCssVar('--chart-grid') }, ticks: { color: readCssVar('--chart-text') } },
+        y: { grid: { display: false }, ticks: { color: readCssVar('--chart-text') } }
+      }
     }
-  } catch (e) {}
+  });
 }
 
 async function loadCases() {
