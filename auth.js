@@ -9,7 +9,6 @@ const CLERK_PUBLISHABLE_KEY = (window.APP_CONFIG && window.APP_CONFIG.clerkPubli
 
 let _clerkInstance = null;
 let _gasSession = null;
-let _lastAuthError = '';
 
 function getCurrentPageUrl() {
   const url = new URL(window.location.href);
@@ -78,7 +77,6 @@ function setGasSession(session) {
 
 function clearGasSession() {
   _gasSession = null;
-  _lastAuthError = '';
   sessionStorage.removeItem('mg_session');
   try {
     Object.keys(sessionStorage).forEach((key) => {
@@ -148,29 +146,19 @@ async function requireAuth(allowedRoles) {
 
   try {
     const result = await window.API.clerkLogin(email);
-    if (!result.success) {
-      _lastAuthError = result.message || 'App session exchange failed.';
-      return null;
-    }
+    if (!result.success) return null;
 
     const session = { ...result, email };
     setGasSession(session);
-    _lastAuthError = '';
 
     if (!sessionMatchesAllowedRoles(session, allowedRoles)) {
-      _lastAuthError = 'This account is authenticated but has no portal role mapping.';
       return null;
     }
     return session;
   } catch (e) {
     console.error('App session exchange failed:', e);
-    _lastAuthError = e && e.message ? e.message : 'App session exchange failed.';
     return null;
   }
-}
-
-function getLastAuthError() {
-  return _lastAuthError || '';
 }
 
 async function mountSignIn(containerId, options = {}) {
@@ -228,5 +216,4 @@ window.Auth = {
   getGasSession,
   setGasSession,
   clearGasSession,
-  getLastAuthError,
 };
