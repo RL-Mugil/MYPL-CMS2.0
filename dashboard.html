@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Metayage - Staff Dashboard</title>
+  <title>Metayage â€” Staff Dashboard</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -89,7 +89,7 @@
       <div class="nav-section" data-nav-section="portfolio">
         <button class="nav-label nav-section-toggle" type="button" onclick="toggleNavSection('portfolio')">
           <span>Portfolio</span>
-          <span class="nav-section-chevron">v</span>
+          <span class="nav-section-chevron">â–¾</span>
         </button>
         <div class="nav-section-content" data-section-content="portfolio">
         <button class="nav-item" data-page="cases" onclick="showPage('cases')">
@@ -121,7 +121,7 @@
       <div class="nav-section" data-nav-section="operations">
         <button class="nav-label nav-section-toggle" type="button" onclick="toggleNavSection('operations')">
           <span>Operations</span>
-          <span class="nav-section-chevron">v</span>
+          <span class="nav-section-chevron">â–¾</span>
         </button>
         <div class="nav-section-content" data-section-content="operations">
         <button class="nav-item" id="nav-stream" data-page="stream" onclick="showPage('stream')">
@@ -182,7 +182,7 @@
       <div class="user-pill">
         <div class="user-avatar" id="sidebar-avatar">-</div>
         <div class="user-info">
-          <div class="user-name" id="sidebar-name">Loading...</div>
+          <div class="user-name" id="sidebar-name">Loadingâ€¦</div>
           <div class="user-role" id="sidebar-role">-</div>
         </div>
         <button class="sign-out-btn" onclick="handleSignOut()" title="Sign out">
@@ -210,7 +210,7 @@
     </div>
 
     <div class="content" id="page-content">
-      <div class="loading-wrap"><div class="spinner"></div><span>Loading...</span></div>
+      <div class="loading-wrap"><div class="spinner"></div><span>Loadingâ€¦</span></div>
     </div>
   </main>
 </div>
@@ -221,7 +221,7 @@
   <div class="modal modal-landscape modal-case-form">
     <div class="modal-header">
       <h3 id="modal-case-title">Case</h3>
-      <button class="modal-close" onclick="closeModal('modal-case')">X</button>
+      <button class="modal-close" onclick="closeModal('modal-case')">âœ•</button>
     </div>
     <div id="modal-case-body"></div>
   </div>
@@ -232,7 +232,7 @@
   <div class="modal modal-landscape modal-invoice-form">
     <div class="modal-header">
       <h3 id="modal-client-title">Client</h3>
-      <button class="modal-close" onclick="closeModal('modal-client')">X</button>
+      <button class="modal-close" onclick="closeModal('modal-client')">âœ•</button>
     </div>
     <div id="modal-client-body"></div>
   </div>
@@ -243,7 +243,7 @@
   <div class="modal">
     <div class="modal-header">
       <h3 id="modal-user-title">User</h3>
-      <button class="modal-close" onclick="closeModal('modal-user')">X</button>
+      <button class="modal-close" onclick="closeModal('modal-user')">âœ•</button>
     </div>
     <div id="modal-user-body"></div>
   </div>
@@ -254,7 +254,7 @@
   <div class="modal">
     <div class="modal-header">
       <h3 id="modal-invoice-title">Invoice</h3>
-      <button class="modal-close" onclick="closeModal('modal-invoice')">X</button>
+      <button class="modal-close" onclick="closeModal('modal-invoice')">âœ•</button>
     </div>
     <div id="modal-invoice-body"></div>
   </div>
@@ -265,7 +265,7 @@
   <div class="modal">
     <div class="modal-header">
       <h3 id="modal-generic-title">Dialog</h3>
-      <button class="modal-close" onclick="closeModal('modal-generic')">X</button>
+      <button class="modal-close" onclick="closeModal('modal-generic')">âœ•</button>
     </div>
     <div id="modal-generic-body"></div>
   </div>
@@ -602,7 +602,7 @@ function showPage(page) {
   document.querySelector('.sidebar').classList.remove('open');
 
   const content = document.getElementById('page-content');
-  content.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><span>Loading...</span></div>';
+  content.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><span>Loadingâ€¦</span></div>';
 
   setTopbarActions('');
 
@@ -684,9 +684,9 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
 });
 
-// Helpers
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function fmt(v) {
-  if (!v) return '-';
+  if (!v) return 'â€”';
   try { return new Date(v).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }); }
   catch { return v; }
 }
@@ -702,7 +702,7 @@ function toInputDate(v) {
 }
 function money(v) {
   const n = parseFloat(v) || 0;
-  return 'Rs ' + n.toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  return 'â‚¹' + n.toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
 function statusBadge(s) {
   const map = {
@@ -1488,7 +1488,8 @@ function startSafePrefetch() {
     ensureClientLookupLoaded(),
     ensureUserLookupLoaded(),
     ensureCircleLookupLoaded(),
-    API.getOrganizations()
+    API.getOrganizations(),
+    API.getCasesPage({}, CASES_PAGE_LIMIT, 0)
   ]).catch(() => {});
 }
 
@@ -1503,16 +1504,26 @@ function destroyCharts() {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function loadDashboard() {
   destroyCharts();
-  document.getElementById('page-content').innerHTML = `
-  <div class="page">
-    <div class="card" style="margin-top:20px">
-      <div class="card-title">Loading dashboard</div>
-      <div class="loading-wrap" style="min-height:240px"><div class="spinner"></div><span>Loading summary and charts...</span></div>
-    </div>
-  </div>`;
   try {
-    const dashboard = await API.getDashboard(DASHBOARD_FILTERS);
-    renderDashboard(dashboard);
+    await ensureClientLookupLoaded();
+    const cachedSummary = API.getCachedDashboardSummary(DASHBOARD_FILTERS);
+    const cachedDetails = API.getCachedDashboardDetails(DASHBOARD_FILTERS);
+    if (cachedSummary) {
+      renderDashboardSummary(cachedSummary);
+      if (cachedDetails) {
+        hydrateDashboardDetails(cachedSummary, cachedDetails);
+      }
+    }
+    const summary = await API.getDashboardSummary(DASHBOARD_FILTERS);
+    renderDashboardSummary(summary);
+    if (!cachedDetails) {
+      const loadingBlock = document.getElementById('dashboard-detail-loading');
+      if (loadingBlock) {
+        loadingBlock.style.display = '';
+      }
+    }
+    const details = await API.getDashboardDetails(DASHBOARD_FILTERS);
+    hydrateDashboardDetails(summary, details);
   } catch(e) {
     showPageError('loadDashboard', e);
   }
@@ -1564,7 +1575,7 @@ function renderDashboardSummary(d) {
     </div>
     <div id="dashboard-detail-loading" class="card" style="margin-top:20px">
       <div class="card-title">Loading details</div>
-      <div class="loading-wrap" style="min-height:220px"><div class="spinner"></div><span>Loading charts and activity...</span></div>
+      <div class="loading-wrap" style="min-height:220px"><div class="spinner"></div><span>Loading charts and activityâ€¦</span></div>
     </div>
     <div id="dashboard-detail-block"></div>
   </div>`;
@@ -1593,7 +1604,7 @@ function renderDashboard(d) {
         <div class="list-entry-val">${u.docket}</div>
       </div>
       <div style="text-align:right">
-        <div class="list-entry-label">${u.country} - Due</div>
+        <div class="list-entry-label">${u.country} Â· Due</div>
         <div class="list-entry-val" style="color:var(--amber)">${u.dateStr}</div>
       </div>
     </div>`).join('') || '<div class="empty-state text-muted" style="padding:20px">No upcoming deadlines</div>';
@@ -1704,7 +1715,7 @@ function renderDashboard(d) {
         <div class="card">
           <div class="card-title">Pending Payments</div>
           ${invoiceRows}
-          <div style="text-align:right;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="showPage('finance')">View all -></button></div>
+          <div style="text-align:right;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="showPage('finance')">View all â†’</button></div>
         </div>
       </div>
     </div>
@@ -1725,66 +1736,58 @@ function renderDashboard(d) {
     </div>
   </div>`;
 
-  const drawDashboardCharts = () => {
-      const styles = getComputedStyle(document.body);
-      const chartText = styles.getPropertyValue('--chart-text').trim() || styles.getPropertyValue('--text-2').trim() || '#9191b4';
-      const chartGrid = styles.getPropertyValue('--chart-grid').trim() || 'rgba(255,255,255,0.08)';
-      const chartEmpty = styles.getPropertyValue('--chart-empty').trim() || '#1e1e30';
-      const primaryDark = styles.getPropertyValue('--primary-d').trim() || '#6366f1';
-      const primary = styles.getPropertyValue('--primary').trim() || '#818cf8';
-      Chart.defaults.color = chartText;
-      Chart.defaults.font.family = "'DM Sans', sans-serif";
+  // Draw charts
+  const styles = getComputedStyle(document.body);
+  const chartText = styles.getPropertyValue('--chart-text').trim() || styles.getPropertyValue('--text-2').trim() || '#9191b4';
+  const chartGrid = styles.getPropertyValue('--chart-grid').trim() || 'rgba(255,255,255,0.08)';
+  const chartEmpty = styles.getPropertyValue('--chart-empty').trim() || '#1e1e30';
+  const primaryDark = styles.getPropertyValue('--primary-d').trim() || '#6366f1';
+  const primary = styles.getPropertyValue('--primary').trim() || '#818cf8';
+  Chart.defaults.color = chartText;
+  Chart.defaults.font.family = "'DM Sans', sans-serif";
 
-      const makeDonut = (canvasId, dataObj) => {
-        const labels = Object.keys(dataObj);
-        const data = labels.map(k => dataObj[k]);
-        const bgColors = labels.map(k => COUNTRY_COLORS[k] || '#6b7097');
-        if (data.length === 0 || data.every(v => v === 0)) {
-          labels.push('None'); data.push(1); bgColors.push(chartEmpty);
-        }
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
-        _charts[canvasId] = new Chart(ctx, {
-          type: 'doughnut',
-          data: { labels, datasets: [{ data, backgroundColor: bgColors, borderWidth: 0, cutout: '78%' }] },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            animation: false,
-            plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw}` } } }
-          }
-        });
-      };
-
-      makeDonut('chart-granted', d.grantedByCountry || {});
-      makeDonut('chart-pending', d.pendingByCountry || {});
-
-      const statusObj = d.pendingByStatus || {};
-      const sLabels = Object.keys(statusObj);
-      const sData = sLabels.map(k => statusObj[k]);
-      const barCtx = document.getElementById('chart-status');
-      if (barCtx && sLabels.length) {
-        _charts['chart-status'] = new Chart(barCtx, {
-          type: 'bar',
-          data: {
-            labels: sLabels,
-            datasets: [{ data: sData, backgroundColor: primaryDark, hoverBackgroundColor: primary, borderRadius: 4, barThickness: 14 }]
-          },
-          options: {
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-            animation: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { display: false, grid: { display: false, color: chartGrid }, border: { display: false } },
-              y: { grid: { display: false, color: chartGrid }, border: { display: false }, ticks: { padding: 8, font: { size: 11 }, color: chartText } }
-            }
-          }
-        });
+  const makeDonut = (canvasId, dataObj) => {
+    const labels = Object.keys(dataObj);
+    const data = labels.map(k => dataObj[k]);
+    const bgColors = labels.map(k => COUNTRY_COLORS[k] || '#6b7097');
+    if (data.length === 0 || data.every(v => v === 0)) {
+      labels.push('None'); data.push(1); bgColors.push(chartEmpty);
+    }
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    _charts[canvasId] = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: bgColors, borderWidth: 0, cutout: '78%' }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw}` } } }
       }
+    });
   };
-  if ('requestIdleCallback' in window) {
-    requestIdleCallback(drawDashboardCharts, { timeout: 400 });
-  } else {
-    setTimeout(drawDashboardCharts, 150);
+
+  makeDonut('chart-granted', d.grantedByCountry || {});
+  makeDonut('chart-pending', d.pendingByCountry || {});
+
+  const statusObj = d.pendingByStatus || {};
+  const sLabels = Object.keys(statusObj);
+  const sData = sLabels.map(k => statusObj[k]);
+  const barCtx = document.getElementById('chart-status');
+  if (barCtx && sLabels.length) {
+    _charts['chart-status'] = new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: sLabels,
+        datasets: [{ data: sData, backgroundColor: primaryDark, hoverBackgroundColor: primary, borderRadius: 4, barThickness: 14 }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { display: false, grid: { display: false, color: chartGrid }, border: { display: false } },
+          y: { grid: { display: false, color: chartGrid }, border: { display: false }, ticks: { padding: 8, font: { size: 11 }, color: chartText } }
+        }
+      }
+    });
   }
 }
 
@@ -1853,12 +1856,12 @@ function renderCases(canEdit = sessionHasRoleAtLeast('Staff'), canBulk = session
       <td class="text-em" style="font-family:'Syne',sans-serif;font-size:12px">${c.CASE_ID}</td>
       <td><div style="font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.PATENT_TITLE}</div>
           <div style="font-size:11px;color:var(--text-3)">${c.APPLICATION_NUMBER||''}</div></td>
-      <td>${c.COUNTRY||'-'}</td>
+      <td>${c.COUNTRY||'â€”'}</td>
       <td>${fmt(c.FILING_DATE)}</td>
       <td>${statusBadge(c.CURRENT_STATUS)}</td>
       <td>${statusBadge(c.WORKFLOW_STAGE || deriveWorkflowStageFromStatus(c.CURRENT_STATUS, c.WORKFLOW_STAGE))}</td>
       <td style="color:${c.NEXT_DEADLINE?'var(--amber)':'var(--text-3)'}">${fmt(c.NEXT_DEADLINE)}</td>
-      <td style="font-size:12px;color:var(--text-2)">${c.ATTORNEY||'-'}</td>
+      <td style="font-size:12px;color:var(--text-2)">${c.ATTORNEY||'â€”'}</td>
       ${canEdit ? `<td><div class="action-row">
         <button class="btn btn-ghost btn-sm" onclick='openCaseModal(${JSON.stringify(JSON.stringify(c))})'>Edit</button>
         <button class="btn btn-danger btn-sm" onclick="deleteItem('Case','${c.CASE_ID}')">Del</button>
@@ -2063,7 +2066,7 @@ function openWorkflowStageModal(stage) {
     <div class="card">
       <div class="table-wrap"><table>
         <thead><tr><th>Case ID</th><th>Title</th><th>Client</th><th>Status</th><th>Attorney</th></tr></thead>
-        <tbody>${paged.items.map(item => `<tr><td class="font-mono">${item.CASE_ID}</td><td>${item.PATENT_TITLE || ''}</td><td>${item.CLIENT_NAME || item.CLIENT_ID || ''}</td><td>${statusBadge(item.CURRENT_STATUS || '')}</td><td>${item.ATTORNEY || '-'}</td></tr>`).join('') || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No cases in this stage.</td></tr>'}</tbody>
+        <tbody>${paged.items.map(item => `<tr><td class="font-mono">${item.CASE_ID}</td><td>${item.PATENT_TITLE || ''}</td><td>${item.CLIENT_NAME || item.CLIENT_ID || ''}</td><td>${statusBadge(item.CURRENT_STATUS || '')}</td><td>${item.ATTORNEY || 'â€”'}</td></tr>`).join('') || '<tr><td colspan="5" class="text-muted" style="padding:20px;text-align:center">No cases in this stage.</td></tr>'}</tbody>
       </table></div>
       ${buildPagerControls(key, paged, 'rerenderWorkflowStageModal', 'cases')}
     </div>`);
@@ -2252,7 +2255,6 @@ async function loadApprovals() {
 
 function renderApprovals() {
   const canManageAll = sessionHasRoleAtLeast('Admin');
-  const approvalDisplayId = item => item.DISPLAY_APPROVAL_ID || item.APPROVAL_ID || `PR${String(item.__ROW_INDEX || '').padStart(4, '0')}`;
   const filtered = sortItemsBy((APPROVALS_CACHE || []).filter(item => {
     const query = normalizeAlphaValue(APPROVAL_FILTERS.query);
     const haystack = normalizeAlphaValue([item.APPROVAL_ID, item.TITLE, item.APPROVER_EMAIL, item.APPROVAL_TYPE].join(' '));
@@ -2284,13 +2286,7 @@ function renderApprovals() {
           <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Approver</th><th>Status</th><th></th></tr></thead>
           <tbody>${paged.items.map(item => {
             const canReview = item.STATUS === 'Pending' && (canManageAll || String(item.APPROVER_EMAIL || '').toLowerCase() === String(SESSION.email || '').toLowerCase());
-            const rowIndex = Number(item.__ROW_INDEX || 0);
-            const approveAction = `reviewApprovalByRow(${rowIndex},'Approved')`;
-            const rejectAction = `reviewApprovalByRow(${rowIndex},'Rejected')`;
-            const actionHtml = canReview
-              ? `<div class="action-row approval-action-row">${financeActionIconButton('Approve', 'done', 'btn-success', approveAction)}${financeActionIconButton('Reject', 'close', 'btn-danger', rejectAction)}</div>`
-              : '';
-            return `<tr><td class="text-em">${approvalDisplayId(item)}</td><td>${item.TITLE || ''}</td><td>${item.APPROVAL_TYPE || ''}</td><td>${item.APPROVER_EMAIL || ''}</td><td>${statusBadge(item.STATUS || 'Pending')}</td><td>${actionHtml}</td></tr>`;
+            return `<tr><td class="text-em">${item.APPROVAL_ID}</td><td>${item.TITLE || ''}</td><td>${item.APPROVAL_TYPE || ''}</td><td>${item.APPROVER_EMAIL || ''}</td><td>${statusBadge(item.STATUS || 'Pending')}</td><td>${canReview ? `<div class="action-row approval-action-row">${financeActionIconButton('Approve', 'done', 'btn-success', `reviewApproval('${item.APPROVAL_ID}','Approved')`)}${financeActionIconButton('Reject', 'close', 'btn-danger', `reviewApproval('${item.APPROVAL_ID}','Rejected')`)}</div>` : ''}</td></tr>`;
           }).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No approvals.</td></tr>'}</tbody>
         </table></div>
       </div>
@@ -2352,17 +2348,13 @@ async function submitApprovalModal() {
   loadApprovals();
 }
 
-async function reviewApproval(approvalId, status, rowIndex = 0) {
+async function reviewApproval(approvalId, status) {
   try {
-    await API.reviewApprovalRequest(approvalId, { status, notes: '', rowIndex });
+    await API.reviewApprovalRequest(approvalId, { status, notes: '' });
     loadApprovals();
   } catch (e) {
     alert(`Approval update failed: ${e.message}`);
   }
-}
-
-async function reviewApprovalByRow(rowIndex, status) {
-  return reviewApproval('', status, Number(rowIndex || 0));
 }
 
 async function loadDocumentWorkflow() {
@@ -2377,7 +2369,7 @@ async function loadDocumentWorkflow() {
         <div class="card">
           <div class="table-wrap"><table>
             <thead><tr><th>ID</th><th>Title</th><th>Case</th><th>Due</th><th>Status</th><th>Drive</th></tr></thead>
-            <tbody>${(items || []).map(item => `<tr><td class="text-em">${item.REQUEST_ID}</td><td>${item.TITLE || ''}</td><td>${item.CASE_ID || ''}</td><td>${fmt(item.DUE_DATE)}</td><td>${statusBadge(item.STATUS || 'Open')}</td><td>${item.DRIVE_LINK ? `<a href="${item.DRIVE_LINK}" target="_blank">Open</a>` : '-'}</td></tr>`).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No document requests.</td></tr>'}</tbody>
+            <tbody>${(items || []).map(item => `<tr><td class="text-em">${item.REQUEST_ID}</td><td>${item.TITLE || ''}</td><td>${item.CASE_ID || ''}</td><td>${fmt(item.DUE_DATE)}</td><td>${statusBadge(item.STATUS || 'Open')}</td><td>${item.DRIVE_LINK ? `<a href="${item.DRIVE_LINK}" target="_blank">Open</a>` : 'â€”'}</td></tr>`).join('') || '<tr><td colspan="6" class="text-muted" style="padding:20px;text-align:center">No document requests.</td></tr>'}</tbody>
           </table></div>
         </div>
       </div>`;
@@ -2705,7 +2697,7 @@ function resetFinanceFilters() {
 
 async function markPaid(invoiceId, btn) {
   if (!confirm(`Mark ${invoiceId} as Paid?`)) return;
-  btn.disabled = true; btn.textContent = '...';
+  btn.disabled = true; btn.textContent = 'â€¦';
   try {
     await API.markInvoicePaid(invoiceId);
     loadFinance();
@@ -2721,7 +2713,7 @@ function openInvoicePaymentModal(jsonStr) {
   const invoiceId = getInvoiceUiId(inv);
   const total = getInvoiceUiTotal(inv);
   const paidAmount = parseFloat(inv.PAYMENT_AMOUNT || 0) || 0;
-  openGenericModal(`Update Payment - ${escapeHtml(invoiceId)}`, `
+  openGenericModal(`Update Payment â€” ${escapeHtml(invoiceId)}`, `
     <div class="form-row">
       <div class="form-group"><label class="form-label">Invoice Amount</label><input class="form-control" id="qp-total" value="${total.toFixed(2)}" readonly /></div>
       <div class="form-group"><label class="form-label">Amount Paid</label><input type="number" step="0.01" class="form-control" id="qp-paid-amount" value="${paidAmount ? paidAmount.toFixed(2) : ''}" /></div>
@@ -2752,7 +2744,7 @@ async function submitQuickInvoicePayment(invoiceId, total) {
     return;
   }
   btn.disabled = true;
-  btn.textContent = 'Saving...';
+  btn.textContent = 'Savingâ€¦';
   try {
     await API.updateInvoicePayment(invoiceId, {
       PAYMENT_AMOUNT: paidAmount,
@@ -2772,7 +2764,7 @@ async function sendInvoiceNow(invoiceId, btn) {
   if (!confirm(`Send invoice ${invoiceId} to the client now?`)) return;
   const oldText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'Sending...';
+  btn.textContent = 'Sendingâ€¦';
   try {
     let result;
     try {
@@ -2909,7 +2901,7 @@ async function loadMgmtClients() {
     const rows = paged.items.map(c => `<tr>
       <td class="font-mono">${c.CLIENT_ID}</td>
       <td>${c.CLIENT_NAME}</td>
-      <td style="font-size:12px">${c.EMAIL||'-'}</td>
+      <td style="font-size:12px">${c.EMAIL||'â€”'}</td>
       <td>${statusBadge(c.STATUS)}</td>
       <td><div class="action-row">
         <button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(c))})'>Edit</button>
@@ -2941,7 +2933,7 @@ function renderMgmtClients() {
   const rows = paged.items.map(c => `<tr>
     <td class="font-mono">${c.CLIENT_ID}</td>
     <td>${c.CLIENT_NAME}</td>
-    <td style="font-size:12px">${c.EMAIL||'-'}</td>
+    <td style="font-size:12px">${c.EMAIL||'Ã¢â‚¬â€'}</td>
     <td>${statusBadge(c.STATUS)}</td>
     <td><div class="action-row">
       <button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(c))})'>Edit</button>
@@ -3042,7 +3034,7 @@ async function loadMgmtOrganizations(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
     const orgUsers = activeOrg ? await API.getOrganizationUsers(activeOrg.ORG_ID) : [];
     const rows = orgs.map(o => `<tr>
       <td>${o.ORG_NAME || o.ORG_ID}</td>
-      <td>${o.ASSIGNED_STAFF_EMAIL || '-'}</td>
+      <td>${o.ASSIGNED_STAFF_EMAIL || 'â€”'}</td>
       <td>${statusBadge(o.STATUS || 'Active')}</td>
     </tr>`).join('');
     mc.innerHTML = `
@@ -3085,7 +3077,7 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
     const rows = paged.items.map(o => `<tr>
       <td class="font-mono">${o.ORG_ID}</td>
       <td>${o.ORG_NAME}</td>
-      <td>${o.ASSIGNED_STAFF_EMAIL || '-'}</td>
+      <td>${o.ASSIGNED_STAFF_EMAIL || 'â€”'}</td>
       <td>${statusBadge(o.STATUS || 'Active')}</td>
       <td><div class="action-row">
         <button class="btn btn-ghost btn-sm" onclick='openOrganizationModal(${JSON.stringify(JSON.stringify(o))})'>Edit</button>
@@ -3096,7 +3088,7 @@ async function loadMgmtOrganizationsV2(selectedOrgId = ACTIVE_ORG_VIEW_ID) {
     const userRows = (orgClients || []).map(client => `<tr>
       <td>${client.CLIENT_ID}</td>
       <td>${client.CLIENT_NAME}</td>
-      <td>${client.EMAIL || '-'}</td>
+      <td>${client.EMAIL || 'â€”'}</td>
       <td>${statusBadge(client.CLIENT_TYPE || 'Client')}</td>
       <td><button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(client))})'>Open</button></td>
     </tr>`).join('');
@@ -3141,7 +3133,7 @@ function renderMgmtOrganizations() {
   const paged = paginateItems(filtered, 'mgmt-orgs', 10);
   const rows = paged.items.map(o => `<tr>
     <td>${o.ORG_NAME || o.ORG_ID}</td>
-    <td>${o.ASSIGNED_STAFF_EMAIL || '-'}</td>
+    <td>${o.ASSIGNED_STAFF_EMAIL || 'Ã¢â‚¬â€'}</td>
     <td>${statusBadge(o.STATUS || 'Active')}</td>
     <td><div class="action-row">
       <button class="btn btn-ghost btn-sm" onclick='openOrganizationModal(${JSON.stringify(JSON.stringify(o))})'>Edit</button>
@@ -3152,7 +3144,7 @@ function renderMgmtOrganizations() {
   const userRows = (orgClients || []).map(client => `<tr>
     <td>${client.CLIENT_ID}</td>
     <td>${client.CLIENT_NAME}</td>
-    <td>${client.EMAIL || '-'}</td>
+    <td>${client.EMAIL || 'Ã¢â‚¬â€'}</td>
     <td>${statusBadge(client.CLIENT_TYPE || 'Client')}</td>
     <td><button class="btn btn-ghost btn-sm" onclick='openClientModal(${JSON.stringify(JSON.stringify(client))})'>Open</button></td>
   </tr>`).join('');
@@ -3294,7 +3286,7 @@ async function attachClientToOrganization(orgId, clientId) {
 
 function truncateText(value, max = 64) {
   const text = String(value || '').trim();
-  return text.length > max ? `${text.slice(0, max - 1)}...` : text;
+  return text.length > max ? `${text.slice(0, max - 1)}â€¦` : text;
 }
 
 function escapeAttr(value) {
@@ -3550,7 +3542,7 @@ async function ensureStreamMessagingClient() {
         .join(', ');
       const labelNode = document.getElementById('stream-typing-label');
       if (labelNode) {
-        labelNode.textContent = typingLabel ? `${typingLabel} typing...` : '';
+        labelNode.textContent = typingLabel ? `${typingLabel} typingâ€¦` : '';
       }
     }
     if (STREAM_STATE.activeChannel && event.cid === STREAM_STATE.activeChannel.cid && !['typing.start', 'typing.stop'].includes(event.type)) {
@@ -3599,7 +3591,7 @@ function renderStreamChannelList() {
   const rows = (STREAM_STATE.channels || []).map((channel) => {
     const meta = getStreamChannelMeta(channel);
     const subtitle = meta.typingUsers.length
-      ? `${meta.typingUsers.map((entry) => entry.user?.name || entry.user?.email || 'User').join(', ')} typing...`
+      ? `${meta.typingUsers.map((entry) => entry.user?.name || entry.user?.email || 'User').join(', ')} typingâ€¦`
       : (meta.lastMessage?.text || (meta.lastMessage?.attachments?.some((attachment) => attachment?.type === 'portal_poll') ? 'Poll' : 'No messages yet.'));
     const unreadCount = Number(channel?.countUnread?.() || channel?.state?.unreadCount || 0);
     return `
@@ -3635,7 +3627,7 @@ function renderStreamActiveChannel() {
   const meta = getStreamChannelMeta(channel);
   const mentionTargets = getStreamMentionTargets(channel);
   const typingLabel = meta.typingUsers.length
-    ? `${meta.typingUsers.map((entry) => entry.user?.name || entry.user?.email || 'User').join(', ')} typing...`
+    ? `${meta.typingUsers.map((entry) => entry.user?.name || entry.user?.email || 'User').join(', ')} typingâ€¦`
     : (meta.isGroup ? `${Object.keys(meta.state.members || {}).length} members` : (meta.otherMembers[0]?.user?.email || 'Direct stream conversation'));
   const items = meta.messages.map((message) => {
     const mine = message.user?.id === STREAM_STATE.auth?.user?.id;
@@ -4012,9 +4004,9 @@ async function loadStreamMessaging() {
             <div class="form-group" style="margin-bottom:12px">
               <input class="form-control" id="stream-channel-search" placeholder="Search channels or people" oninput="filterStreamChannels()" />
             </div>
-            <div class="stream-channel-list" id="stream-channel-list"><div class="loading-wrap"><div class="spinner"></div><span>Loading...</span></div></div>
+            <div class="stream-channel-list" id="stream-channel-list"><div class="loading-wrap"><div class="spinner"></div><span>Loadingâ€¦</span></div></div>
           </div>
-          <div class="card stream-panel" id="stream-active-panel"><div class="text-muted" style="padding:24px">Loading Stream conversations...</div></div>
+          <div class="card stream-panel" id="stream-active-panel"><div class="text-muted" style="padding:24px">Loading Stream conversationsâ€¦</div></div>
         </div>
       </div>`;
     await refreshStreamChannelList(false);
@@ -4513,10 +4505,10 @@ async function loadDailyAudit() {
     const audit = await API.getDailyAudit(filters);
     const internalNames = USER_LOOKUP_CACHE.filter(user => isInternalUserRole(user.ROLE)).map(user => ({ FULL_NAME: user.FULL_NAME })).filter(user => user.FULL_NAME);
     const priorities = (audit.priorities || []).map(item => `
-      <tr><td>${item.ENTRY_DATE}</td><td>${item.USER_NAME || item.USER_EMAIL}</td><td>${item.PRIORITY_1 || '-'}</td><td>${item.PRIORITY_2 || '-'}</td><td>${item.PRIORITY_3 || '-'}</td></tr>
+      <tr><td>${item.ENTRY_DATE}</td><td>${item.USER_NAME || item.USER_EMAIL}</td><td>${item.PRIORITY_1 || 'â€”'}</td><td>${item.PRIORITY_2 || 'â€”'}</td><td>${item.PRIORITY_3 || 'â€”'}</td></tr>
     `).join('');
     const wrapups = (audit.wrapups || []).map(item => `
-      <tr><td>${item.ENTRY_DATE}</td><td>${item.USER_NAME || item.USER_EMAIL}</td><td>${item.HIGH_POINTS || '-'}</td><td>${item.LOW_POINTS || '-'}</td><td>${item.HELP_NEEDED || '-'}</td></tr>
+      <tr><td>${item.ENTRY_DATE}</td><td>${item.USER_NAME || item.USER_EMAIL}</td><td>${item.HIGH_POINTS || 'â€”'}</td><td>${item.LOW_POINTS || 'â€”'}</td><td>${item.HELP_NEEDED || 'â€”'}</td></tr>
     `).join('');
     setTopbarActions(isCompactMobileUi()
       ? renderMobileTopbarAction(DAILY_AUDIT_FILTER_OPEN ? 'Close Daily Audit Filters' : 'Open Daily Audit Filters', 'filter_alt', 'toggleDailyAuditFilters()')
@@ -4636,8 +4628,8 @@ async function loadExpenses() {
         <td>${c.CATEGORY}</td>
         <td>${money(c.AMOUNT)}</td>
         <td>${statusBadge(c.STATUS || 'Submitted')}</td>
-        <td>${c.USER_NAME || '-'}</td>
-        <td>${c.BILL_LINK ? `<a href="${c.BILL_LINK}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">Open</a>` : '-'}</td>
+        <td>${c.USER_NAME || 'â€”'}</td>
+        <td>${c.BILL_LINK ? `<a href="${c.BILL_LINK}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">Open</a>` : 'â€”'}</td>
       </tr>`).join('');
     document.getElementById('page-content').innerHTML = `
     <div class="page">
@@ -4790,7 +4782,7 @@ function loadContact() {
       <h3 style="margin-bottom:20px">Send a Message</h3>
       <div class="form-group"><label class="form-label">Subject</label><input class="form-control" id="ct-subject" placeholder="What is this regarding?" /></div>
       <div class="form-group"><label class="form-label">Related Case ID (optional)</label><input class="form-control" id="ct-case" placeholder="e.g. 157M001" /></div>
-      <div class="form-group"><label class="form-label">Message</label><textarea class="form-control" id="ct-message" rows="5" placeholder="Type your message..."></textarea></div>
+      <div class="form-group"><label class="form-label">Message</label><textarea class="form-control" id="ct-message" rows="5" placeholder="Type your messageâ€¦"></textarea></div>
       <button class="btn btn-primary" onclick="submitContact()">Send Message</button>
       <div id="ct-status" style="margin-top:12px"></div>
     </div>
@@ -4813,7 +4805,7 @@ async function submitContact() {
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-//  MODALS - Case
+//  MODALS â€” Case
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function clientSearchBlock(selectedCode) {
   const listId = 'client-code-options';
@@ -4911,7 +4903,7 @@ async function refreshAfterCaseSave() {
 
 async function saveCase(existingId) {
   const btn = document.getElementById('mc-save');
-  btn.disabled = true; btn.textContent = 'Saving...';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const clientCode = document.getElementById('mc-client-code').value.trim().toUpperCase();
   const client = resolveClientByCode(clientCode);
   if (!client) {
@@ -5053,7 +5045,7 @@ function refreshClientTypeFields() {
 
 async function saveClient(existingId) {
   const btn = document.getElementById('cl-save');
-  btn.disabled = true; btn.textContent = 'Saving...';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const data = {
     CLIENT_ID: existingId || undefined,
     CLIENT_NAME: document.getElementById('cl-name').value.trim(),
@@ -5087,7 +5079,7 @@ async function saveClient(existingId) {
 
 async function saveClientV2(existingId) {
   const btn = document.getElementById('cl-save');
-  btn.disabled = true; btn.textContent = 'Saving...';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const clientType = document.getElementById('cl-client-type').value;
   const org = clientType === 'Organization' ? resolveOrganization(document.getElementById('cl-org-id').value.trim()) : null;
   const adminUser = clientType === 'Organization' ? resolveUserById(document.getElementById('cl-admin-user').value.trim()) : null;
@@ -5136,8 +5128,8 @@ function openClientModalLegacy(jsonStr) {
   document.getElementById('modal-client-body').innerHTML = `
     ${!c ? `<div class="form-group"><label class="form-label">Client Type *</label>
       <div style="display:flex;gap:8px;margin-top:4px">
-        <button class="btn btn-primary btn-sm" id="type-M" onclick="selType('M')">M - Indian</button>
-        <button class="btn btn-ghost btn-sm" id="type-Y" onclick="selType('Y')">Y - Abroad</button>
+        <button class="btn btn-primary btn-sm" id="type-M" onclick="selType('M')">M â€” Indian</button>
+        <button class="btn btn-ghost btn-sm" id="type-Y" onclick="selType('Y')">Y â€” Abroad</button>
       </div>
       <input type="hidden" id="cl-type" value="false" />
     </div>` : ''}
@@ -5164,7 +5156,7 @@ function selTypeLegacy(t) {
 
 async function saveClientLegacy(existingId) {
   const btn = document.getElementById('cl-save');
-  btn.disabled = true; btn.textContent = 'Saving...';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const data = {
     CLIENT_ID: existingId || undefined,
     CLIENT_NAME: document.getElementById('cl-name').value.trim(),
@@ -5238,7 +5230,7 @@ function syncUserOrgSelection() {
 
 async function saveUser(existingId) {
   const btn = document.getElementById('mu-save');
-  btn.disabled = true; btn.textContent = 'Saving...';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const data = {
     USER_ID: existingId || undefined,
     FULL_NAME: document.getElementById('mu-name').value.trim(),
@@ -5270,7 +5262,7 @@ async function saveUser(existingId) {
 
 async function saveUserV2(existingId) {
   const btn = document.getElementById('mu-save');
-  btn.disabled = true; btn.textContent = 'Saving...';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const org = resolveOrganization(document.getElementById('mu-org').value.trim());
   const selectedRole = document.getElementById('mu-role').value;
   const data = {
@@ -5403,11 +5395,11 @@ async function openInvoiceModal(jsonStr) {
         <div class="form-group"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">InvAmount</label><input class="form-control" id="mi-inv-amount" value="${money(getInvoiceUiTotal(inv)).replace('Rs ','')}" readonly /></div>
-        <div class="form-group"><label class="form-label">Amount due</label><input class="form-control" id="mi-amount-due" value="${money(getInvoiceUiDue(inv)).replace('Rs ','')}" readonly /></div>
+        <div class="form-group"><label class="form-label">InvAmount</label><input class="form-control" id="mi-inv-amount" value="${money(getInvoiceUiTotal(inv)).replace('â‚¹','')}" readonly /></div>
+        <div class="form-group"><label class="form-label">Amount due</label><input class="form-control" id="mi-amount-due" value="${money(getInvoiceUiDue(inv)).replace('â‚¹','')}" readonly /></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Net Revenue</label><input class="form-control" id="mi-net-revenue" value="${money(parseFloat(inv?.['Net Revenue'] || 0) || 0).replace('Rs ','')}" readonly /></div>
+        <div class="form-group"><label class="form-label">Net Revenue</label><input class="form-control" id="mi-net-revenue" value="${money(parseFloat(inv?.['Net Revenue'] || 0) || 0).replace('â‚¹','')}" readonly /></div>
         <div class="form-group"><label class="form-label">Payment Mode</label><input class="form-control" id="mi-payment-mode" value="${escapeAttr(inv?.PAYMENT_MODE || '')}" /></div>
       </div>
       <div class="form-row">
@@ -5502,7 +5494,7 @@ function refreshInvoiceCalculatedFields() {
 
 async function saveInvoice(existingId) {
   const btn = document.getElementById('mi-save');
-  btn.disabled = true; btn.textContent = 'Saving...';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const selectedClient = resolveClientByAnyKey(document.getElementById('mi-client-code').value.trim());
   if (!selectedClient) {
     alert('Select a valid client code.');
@@ -5767,7 +5759,7 @@ function openClientModalLegacyV0(jsonStr) {
 
 async function saveClientLegacyV0(existingId) {
   const btn = document.getElementById('cl-save');
-  btn.disabled = true; btn.textContent = 'Saving...';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const data = {
     CLIENT_ID: existingId || undefined,
     CLIENT_NAME: document.getElementById('cl-name').value.trim(),
@@ -5837,7 +5829,7 @@ function openCaseModalLegacyV0(jsonStr) {
 
 async function saveCaseLegacyV0(existingId) {
   const btn = document.getElementById('mc-save');
-  btn.disabled = true; btn.textContent = 'Saving...';
+  btn.disabled = true; btn.textContent = 'Savingâ€¦';
   const data = {
     CASE_ID: existingId || undefined,
     CLIENT_ID: document.getElementById('mc-cid').value.trim(),
