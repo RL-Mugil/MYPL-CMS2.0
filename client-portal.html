@@ -137,7 +137,7 @@ let __suppressHashRouting = false;
 const STATE = {
   currentPage: 'dashboard',
   clients: [],
-  cases: { all: [], filtered: [], limit: 20, filters: { query: '', client: '', status: '', country: '', fromDate: '', toDate: '' }, filtersOpen: false },
+  cases: { all: [], filtered: [], items: [], total: 0, offset: 0, hasMore: false, limit: 20, filters: { query: '', client: '', status: '', country: '', fromDate: '', toDate: '' }, filtersOpen: false },
   documents: { all: [], filtered: [], limit: 24, filters: { query: '', client: '', category: '' }, filtersOpen: false },
   requests: { all: [], filtered: [], limit: 20, filters: { query: '', client: '', status: '', caseId: '' }, filtersOpen: false },
   finance: { all: [], filtered: [], limit: 20, filters: { query: '', client: '', status: '', month: '', fromDate: '', toDate: '' }, filtersOpen: false },
@@ -736,17 +736,12 @@ async function lazyLoadClientDashboardExtras() {
 async function loadCases() {
   setTopbarActions(isCompactMobileUi() ? renderMobileTopbarAction('Case Filters', 'filter_alt', 'toggleFilterDrawer(\'cases\')') : '<button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer(\'cases\')">Filters</button>');
   try {
-    if (!STATE.cases.all.length) STATE.cases.all = await API.getCases({});
-    var ticketMap = {};
-    await Promise.all((STATE.cases.all || []).map(function(item) {
-      return loadCaseTickets(item.CASE_ID || '').then(function(tickets) {
-        ticketMap[item.CASE_ID || ''] = tickets || [];
-      }).catch(function() {
-        ticketMap[item.CASE_ID || ''] = [];
-      });
-    }));
-    STATE.tickets.byCase = ticketMap;
-    applyCaseFilters();
+    STATE.cases.items = [];
+    STATE.cases.total = 0;
+    STATE.cases.offset = 0;
+    STATE.cases.hasMore = false;
+    STATE.tickets.byCase = {};
+    await applyCaseFilters(true);
   } catch (e) {
     document.getElementById('page-content').innerHTML = renderError(e.message);
   }
@@ -769,30 +764,48 @@ function resetCaseFilters() {
   applyCaseFilters(true);
 }
 
-function loadMoreCases() {
-  STATE.cases.limit += 20;
+async function loadMoreCases() {
+  var filters = STATE.cases.filters || {};
+  var page = await API.getCasesPage({
+    clientCode: filters.client || '',
+    query: filters.query || '',
+    status: filters.status || '',
+    country: filters.country || '',
+    fromDate: filters.fromDate || '',
+    toDate: filters.toDate || ''
+  }, STATE.cases.limit, STATE.cases.offset || 0);
+  var nextItems = Array.isArray(page.items) ? page.items : [];
+  STATE.cases.items = (STATE.cases.items || []).concat(nextItems);
+  STATE.cases.total = page.total || STATE.cases.items.length;
+  STATE.cases.offset = page.nextOffset || STATE.cases.items.length;
+  STATE.cases.hasMore = !!page.hasMore;
+  await Promise.all(nextItems.map(function(item) {
+    return loadCaseTickets(item.CASE_ID || '').then(function(tickets) {
+      STATE.tickets.byCase[item.CASE_ID || ''] = tickets || [];
+    }).catch(function() {
+      STATE.tickets.byCase[item.CASE_ID || ''] = [];
+    });
+  }));
   applyCaseFilters();
 }
 
-function applyCaseFilters(resetLimit) {
-  if (resetLimit) STATE.cases.limit = 20;
+async function applyCaseFilters(resetLimit) {
+  if (resetLimit) {
+    STATE.cases.limit = 20;
+    STATE.cases.items = [];
+    STATE.cases.total = 0;
+    STATE.cases.offset = 0;
+    STATE.cases.hasMore = false;
+    STATE.tickets.byCase = {};
+    await loadMoreCases();
+    return;
+  }
   var filters = STATE.cases.filters;
-  var filtered = STATE.cases.all.filter(function(item) {
-    if (filters.client && String(item.CLIENT_ID || '').trim().toUpperCase() !== String(filters.client || '').trim().toUpperCase()) return false;
-    if (filters.status && String(item.CURRENT_STATUS || '') !== filters.status) return false;
-    if (filters.country && String(item.COUNTRY || '') !== filters.country) return false;
-    if (!matchesDateRange(item.NEXT_DEADLINE || item.FILING_DATE, filters.fromDate, filters.toDate)) return false;
-    return csvContains([item.CASE_ID, item.CLIENT_ID, item.PATENT_TITLE, item.APPLICATION_NUMBER, item.COUNTRY, item.CURRENT_STATUS], filters.query);
-  });
-
-  filtered.sort(function(a, b) {
-    return new Date(b.LAST_UPDATED || b.CREATED_DATE || 0) - new Date(a.LAST_UPDATED || a.CREATED_DATE || 0);
-  });
-
+  var filtered = STATE.cases.items || [];
   STATE.cases.filtered = filtered;
-  var visible = filtered.slice(0, STATE.cases.limit);
-  var countries = Array.from(new Set(STATE.cases.all.map(function(item) { return item.COUNTRY || ''; }).filter(Boolean))).sort();
-  var statuses = Array.from(new Set(STATE.cases.all.map(function(item) { return item.CURRENT_STATUS || ''; }).filter(Boolean))).sort();
+  var visible = filtered;
+  var countries = Array.from(new Set(filtered.map(function(item) { return item.COUNTRY || ''; }).filter(Boolean))).sort();
+  var statuses = Array.from(new Set(filtered.map(function(item) { return item.CURRENT_STATUS || ''; }).filter(Boolean))).sort();
   var caseRows = visible.map(function(item) {
     var caseTickets = STATE.tickets.byCase[item.CASE_ID] || [];
     var latestTicket = caseTickets[0] || null;
@@ -841,8 +854,8 @@ function applyCaseFilters(resetLimit) {
           '<tbody>' + (caseRows || '<tr><td colspan="7" class="text-muted" style="padding:20px;text-align:center">No cases found for the selected filters.</td></tr>') + '</tbody>' +
         '</table></div>' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">' +
-          '<div class="text-muted">' + visible.length + ' of ' + filtered.length + ' cases</div>' +
-          (visible.length < filtered.length ? '<button class="btn btn-primary btn-sm" onclick="loadMoreCases()">Load More</button>' : '') +
+          '<div class="text-muted">' + visible.length + ' of ' + (STATE.cases.total || visible.length) + ' cases</div>' +
+          (STATE.cases.hasMore ? '<button class="btn btn-primary btn-sm" onclick="loadMoreCases()">Load More</button>' : '') +
         '</div>' +
       '</div>' +
       '<div class="card">' +
