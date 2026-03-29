@@ -2,11 +2,13 @@ window.__APP_CONFIG__ = window.__APP_CONFIG__ || {};
 
 (function initAppConfig() {
   var host = (window.location.hostname || '').toLowerCase();
+  var origin = window.location.origin || '';
 
   var isLocal = host === 'localhost' || host === '127.0.0.1' || host === '';
   var isGitHubPages = host === 'rl-mugil.github.io';
   var isCloudflarePages = host.indexOf('.pages.dev') > -1;
   var isCustomProd = host === 'cms.metayage.com';
+  var isWorkersDev = host.indexOf('.workers.dev') > -1;
   var isStaging = /staging|preview/i.test(host);
 
   var env = 'production';
@@ -46,7 +48,12 @@ window.__APP_CONFIG__ = window.__APP_CONFIG__ || {};
   var userConfig = window.__APP_CONFIG__;
   var merged = Object.assign({}, defaults, userConfig);
 
-  merged.apiBase = userConfig.apiBase || merged.apiBaseByEnv[env] || '';
+  var sameOriginApiBase = '';
+  if ((isCustomProd || isWorkersDev) && !isCloudflarePages && !isGitHubPages && origin) {
+    sameOriginApiBase = origin;
+  }
+
+  merged.apiBase = userConfig.apiBase || sameOriginApiBase || merged.apiBaseByEnv[env] || '';
   merged.clerkPublishableKey = userConfig.clerkPublishableKey || merged.clerkPublishableKeyByEnv[env] || '';
   merged.streamEnabled = typeof userConfig.streamEnabled === 'boolean'
     ? userConfig.streamEnabled
