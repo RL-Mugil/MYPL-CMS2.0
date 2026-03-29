@@ -82,7 +82,7 @@
         }
 
         if (Auth.getClerkEmail()) {
-          status.textContent = 'Your Clerk login succeeded, but this email is not mapped in USER_ROLES yet.';
+          status.textContent = Auth.getLastAuthError() || 'Your Clerk login succeeded, but this email is not mapped in USER_ROLES yet.';
           status.className = 'alert alert-error';
         }
 
