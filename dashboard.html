@@ -1828,19 +1828,17 @@ async function loadCases() {
   try {
     await ensureClientLookupLoaded();
     await ensureUserLookupLoaded();
-    CASES_ALL = [];
-    CASES_ITEMS = [];
-    CASES_TOTAL = 0;
-    CASES_HAS_MORE = true;
-    CASES_PAGE_OFFSET = 0;
-    renderCases(CASES_ITEMS, canEdit, canBulk);
-    await loadMoreCases();
+    TABLE_PAGERS.cases = TABLE_PAGERS.cases || { page: 1, size: 10 };
+    CASES_ALL = sortItemsBy(await API.getCases(CASE_FILTERS), item => item.PATENT_TITLE || item.CASE_ID, CASE_FILTERS.sortDir);
+    renderCases(canEdit, canBulk);
   } catch(e) {
     showPageError('loadCases', e);
   }
 }
 
-function renderCases(cases = CASES_ITEMS, canEdit = sessionHasRoleAtLeast('Staff'), canBulk = sessionHasRoleAtLeast('Admin')) {
+function renderCases(canEdit = sessionHasRoleAtLeast('Staff'), canBulk = sessionHasRoleAtLeast('Admin')) {
+  const paged = paginateItems(CASES_ALL, 'cases', 10);
+  const cases = paged.items;
   if (!cases.length) {
     document.getElementById('page-content').innerHTML = `
     <div class="page">
@@ -1874,10 +1872,7 @@ function renderCases(cases = CASES_ITEMS, canEdit = sessionHasRoleAtLeast('Staff
       <thead><tr>${canBulk?'<th></th>':''}<th>Case ID</th><th>Patent Title</th><th>Country</th><th>Filed</th><th>Status</th><th>Workflow Stage</th><th>Deadline</th><th>Attorney</th>${canEdit?'<th>Actions</th>':''}</tr></thead>
       <tbody>${rows}</tbody>
     </table></div></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
-      <div class="text-muted">${cases.length} of ${CASES_TOTAL || cases.length} cases</div>
-      ${CASES_HAS_MORE ? '<button id="cases-load-more" class="btn btn-primary btn-sm" onclick="loadMoreCases()">Load More</button>' : ''}
-    </div>
+    ${buildPagerControls('cases', paged, 'renderCases', 'cases')}
   </div>`;
 }
 
@@ -1891,7 +1886,6 @@ async function loadMoreCases() {
     const page = await API.getCasesPage(CASE_FILTERS, CASES_PAGE_LIMIT, CASES_PAGE_OFFSET);
     const nextItems = Array.isArray(page.items) ? page.items : [];
     CASES_ITEMS = CASES_ITEMS.concat(nextItems);
-    CASES_ALL = CASES_ITEMS.slice();
     CASES_TOTAL = page.total || CASES_ITEMS.length;
     CASES_HAS_MORE = !!page.hasMore;
     CASES_PAGE_OFFSET = page.nextOffset || CASES_ITEMS.length;
