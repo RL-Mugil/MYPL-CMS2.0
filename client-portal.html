@@ -736,6 +736,7 @@ async function lazyLoadClientDashboardExtras() {
 async function loadCases() {
   setTopbarActions(isCompactMobileUi() ? renderMobileTopbarAction('Case Filters', 'filter_alt', 'toggleFilterDrawer(\'cases\')') : '<button class="btn btn-ghost btn-sm" onclick="toggleFilterDrawer(\'cases\')">Filters</button>');
   try {
+    STATE.cases.all = [];
     STATE.cases.items = [];
     STATE.cases.total = 0;
     STATE.cases.offset = 0;
@@ -776,6 +777,7 @@ async function loadMoreCases() {
   }, STATE.cases.limit, STATE.cases.offset || 0);
   var nextItems = Array.isArray(page.items) ? page.items : [];
   STATE.cases.items = (STATE.cases.items || []).concat(nextItems);
+  STATE.cases.all = STATE.cases.items.slice();
   STATE.cases.total = page.total || STATE.cases.items.length;
   STATE.cases.offset = page.nextOffset || STATE.cases.items.length;
   STATE.cases.hasMore = !!page.hasMore;

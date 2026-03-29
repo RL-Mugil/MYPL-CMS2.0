@@ -1828,6 +1828,7 @@ async function loadCases() {
   try {
     await ensureClientLookupLoaded();
     await ensureUserLookupLoaded();
+    CASES_ALL = [];
     CASES_ITEMS = [];
     CASES_TOTAL = 0;
     CASES_HAS_MORE = true;
@@ -1890,6 +1891,7 @@ async function loadMoreCases() {
     const page = await API.getCasesPage(CASE_FILTERS, CASES_PAGE_LIMIT, CASES_PAGE_OFFSET);
     const nextItems = Array.isArray(page.items) ? page.items : [];
     CASES_ITEMS = CASES_ITEMS.concat(nextItems);
+    CASES_ALL = CASES_ITEMS.slice();
     CASES_TOTAL = page.total || CASES_ITEMS.length;
     CASES_HAS_MORE = !!page.hasMore;
     CASES_PAGE_OFFSET = page.nextOffset || CASES_ITEMS.length;
